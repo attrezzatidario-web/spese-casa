@@ -14,8 +14,9 @@
   };
 
   let url = LS.get('sc_url', '');
-  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [] });
+  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [] });
   if (!db.fisse) db.fisse = [];
+  if (!db.veicoli) db.veicoli = [];
   if (!db.config) db.config = {};
   if (!db.fatture) db.fatture = [];
   let queue = LS.get('sc_queue', []);
@@ -174,7 +175,7 @@
   }
 
   /* ================= Data layer ================= */
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse' };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -240,7 +241,7 @@
       const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
+      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
@@ -286,15 +287,15 @@
   }
 
   /* ================= Router ================= */
-  const TITLES = { home: 'Home', spese: 'Spese', fisse: 'Spese fisse', affitto: 'Affitto', bollette: 'Bollette', impostazioni: 'Impostazioni' };
-  const SUBS = { home: '', spese: 'Tutti i movimenti', fisse: 'Abbonamenti, rate e calendario', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', impostazioni: 'Collegamento, IA e categorie' };
+  const TITLES = { home: 'Home', spese: 'Spese', fisse: 'Spese fisse', auto: 'Auto', affitto: 'Affitto', bollette: 'Bollette', impostazioni: 'Impostazioni' };
+  const SUBS = { home: '', spese: 'Tutti i movimenti', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', impostazioni: 'Collegamento, IA e categorie' };
   function route() {
     view = (location.hash || '#home').slice(1);
     if (!TITLES[view]) view = 'home';
     $$('.view').forEach(v => (v.hidden = v.id !== 'v-' + view));
     $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
     $('#title').textContent = TITLES[view];
-    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : 'Nuova spesa';
+    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : 'Nuova spesa';
     const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     animate = true;
@@ -312,6 +313,7 @@
     if (view === 'bollette') renderBills();
     if (view === 'affitto') renderRent();
     if (view === 'fisse') renderFisse();
+    if (view === 'auto') renderAuto();
     if (view === 'impostazioni') renderSettings();
     setSync();
   }
@@ -322,6 +324,8 @@
     const el = $('#badge'); el.hidden = !n; el.textContent = n;
     const r = rentArrears().length;
     const er = $('#badge-rent'); er.hidden = !r; er.textContent = r;
+    const al = autoScadenze().filter(x => daysTo(x.date) < 0).length;
+    const ea = $('#badge-auto'); ea.hidden = !al; ea.textContent = al;
     const fl = fisseActive().filter(f => !isOn(f.auto) && f.prossima && daysTo(f.prossima) < 0).length;
     const ef = $('#badge-fx'); ef.hidden = !fl; ef.textContent = fl;
   }
@@ -381,14 +385,15 @@
     const ab = activeBills().map(b => ({ kind: 'bill', due: b.scadenza, importo: b.importo, b }));
     const rents = rentUpcoming().map(r => ({ kind: 'rent', due: r.due, importo: r.importo, r }));
     const fxs = fisseActive().filter(f => f.prossima && daysTo(f.prossima) <= 30).map(f => ({ kind: 'fx', due: f.prossima, importo: f.importo, f }));
-    const all = [...ab, ...rents, ...fxs].sort((a, b) => a.due.localeCompare(b.due));
+    const aus = autoScadenze().filter(x => daysTo(x.date) <= 30).map(x => ({ kind: 'auto', due: x.date, importo: x.importo, x }));
+    const all = [...ab, ...rents, ...fxs, ...aus].sort((a, b) => a.due.localeCompare(b.due));
     const due30 = all.filter(x => daysTo(x.due) <= 30);
     const late = all.filter(x => daysTo(x.due) < 0);
     countTo($('#h-bills'), sum(due30));
     $('#h-bills-sub').innerHTML = late.length
       ? `<span class="chip late">${late.length} scadut${late.length === 1 ? 'o' : 'i'}</span> · ${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`
       : `${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`;
-    $('#h-due').innerHTML = all.slice(0, 6).map(x => x.kind === 'rent' ? rentDueItem(x.r) : x.kind === 'fx' ? fxItem(x.f, true) : dueItem(x.b)).join('') || `<div class="empty">Nessuna scadenza. <a class="link" href="#bollette">Aggiungi una bolletta</a></div>`;
+    $('#h-due').innerHTML = all.slice(0, 6).map(x => x.kind === 'rent' ? rentDueItem(x.r) : x.kind === 'fx' ? fxItem(x.f, true) : x.kind === 'auto' ? autoDueItem(x.x) : dueItem(x.b)).join('') || `<div class="empty">Nessuna scadenza. <a class="link" href="#bollette">Aggiungi una bolletta</a></div>`;
 
     // affitto del mese
     const rc = rentCfg();
@@ -761,14 +766,16 @@
         <span class="sw-t"><b>Includi le bollette</b><small>Nell'email anche le bollette in scadenza.</small></span></label>
       <label class="sw"><input type="checkbox" name="fisse" ${n.fisse !== false ? 'checked' : ''}><span class="sw-ui"></span>
         <span class="sw-t"><b>Includi le spese fisse</b><small>Abbonamenti, rate e assicurazioni con l'avviso attivo.</small></span></label>
+      <label class="sw"><input type="checkbox" name="auto" ${n.auto !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Includi le scadenze auto</b><small>Assicurazione, bollo, revisione e tagliando (anche un mese prima).</small></span></label>
       <div class="f-row" style="margin-top:6px">
         <label class="f"><span>Avvisami</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
         <label class="f"><span>Orario</span><select name="ora">${hours.map(hh => `<option value="${hh}"${String(n.ora) === hh ? ' selected' : ''}>${hh}:00</option>`).join('')}</select></label>
       </div>
       <p class="muted small" style="margin:0 0 8px">Le email arrivano all'indirizzo Gmail del tuo account Google.</p>`,
       async fd => {
-        const v = { calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
-        if (v.calendario && !rentCfg() && !fisseActive().length) return toast('Aggiungi prima l\'affitto o una spesa fissa');
+        const v = { calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
+        if (v.calendario && !rentCfg() && !fisseActive().length && !vehActive().length) return toast('Aggiungi prima l\'affitto o una spesa fissa');
         setConfig('notifiche', v);
         setConfig('appUrl', location.href.split('#')[0]);
         closeSheet(); busy('Attivo le notifiche…');
@@ -786,6 +793,311 @@
   }
 
 
+
+
+  /* ================= AUTO ================= */
+  const ICO_CAR = '<svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/><circle cx="7.5" cy="13.5" r=".8"/><circle cx="16.5" cy="13.5" r=".8"/></svg>';
+  const VOCI_AUTO = {
+    Carburante: '<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10"/><path d="M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/>',
+    Manutenzione: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
+    Tagliando: '<path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+    Pneumatici: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v5M12 16v5M3 12h5M16 12h5"/>',
+    Assicurazione: '<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+    Bollo: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 14h6M10 17h4"/>',
+    Revisione: '<circle cx="12" cy="10" r="6"/><path d="M9.5 10l1.8 1.8L15 8.2M8.5 15.5L7 21l5-2 5 2-1.5-5.5"/>',
+    Pedaggio: '<path d="M8 3L4 21M16 3l4 18M12 4v3M12 10v3M12 16v3"/>',
+    Parcheggio: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M10 17V7h3a3 3 0 0 1 0 6h-3"/>',
+    Lavaggio: '<path d="M12 3s-5 6-5 10a5 5 0 0 0 10 0c0-4-5-10-5-10z"/>',
+    Multa: '<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
+    Altro: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>'
+  };
+  const SCAD = [['Assicurazione', 'scadAssicurazione', 'impAssicurazione', 12], ['Bollo', 'scadBollo', 'impBollo', 12], ['Revisione', 'scadRevisione', '', 24], ['Tagliando', 'scadTagliando', '', 12]];
+  const ALIM = ['Gasolio', 'Benzina', 'GPL', 'Metano', 'Ibrida', 'Elettrica'];
+  const AUTO_CAT = 'Auto e trasporti';
+  const vehActive = () => (db.veicoli || []).filter(v => v.attiva === '' || v.attiva == null || isOn(v.attiva));
+  let autoVid = null, autoAll = false;
+  const curVeh = () => { const l = vehActive(); return l.find(v => v.id === autoVid) || l[0] || null; };
+  const vehOf = sp => db.veicoli.find(v => v.id === sp.veicolo) || null;
+  const voceIcon = (voce, cls = '') => `<div class="ic voce-ic ${cls}"><svg viewBox="0 0 24 24">${VOCI_AUTO[voce] || VOCI_AUTO.Altro}</svg></div>`;
+  const FUEL_RE = /benzin|gasolio|diesel|carburant|rifornim|\bgpl\b|metano|enilive|\beni\b|\bq8\b|\bip\b|esso|tamoil|api\b|shell|repsol|total/i;
+  function autoVoce(sp) {
+    if (sp.voceAuto) return sp.voceAuto;
+    const t = String(sp.descrizione || '') + ' ' + String(sp.note || '');
+    if (FUEL_RE.test(t)) return 'Carburante';
+    if (/telepass|autostrad|pedagg/i.test(t)) return 'Pedaggio';
+    if (/parchegg|easypark|mycicero/i.test(t)) return 'Parcheggio';
+    if (/lavagg/i.test(t)) return 'Lavaggio';
+    if (/gomm|pneumat/i.test(t)) return 'Pneumatici';
+    if (/tagliand/i.test(t)) return 'Tagliando';
+    if (/revision/i.test(t)) return 'Revisione';
+    if (/bollo/i.test(t)) return 'Bollo';
+    if (/multa|contravv/i.test(t)) return 'Multa';
+    if (/officin|meccanic|carrozz|ricambi|manutenz/i.test(t)) return 'Manutenzione';
+    return 'Altro';
+  }
+  // spese del veicolo: assegnate, oppure spese auto non assegnate se c'è un solo veicolo
+  function autoSpese(v) {
+    const single = vehActive().length === 1;
+    return db.spese.filter(sp => sp.veicolo ? sp.veicolo === v.id : (single && sp.categoria === AUTO_CAT)).sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || '')));
+  }
+  function autoScadenze() {
+    const out = [];
+    vehActive().forEach(v => SCAD.forEach(([voce, k, ki]) => {
+      if (v[k]) out.push({ date: String(v[k]).slice(0, 10), titolo: `${voce} ${v.nome}`, importo: ki ? Number(v[ki]) || 0 : 0, voce, vid: v.id, v });
+    }));
+    return out;
+  }
+  function autoChip(d) {
+    const n = daysTo(d);
+    if (n < 0) return { cls: 'late', txt: `Scaduta da ${-n} gg` };
+    if (n === 0) return { cls: 'late', txt: 'Scade oggi' };
+    if (n <= 30) return { cls: 'soon', txt: `Tra ${n} gg` };
+    return { cls: '', txt: shortDate(d) };
+  }
+  function autoDueItem(x) {
+    const st = autoChip(x.date);
+    return `<div class="item" data-go="auto">${voceIcon(x.voce, 'car')}
+      <div class="main"><div class="t">${esc(x.titolo)}</div><div class="s"><span class="chip ${st.cls}">${esc(st.txt)}</span></div></div>
+      <div class="right"><div class="amt">${x.importo ? eur(x.importo) : ''}</div><button class="btn sm" data-calpay="auto:${esc(x.vid)}:${esc(x.voce)}">Fatto</button></div></div>`;
+  }
+  function autoStats(v) {
+    const sp = autoSpese(v);
+    const y = String(new Date().getFullYear()), mk = ymOf(new Date());
+    const fills = sp.filter(x => autoVoce(x) === 'Carburante');
+    const withL = fills.filter(x => Number(x.litri) > 0);
+    const kmFills = withL.filter(x => Number(x.km) > 0).sort((a, b) => Number(a.km) - Number(b.km));
+    let kml = 0, ckm = 0;
+    if (kmFills.length >= 2) {
+      const after = kmFills.slice(1);
+      const dk = Number(kmFills[kmFills.length - 1].km) - Number(kmFills[0].km);
+      const lit = after.reduce((a, x) => a + Number(x.litri), 0);
+      if (dk > 0 && lit > 0) { kml = dk / lit; ckm = sum(after) / dk; }
+    }
+    const kmAll = sp.map(x => Number(x.km) || 0).concat(Number(v.kmIniziali) || 0);
+    return {
+      sp, fills, year: sum(sp.filter(x => x.data.startsWith(y))), fuelMonth: sum(fills.filter(x => ym(x.data) === mk)),
+      priceL: withL.length ? sum(withL) / withL.reduce((a, x) => a + Number(x.litri), 0) : 0,
+      kml, ckm, km: Math.max(...kmAll)
+    };
+  }
+
+  function renderAuto() {
+    const list = vehActive();
+    $('#auto-empty').hidden = !!list.length;
+    $('#auto-body').hidden = !list.length;
+    if (!list.length) return;
+    const v = curVeh(); autoVid = v.id;
+    $('#veh-tabs').innerHTML = list.map(x => `<button class="veh-tab${x.id === v.id ? ' on' : ''}" data-veh="${esc(x.id)}">${ICO_CAR}<span>${esc(x.nome)}</span></button>`).join('') + `<button class="veh-tab add" data-autoact="newveh">+ Veicolo</button>`;
+    const st = autoStats(v);
+    $('#veh-hero').innerHTML = `
+      <div class="vh-ic">${ICO_CAR}</div>
+      <div class="vh-main"><h3>${esc(v.nome)}</h3>
+        <div class="vh-sub">${v.targa ? `<span class="plate"><i>I</i>${esc(v.targa)}</span>` : ''}<span>${esc([v.alimentazione, v.anno].filter(Boolean).join(' · '))}</span></div></div>
+      <div class="vh-km"><span>Contachilometri</span><b>${st.km ? fmtNum(st.km, 0) + ' km' : '—'}</b></div>
+      <button class="btn sm" data-autoact="editveh">Modifica</button>`;
+    countTo($('#au-year'), st.year);
+    countTo($('#au-fuel'), st.fuelMonth);
+    $('#au-kml').textContent = st.kml ? fmtNum(st.kml, 1) + ' km/l' : '—';
+    $('#au-kml-sub').textContent = st.ckm ? fmtNum(st.ckm, 3) + ' €/km' : 'servono 2 rifornimenti con i km';
+    $('#au-price').textContent = st.priceL ? fmtNum(st.priceL, 3) + ' €/l' : '—';
+
+    // scadenze
+    $('#au-scad').innerHTML = SCAD.map(([voce, k, ki]) => {
+      const d = v[k];
+      const ch = d ? autoChip(String(d).slice(0, 10)) : null;
+      return `<div class="sc ${ch ? ch.cls : 'none'}">
+        ${voceIcon(voce)}
+        <div class="sc-main"><b>${voce}</b><span>${d ? esc(shortDate(String(d).slice(0, 10))) : 'Non impostata'}${voce === 'Tagliando' && v.kmTagliando ? ' · ' + esc(fmtNum(v.kmTagliando, 0)) + ' km' : ''}</span></div>
+        ${ch ? `<span class="chip ${ch.cls}">${esc(ch.txt.startsWith('Tra') || ch.cls ? ch.txt : 'OK')}</span>` : ''}
+        <button class="btn sm" data-autoact="${d ? 'scad:' + voce : 'editveh'}">${d ? 'Fatto' : 'Imposta'}</button></div>`;
+    }).join('');
+
+    // per voce
+    const byV = {};
+    st.sp.filter(x => x.data.startsWith(String(new Date().getFullYear()))).forEach(x => { const k = autoVoce(x); byV[k] = (byV[k] || 0) + (Number(x.importo) || 0); });
+    const rows = Object.entries(byV).sort((a, b) => b[1] - a[1]);
+    const max = rows[0] ? rows[0][1] : 1, tot = rows.reduce((a, r) => a + r[1], 0);
+    $('#au-voci').innerHTML = rows.map(([k, val]) => `<div class="bar-row"><div class="bar-top"><span>${esc(k)} <span class="muted">${Math.round(val / tot * 100)}%</span></span><span>${eur(val)}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, val / max * 100)}%"></div></div></div>`).join('') || '<div class="empty">Nessuna spesa quest\'anno</div>';
+
+    // grafico 12 mesi
+    const now = new Date(), months = [];
+    for (let i = 11; i >= 0; i--) months.push(ymOf(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+    const vals = months.map(k => sum(st.sp.filter(x => ym(x.data) === k)));
+    const mx = Math.max(1, ...vals);
+    $('#au-chart').innerHTML = months.map((k, i) => `<div class="mb" title="${esc(monthName(k))}: ${esc(eur(vals[i]))}"><span class="mbv">${vals[i] ? esc(eur0(vals[i])) : ''}</span><i class="${i === 11 ? 'cur' : ''}" style="height:${vals[i] ? Math.max(3, vals[i] / mx * 100) : 0}%;animation-delay:${i * 35}ms"></i><span class="mbl">${esc(monthShort(k))}</span></div>`).join('');
+
+    // spese fisse collegate
+    const fx = fisseActive().filter(f => f.veicolo === v.id || (!f.veicolo && f.categoria === AUTO_CAT && list.length === 1));
+    $('#au-fisse').innerHTML = fx.length ? `<div class="list">${fx.map(f => fxItem(f)).join('')}</div>` : '<p class="muted small" style="margin:0">Collega rata, leasing o assicurazione dalla sezione Spese fisse (categoria "Auto e trasporti").</p>';
+
+    // movimenti
+    const lim = autoAll ? 300 : 10;
+    $('#au-list').innerHTML = st.sp.length ? `<div class="list">${st.sp.slice(0, lim).map(x => {
+      const vo = autoVoce(x);
+      const det = vo === 'Carburante' && Number(x.litri) > 0 ? `${fmtNum(x.litri, 2)} l · ${fmtNum(x.importo / x.litri, 3)} €/l` : vo;
+      return `<div class="item" data-aspesa="${esc(x.id)}">${findMerchant(x.descrizione) || x.sito ? iconHTML(x.descrizione, x.descrizione, x.sito) : voceIcon(vo)}
+        <div class="main"><div class="t">${esc(x.descrizione || vo)}</div><div class="s">${esc(shortDate(x.data))} · ${esc(det)}${Number(x.km) ? ' · ' + esc(fmtNum(x.km, 0)) + ' km' : ''}</div></div>
+        <div class="amt">${eur(x.importo)}</div></div>`;
+    }).join('')}</div>${st.sp.length > lim ? `<button class="btn block more-btn" data-autoact="all">Mostra tutti (${st.sp.length})</button>` : ''}` : '<div class="empty">Nessuna spesa registrata per questo veicolo</div>';
+  }
+
+  function vehSelect(sel) {
+    const l = vehActive();
+    if (l.length < 2) return `<input type="hidden" name="veicolo" value="${esc((l[0] || {}).id || '')}">`;
+    return `<label class="f"><span>Veicolo</span><select name="veicolo">${l.map(v => `<option value="${esc(v.id)}"${v.id === sel ? ' selected' : ''}>${esc(v.nome)}</option>`).join('')}</select></label>`;
+  }
+  const ensureAutoCat = ops => { if (!db.categorie.includes(AUTO_CAT)) ops.unshift({ action: 'upsert', sheet: 'Categorie', row: { nome: AUTO_CAT } }); return ops; };
+
+  function formRifornimento(sp, pre) {
+    const isNew = !sp;
+    const v = (sp && vehOf(sp)) || curVeh();
+    const lastFuel = db.spese.filter(x => autoVoce(x) === 'Carburante').sort((a, b) => b.data.localeCompare(a.data))[0];
+    sp = sp || { id: uid(), data: today(), importo: '', descrizione: lastFuel ? lastFuel.descrizione : '', metodo: lastFuel ? lastFuel.metodo : 'Carta', litri: '', km: '', note: '', sito: '' };
+    if (pre) sp = { ...sp, ...pre };
+    const pl = Number(sp.litri) > 0 && Number(sp.importo) > 0 ? (sp.importo / sp.litri).toFixed(3).replace('.', ',') : '';
+    openSheet(isNew ? 'Rifornimento' : 'Modifica rifornimento', `
+      ${sp._ai ? `<div class="ai-note">${ICO.spark}<span>Letto dallo scontrino: controlla e salva</span></div>` : ''}
+      ${vehSelect(v && v.id)}
+      <label class="f"><span>Distributore</span><div class="desc-wrap"><span id="desc-ic">${sp.descrizione ? iconHTML(sp.descrizione, sp.descrizione, sp.sito) : voceIcon('Carburante')}</span><input name="descrizione" placeholder="Es. Eni, Q8, IP…" value="${esc(sp.descrizione)}"></div></label>
+      <div class="f-row">
+        <label class="f"><span>Importo (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(sp.importo))}" required data-focus></label>
+        <label class="f"><span>Litri</span><input name="litri" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(sp.litri === '' || sp.litri == null ? '' : String(sp.litri).replace('.', ','))}"></label>
+      </div>
+      <div class="f-row">
+        <label class="f"><span>Prezzo al litro</span><input name="prezzo" inputmode="decimal" placeholder="Calcolato" value="${esc(pl)}"></label>
+        <label class="f"><span>Km contachilometri</span><input name="km" inputmode="numeric" placeholder="${(() => { const s2 = v && autoStats(v); return s2 && s2.km ? 'ultimo ' + fmtNum(s2.km, 0) : 'Es. 123456'; })()}" value="${esc(sp.km)}"></label>
+      </div>
+      <div class="f-row">
+        <label class="f"><span>Data</span><input name="data" type="date" value="${esc(sp.data)}" required></label>
+        <label class="f"><span>Metodo</span><select name="metodo">${opt(METODI, sp.metodo || 'Carta')}</select></label>
+      </div>
+      <p class="muted small" style="margin:0 0 8px">Inserendo i km a ogni rifornimento l'app calcola consumo (km/l) e costo al km.</p>`,
+      fd => {
+        const importo = num(fd.get('importo')), litri = num(fd.get('litri'));
+        if (importo <= 0) return toast('Inserisci l\'importo');
+        const vid = fd.get('veicolo') || (v && v.id) || '';
+        const desc = String(fd.get('descrizione') || '').trim() || 'Rifornimento';
+        const row = { ...sp, importo, litri: litri || '', km: fd.get('km') ? parseInt(String(fd.get('km')).replace(/\D/g, ''), 10) || '' : '', data: fd.get('data'), metodo: fd.get('metodo'),
+          descrizione: desc, categoria: AUTO_CAT, veicolo: vid, voceAuto: 'Carburante', creato: sp.creato || new Date().toISOString(),
+          note: litri ? `${fmtNum(litri, 2)} l · ${fmtNum(importo / litri, 3)} €/l` : '', sito: desc === sp.descrizione ? (sp.sito || '') : '' };
+        delete row._ai;
+        write(ensureAutoCat([{ action: 'upsert', sheet: 'Spese', row }]));
+        closeSheet(); toast(isNew ? 'Rifornimento registrato' : 'Rifornimento aggiornato');
+      },
+      isNew ? null : () => { if (!confirm('Eliminare questo rifornimento?')) return; write([{ action: 'delete', sheet: 'Spese', id: sp.id }]); closeSheet(); toast('Eliminato'); });
+    // calcolo automatico prezzo/litri
+    const I = $('#sheet-body [name=importo]'), L = $('#sheet-body [name=litri]'), P = $('#sheet-body [name=prezzo]');
+    let last = [];
+    const touch = n => { last = [n, ...last.filter(x => x !== n)].slice(0, 2); calc(); };
+    const calc = () => {
+      const i = num(I.value), l = num(L.value), p = num(P.value);
+      if (!last.includes('p') && i && l) P.value = (i / l).toFixed(3).replace('.', ',');
+      else if (!last.includes('l') && i && p) L.value = (i / p).toFixed(2).replace('.', ',');
+      else if (!last.includes('i') && l && p) I.value = (l * p).toFixed(2).replace('.', ',');
+    };
+    I.addEventListener('input', () => touch('i')); L.addEventListener('input', () => touch('l')); P.addEventListener('input', () => touch('p'));
+    const D = $('#sheet-body [name=descrizione]');
+    D.addEventListener('input', () => { $('#desc-ic').innerHTML = findMerchant(D.value) ? iconHTML(D.value, D.value) : voceIcon('Carburante'); });
+  }
+
+  function formAutoSpesa(v, sp, pre) {
+    const isNew = !sp;
+    sp = sp || { id: uid(), data: today(), importo: '', descrizione: '', metodo: 'Carta', km: '', note: '', voceAuto: 'Manutenzione', sito: '' };
+    if (pre) sp = { ...sp, ...pre };
+    const voce0 = autoVoce(sp);
+    const sc = SCAD.find(x => x[0] === voce0);
+    if (isNew && sc && sc[2] && !Number(sp.importo)) sp.importo = Number(v[sc[2]]) || '';
+    const voci = Object.keys(VOCI_AUTO).filter(k => k !== 'Carburante');
+    const nextFor = voce => { const x = SCAD.find(s2 => s2[0] === voce); if (!x) return ''; const base = v[x[1]] && String(v[x[1]]).slice(0, 10) > today() ? String(v[x[1]]).slice(0, 10) : (v[x[1]] ? String(v[x[1]]).slice(0, 10) : today()); return addMonths(base, x[3]); };
+    openSheet(isNew ? 'Spesa auto · ' + v.nome : 'Modifica spesa auto', `
+      <div class="tipi auto-voci">${voci.map(k => `<label class="tp"><input type="radio" name="voce" value="${k}" ${k === voce0 ? 'checked' : ''}><span><svg viewBox="0 0 24 24">${VOCI_AUTO[k]}</svg>${k}</span></label>`).join('')}</div>
+      ${vehSelect(v.id)}
+      <div class="f-row">
+        <label class="f"><span>Importo (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(sp.importo))}" required data-focus></label>
+        <label class="f"><span>Data</span><input name="data" type="date" value="${esc(sp.data)}" required class="amount-sel"></label>
+      </div>
+      <label class="f"><span>Descrizione</span><div class="desc-wrap"><span id="desc-ic">${sp.descrizione && (findMerchant(sp.descrizione) || sp.sito) ? iconHTML(sp.descrizione, sp.descrizione, sp.sito) : voceIcon(voce0)}</span><input name="descrizione" placeholder="Es. Officina Rossi, Telepass…" value="${esc(sp.descrizione)}"></div></label>
+      <div class="f-row">
+        <label class="f"><span>Km <i class="opt">facoltativo</i></span><input name="km" inputmode="numeric" value="${esc(sp.km)}"></label>
+        <label class="f"><span>Metodo</span><select name="metodo">${opt(METODI, sp.metodo || 'Carta')}</select></label>
+      </div>
+      <div id="scad-upd"></div>
+      <label class="f"><span>Note</span><textarea name="note" rows="2">${esc(sp.note)}</textarea></label>`,
+      fd => {
+        const importo = num(fd.get('importo'));
+        if (importo < 0 || (importo === 0 && !['Revisione', 'Tagliando'].includes(fd.get('voce')))) return toast('Inserisci l\'importo');
+        const voce = fd.get('voce');
+        const vid = fd.get('veicolo') || v.id;
+        const row = { ...sp, importo, data: fd.get('data'), descrizione: String(fd.get('descrizione') || '').trim() || voce + ' ' + v.nome, metodo: fd.get('metodo'),
+          km: fd.get('km') ? parseInt(String(fd.get('km')).replace(/\D/g, ''), 10) || '' : '', note: fd.get('note').trim(), categoria: AUTO_CAT, veicolo: vid, voceAuto: voce, creato: sp.creato || new Date().toISOString() };
+        delete row._ai;
+        const ops = [{ action: 'upsert', sheet: 'Spese', row }];
+        if (fd.get('upd') === 'on') {
+          const x = SCAD.find(s2 => s2[0] === voce);
+          const vv = { ...(db.veicoli.find(y => y.id === vid) || v), [x[1]]: fd.get('nextdate') };
+          if (x[2]) vv[x[2]] = importo;
+          if (voce === 'Tagliando' && fd.get('nextkm')) vv.kmTagliando = parseInt(String(fd.get('nextkm')).replace(/\D/g, ''), 10) || '';
+          ops.push({ action: 'upsert', sheet: 'Veicoli', row: vv });
+        }
+        write(ensureAutoCat(ops));
+        closeSheet(); toast(isNew ? 'Spesa auto registrata' : 'Spesa aggiornata');
+        if (fd.get('upd') === 'on') refreshCalendarReminders(true);
+      },
+      isNew ? null : () => { if (!confirm('Eliminare questa spesa?')) return; write([{ action: 'delete', sheet: 'Spese', id: sp.id }]); closeSheet(); toast('Eliminata'); });
+    $('#sheet-form').classList.add('wide');
+    const upd = () => {
+      const voce = ($('#sheet-body [name=voce]:checked') || {}).value;
+      const x = SCAD.find(s2 => s2[0] === voce);
+      $('#scad-upd').innerHTML = x ? `<div class="voci-box"><label class="sw"><input type="checkbox" name="upd" ${isNew ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Aggiorna la prossima scadenza</b><small>${esc(voce)}: imposta la nuova data per i promemoria.</small></span></label>
+        <div class="f-row"><label class="f"><span>Prossima scadenza</span><input name="nextdate" type="date" value="${esc(nextFor(voce))}"></label>
+        ${voce === 'Tagliando' ? `<label class="f"><span>Prossimo a km</span><input name="nextkm" inputmode="numeric" value="${esc(v.kmTagliando || '')}" placeholder="Es. 150000"></label>` : '<div></div>'}</div></div>` : '';
+      if (!$('#sheet-body [name=descrizione]').value) $('#desc-ic').innerHTML = voceIcon(voce);
+    };
+    $$('#sheet-body [name=voce]').forEach(r => r.addEventListener('change', upd));
+    upd();
+  }
+
+  function formVeicolo(v) {
+    const isNew = !v;
+    v = v || { id: uid(), nome: '', targa: '', alimentazione: 'Gasolio', anno: '', kmIniziali: '', scadAssicurazione: '', impAssicurazione: '', scadBollo: '', impBollo: '', scadRevisione: '', scadTagliando: '', kmTagliando: '', note: '', attiva: true };
+    openSheet(isNew ? 'Nuovo veicolo' : v.nome, `
+      <div class="f-row">
+        <label class="f"><span>Nome</span><input name="nome" placeholder="Es. Fiat Panda" value="${esc(v.nome)}" required data-focus></label>
+        <label class="f"><span>Targa</span><input name="targa" placeholder="AB123CD" value="${esc(v.targa)}" autocapitalize="characters" style="text-transform:uppercase"></label>
+      </div>
+      <div class="tipi alim">${ALIM.map(a => `<label class="tp"><input type="radio" name="alimentazione" value="${a}" ${a === (v.alimentazione || 'Gasolio') ? 'checked' : ''}><span>${a}</span></label>`).join('')}</div>
+      <div class="f-row">
+        <label class="f"><span>Anno</span><input name="anno" inputmode="numeric" placeholder="Es. 2019" value="${esc(v.anno)}"></label>
+        <label class="f"><span>Km attuali</span><input name="kmIniziali" inputmode="numeric" placeholder="Es. 85000" value="${esc(v.kmIniziali)}"></label>
+      </div>
+      <div class="voci-box"><div class="voci-h"><h3>Scadenze</h3><span class="muted small">per i promemoria</span></div>
+        <div class="f-row"><label class="f"><span>Assicurazione</span><input name="scadAssicurazione" type="date" value="${esc(v.scadAssicurazione)}"></label><label class="f"><span>Premio (€)</span><input name="impAssicurazione" inputmode="decimal" value="${esc(fmtAmt(v.impAssicurazione))}" placeholder="0,00"></label></div>
+        <div class="f-row"><label class="f"><span>Bollo</span><input name="scadBollo" type="date" value="${esc(v.scadBollo)}"></label><label class="f"><span>Importo bollo (€)</span><input name="impBollo" inputmode="decimal" value="${esc(fmtAmt(v.impBollo))}" placeholder="0,00"></label></div>
+        <div class="f-row"><label class="f"><span>Revisione</span><input name="scadRevisione" type="date" value="${esc(v.scadRevisione)}"></label><label class="f"><span>Tagliando</span><input name="scadTagliando" type="date" value="${esc(v.scadTagliando)}"></label></div>
+        <label class="f" style="margin:0"><span>Tagliando a km <i class="opt">facoltativo</i></span><input name="kmTagliando" inputmode="numeric" value="${esc(v.kmTagliando)}" placeholder="Es. 100000"></label>
+      </div>
+      <label class="f"><span>Note</span><textarea name="note" rows="2" placeholder="Compagnia assicurativa, n. polizza, telaio…">${esc(v.note)}</textarea></label>`,
+      fd => {
+        const nome = String(fd.get('nome') || '').trim();
+        if (!nome) return toast('Inserisci il nome');
+        const n2 = k => { const x = String(fd.get(k) || '').replace(/\D/g, ''); return x ? parseInt(x, 10) : ''; };
+        const row = { ...v, nome, targa: String(fd.get('targa') || '').toUpperCase().replace(/\s+/g, ''), alimentazione: fd.get('alimentazione'), anno: n2('anno'), kmIniziali: n2('kmIniziali'),
+          scadAssicurazione: fd.get('scadAssicurazione') || '', impAssicurazione: fd.get('impAssicurazione') ? num(fd.get('impAssicurazione')) : '',
+          scadBollo: fd.get('scadBollo') || '', impBollo: fd.get('impBollo') ? num(fd.get('impBollo')) : '',
+          scadRevisione: fd.get('scadRevisione') || '', scadTagliando: fd.get('scadTagliando') || '', kmTagliando: n2('kmTagliando'), note: fd.get('note').trim(), attiva: true };
+        autoVid = row.id;
+        write(ensureAutoCat([{ action: 'upsert', sheet: 'Veicoli', row }]));
+        closeSheet(); toast(isNew ? 'Veicolo aggiunto' : 'Veicolo aggiornato');
+        refreshCalendarReminders(true);
+      },
+      isNew ? null : () => {
+        if (!confirm('Eliminare il veicolo? Le spese registrate restano.')) return;
+        write([{ action: 'delete', sheet: 'Veicoli', id: v.id }]); autoVid = null; closeSheet(); toast('Veicolo eliminato'); refreshCalendarReminders(true);
+      });
+    $('#sheet-form').classList.add('wide');
+  }
 
   /* ================= SPESE FISSE ================= */
   const isOn = v => v === true || String(v).toUpperCase() === 'TRUE';
@@ -939,6 +1251,7 @@
         const [y, mm] = m.split('-').map(Number); m = ymOf(new Date(y, mm, 1));
       }
     }
+    autoScadenze().filter(x => x.date >= from && x.date <= to).forEach(x => ev.push({ date: x.date, title: x.titolo, importo: x.importo, st: status(x.date), kind: 'auto', icon: `<div class="ic car-ic">${ICO_CAR}</div>`, ref: x.vid + ':' + x.voce, payable: true }));
     return ev.sort((a, b) => a.date.localeCompare(b.date) || (a.st === 'paid') - (b.st === 'paid'));
   }
 
@@ -977,7 +1290,7 @@
     const de = ev.filter(e => e.date === calSel);
     const label = parseD(calSel).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
     $('#cal-agenda').innerHTML = `<div class="ag-h"><b>${esc(label.charAt(0).toUpperCase() + label.slice(1))}</b><span class="muted small">${de.length ? eur(de.reduce((a, e) => a + e.importo, 0)) : ''}</span></div>
-      ${de.length ? `<div class="list">${de.map(e => `<div class="item ag" ${e.kind === 'spesa' || e.st === 'paid' ? `data-spesa="${esc(e.ref)}"` : e.kind === 'fx' ? `data-fx="${esc(e.ref)}"` : e.kind === 'bill' ? `data-bill="${esc(e.ref)}"` : e.kind === 'fatt' ? `data-fatt="${esc(e.ref)}"` : 'data-go="affitto"'}>
+      ${de.length ? `<div class="list">${de.map(e => `<div class="item ag" ${e.kind === 'spesa' || e.st === 'paid' ? `data-spesa="${esc(e.ref)}"` : e.kind === 'fx' ? `data-fx="${esc(e.ref)}"` : e.kind === 'bill' ? `data-bill="${esc(e.ref)}"` : e.kind === 'fatt' ? `data-fatt="${esc(e.ref)}"` : e.kind === 'auto' ? 'data-go="auto"' : 'data-go="affitto"'}>
         ${e.icon}<div class="main"><div class="t">${esc(e.title)}</div><div class="s"><span class="chip ${e.st === 'plan' || e.st === 'auto' ? '' : e.st}">${esc(e.est ? 'Stima' : ST_TXT[e.st])}</span></div></div>
         <div class="right"><div class="amt">${eur(e.importo)}</div>${e.payable && e.st !== 'paid' ? `<button class="btn sm" data-calpay="${e.kind}:${esc(e.ref)}">Paga</button>` : ''}</div></div>`).join('')}</div>`
       : '<div class="empty">Nessuna spesa in questo giorno</div>'}`;
@@ -1010,6 +1323,7 @@
         <label class="f"><span>Categoria</span><select name="categoria">${opt(catList.sort((a, b) => a.localeCompare(b, 'it')), cat0)}</select></label>
         <label class="f"><span>Sito per il logo <i class="opt">facoltativo</i></span><input name="sito" placeholder="es. netflix.com" value="${esc(f.sito)}" autocapitalize="off"></label>
       </div>
+      ${vehActive().length ? `<label class="f"><span>Veicolo collegato <i class="opt">facoltativo</i></span><select name="veicolo"><option value="">Nessuno</option>${vehActive().map(v => `<option value="${esc(v.id)}"${v.id === f.veicolo ? ' selected' : ''}>${esc(v.nome)}</option>`).join('')}</select></label>` : ''}
       <label class="sw"><input type="checkbox" name="auto" ${isOn(f.auto) ? 'checked' : ''}><span class="sw-ui"></span>
         <span class="sw-t"><b>Addebito automatico</b><small>Il pagamento viene registrato da solo alla data prevista (es. carta o RID).</small></span></label>
       <label class="sw"><input type="checkbox" name="notifica" ${f.notifica === '' || f.notifica == null || isOn(f.notifica) ? 'checked' : ''}><span class="sw-ui"></span>
@@ -1027,7 +1341,7 @@
         const row = { ...f, nome, tipo: fd.get('tipo') || 'Altro', importo, frequenza: fd.get('frequenza'), prossima: fd.get('prossima'), fine: fd.get('fine') || '',
           rate: fd.get('rate') ? Math.max(0, parseInt(fd.get('rate'), 10) || 0) || '' : '', metodo: fd.get('metodo'), categoria: fd.get('categoria'),
           sito: domainOf(String(fd.get('sito') || '').trim()) || '', auto: fd.get('auto') === 'on', notifica: fd.get('notifica') === 'on',
-          attiva: isNew ? true : fd.get('attiva') === 'on', note: fd.get('note').trim() };
+          attiva: isNew ? true : fd.get('attiva') === 'on', note: fd.get('note').trim(), veicolo: fd.get('veicolo') || '' };
         if (!String(fd.get('sito') || '').trim()) row.sito = '';
         const ops = [];
         if (!db.categorie.includes(row.categoria)) ops.push({ action: 'upsert', sheet: 'Categorie', row: { nome: row.categoria } });
@@ -1078,9 +1392,9 @@
   }
 
   // aggiorna gli eventi del calendario Google in background
-  function refreshCalendarReminders() {
+  function refreshCalendarReminders(forAuto) {
     const n = db.config.notifiche || {};
-    if (isLocal() || !n.calendario || n.fisse === false) return;
+    if (isLocal() || !n.calendario || (forAuto ? n.auto === false : n.fisse === false)) return;
     syncNow().then(() => api('reminders')).catch(() => {});
   }
 
@@ -1302,6 +1616,7 @@
       const r = await aiCall('receipt', img);
       busy();
       if (!r.valido) return toast('Non sembra uno scontrino, riprova');
+      if (Number(r.litri) > 0 && vehActive().length) return formRifornimento(null, { _ai: true, importo: r.importo, litri: r.litri, descrizione: r.negozio, data: validDate(r.data), metodo: r.metodo, sito: r.sito || '' });
       formSpesa(null, { _ai: true, importo: r.importo, descrizione: r.negozio, data: validDate(r.data), categoria: pickCat(r.categoria), metodo: r.metodo, note: r.note || '', sito: r.sito || '' });
     } catch (e) { busy(); toast(e.message); }
   }
@@ -1606,7 +1921,7 @@
     ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
     let lastTouch = 0;
     document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 300 && !e.target.closest('input,select,textarea')) e.preventDefault(); lastTouch = n; }, { passive: false });
-    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : formSpesa());
+    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : formSpesa());
     $('#add-bill').onclick = () => formBill();
 
     document.addEventListener('click', e => {
@@ -1626,8 +1941,25 @@
         if (k === 'bill') { const b = db.bollette.find(x => x.id === ref); if (b) formPay(b); }
         if (k === 'fatt') { const f = db.fatture.find(x => x.id === ref); const b = f && db.bollette.find(x => x.id === f.bollettaId); if (b) formPay(b, f); }
         if (k === 'rent') formRentPay(ref);
+        if (k === 'auto') { const [vid, voce] = ref.split(':'); const v = db.veicoli.find(x => x.id === vid); if (v) formAutoSpesa(v, null, { voceAuto: voce }); }
         return;
       }
+      const vsel = e.target.closest('[data-veh]');
+      if (vsel) { autoVid = vsel.dataset.veh; renderAuto(); stagger($('#auto-body')); return; }
+      const aa = e.target.closest('[data-autoact]');
+      if (aa) {
+        e.stopPropagation();
+        const a = aa.dataset.autoact, v = curVeh();
+        if (a === 'all') { autoAll = true; renderAuto(); return; }
+        if (a === 'newveh') formVeicolo();
+        else if (a === 'editveh' && v) formVeicolo(v);
+        else if (a === 'fuel' && v) formRifornimento();
+        else if (a === 'spesa' && v) formAutoSpesa(v);
+        else if (a.startsWith('scad:') && v) formAutoSpesa(v, null, { voceAuto: a.slice(5) });
+        return;
+      }
+      const as = e.target.closest('[data-aspesa]');
+      if (as) { const sp = db.spese.find(x => x.id === as.dataset.aspesa); if (sp) (autoVoce(sp) === 'Carburante' ? formRifornimento(sp) : formAutoSpesa(vehOf(sp) || curVeh(), sp)); return; }
       const fxi = e.target.closest('[data-fx]');
       if (fxi) { const f = db.fisse.find(x => x.id === fxi.dataset.fx); if (f) formFissa(f); return; }
       const day = e.target.closest('[data-day]');
@@ -1767,7 +2099,7 @@
         if (!j.ok) throw new Error(j.error);
         if (url !== v) { queue = []; }
         url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
+        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');

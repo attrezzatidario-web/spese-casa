@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -50,6 +50,7 @@
       <a href="#home" data-view="home"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5"/></svg><span>Home</span></a>
       <a href="#spese" data-view="spese"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Spese</span></a>
       <a href="#fisse" data-view="fisse"><svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg><span class="lbl-d">Spese fisse</span><span class="lbl-m">Fisse</span><i id="badge-fx" class="badge" hidden></i></a>
+      <a href="#auto" data-view="auto"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/></svg><span>Auto</span><i id="badge-auto" class="badge" hidden></i></a>
       <a href="#affitto" data-view="affitto"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg><span>Affitto</span><i id="badge-rent" class="badge" hidden></i></a>
       <a href="#bollette" data-view="bollette"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Bollette</span><i id="badge" class="badge" hidden></i></a>
       <a href="#impostazioni" data-view="impostazioni"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Altro</span></a>
@@ -158,6 +159,39 @@
             <div class="card-h"><h3>Le tue spese fisse</h3><div class="row-btns nowrap"><button id="fx-notify" class="btn sm">Notifiche</button><button id="fx-add" class="btn sm primary">+ Nuova</button></div></div>
             <div id="fx-list"></div>
             <div id="fx-off"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AUTO -->
+      <section id="v-auto" class="view" hidden>
+        <div id="auto-empty" class="card empty-state" hidden>
+          <div class="es-ic"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/></svg></div>
+          <h3>Aggiungi la tua auto</h3>
+          <p class="muted small">Carburante, consumi, manutenzione, assicurazione, bollo e revisione: tutto in un posto, con i promemoria.</p>
+          <button class="btn primary" data-autoact="newveh">Aggiungi veicolo</button>
+        </div>
+        <div id="auto-body" class="auto-body" hidden>
+          <div id="veh-tabs" class="veh-tabs"></div>
+          <div class="card veh-hero" id="veh-hero"></div>
+          <div class="kpis">
+            <div class="card kpi"><div class="kpi-h"><span class="label">Speso quest'anno</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/></svg></span></div><div id="au-year" class="big">0,00 €</div><span class="muted small">tutte le voci</span></div>
+            <div class="card kpi"><div class="kpi-h"><span class="label">Carburante del mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10"/><path d="M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/></svg></span></div><div id="au-fuel" class="big">0,00 €</div><span class="muted small">prezzo medio <b id="au-price">—</b></span></div>
+            <div class="card kpi"><div class="kpi-h"><span class="label">Consumo medio</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/></svg></span></div><div id="au-kml" class="big">—</div><span id="au-kml-sub" class="muted small"></span></div>
+            <div class="card kpi kpi-act"><span class="label">Registra</span>
+              <button class="btn primary btn-ic" data-autoact="fuel"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Rifornimento</button>
+              <button class="btn btn-ic" data-autoact="spesa"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Altra spesa</button></div>
+          </div>
+          <div class="auto-grid">
+            <div class="col-main">
+              <div class="card"><div class="card-h"><h3>Spesa mensile</h3><span class="muted small">ultimi 12 mesi</span></div><div id="au-chart" class="mbars"></div></div>
+              <div class="card"><div class="card-h"><h3>Movimenti</h3></div><div id="au-list"></div></div>
+            </div>
+            <div class="col-side">
+              <div class="card"><div class="card-h"><h3>Scadenze</h3></div><div id="au-scad" class="scad-list"></div></div>
+              <div class="card"><div class="card-h"><h3>Per voce</h3><span class="muted small">quest'anno</span></div><div id="au-voci" class="bars"></div></div>
+              <div class="card"><div class="card-h"><h3>Spese fisse dell'auto</h3></div><div id="au-fisse"></div></div>
+            </div>
           </div>
         </div>
       </section>
@@ -277,6 +311,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
