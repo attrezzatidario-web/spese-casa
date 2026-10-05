@@ -14,7 +14,8 @@
   };
 
   let url = LS.get('sc_url', '');
-  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [] });
+  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {} });
+  if (!db.config) db.config = {};
   let queue = LS.get('sc_queue', []);
   let syncing = false;
   let online = navigator.onLine;
@@ -112,6 +113,12 @@
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
+    if (op.sheet === 'Config') {
+      db.config = db.config || {};
+      if (op.action === 'upsert') { try { db.config[op.row.chiave] = JSON.parse(op.row.valore); } catch { db.config[op.row.chiave] = op.row.valore; } }
+      else delete db.config[op.id];
+      return;
+    }
     if (op.sheet === 'Categorie') {
       const nome = op.action === 'upsert' ? op.row.nome : op.id;
       db.categorie = db.categorie.filter(c => c !== nome);
@@ -127,6 +134,19 @@
     ops.forEach(applyLocal);
     if (!isLocal()) queue.push(...ops);
     save(); render(); flush();
+  }
+
+  const setConfig = (chiave, value) => write([value == null ? { action: 'delete', sheet: 'Config', id: chiave } : { action: 'upsert', sheet: 'Config', row: { chiave, valore: JSON.stringify(value) } }]);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  async function syncNow() {
+    for (let i = 0; i < 15 && queue.length; i++) { await flush(); if (queue.length) await sleep(700); }
+    if (queue.length) throw new Error('Salvataggio non riuscito, controlla la connessione');
+  }
+  async function api(action, extra) {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...extra }) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Errore');
+    return j.result;
   }
 
   async function flush() {
@@ -155,7 +175,7 @@
       const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], categorie: j.data.categorie || [], ai: !!j.data.ai };
+      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
@@ -168,6 +188,11 @@
   }
 
   function setSync(txt) {
+    _setSync(txt);
+    const a = $('#sync'), b = $('#sync-side');
+    if (a && b) { b.className = a.className; b.textContent = a.textContent; }
+  }
+  function _setSync(txt) {
     const el = $('#sync'); if (!el) return;
     el.className = 'sync';
     if (txt) { el.textContent = txt; return; }
@@ -196,13 +221,16 @@
   }
 
   /* ================= Router ================= */
-  const TITLES = { home: 'Home', spese: 'Spese', bollette: 'Bollette', impostazioni: 'Impostazioni' };
+  const TITLES = { home: 'Home', spese: 'Spese', affitto: 'Affitto', bollette: 'Bollette', impostazioni: 'Impostazioni' };
+  const SUBS = { home: '', spese: 'Tutti i movimenti', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', impostazioni: 'Collegamento, IA e categorie' };
   function route() {
     view = (location.hash || '#home').slice(1);
     if (!TITLES[view]) view = 'home';
     $$('.view').forEach(v => (v.hidden = v.id !== 'v-' + view));
     $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
     $('#title').textContent = TITLES[view];
+    const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
+    $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     render();
     window.scrollTo(0, 0);
   }
@@ -212,6 +240,7 @@
     if (view === 'home') renderHome();
     if (view === 'spese') renderSpese();
     if (view === 'bollette') renderBills();
+    if (view === 'affitto') renderRent();
     if (view === 'impostazioni') renderSettings();
     setSync();
   }
@@ -219,13 +248,15 @@
   function renderBadge() {
     const n = activeBills().filter(b => daysTo(b.scadenza) <= 0).length;
     const el = $('#badge'); el.hidden = !n; el.textContent = n;
+    const r = rentArrears().length;
+    const er = $('#badge-rent'); er.hidden = !r; er.textContent = r;
   }
 
   /* ================= Item templates ================= */
   function speseItem(s) {
     const sub = [s.categoria, s.metodo].filter(Boolean).join(' · ');
     return `<div class="item" data-spesa="${esc(s.id)}">
-      ${iconHTML(s.descrizione, s.categoria, s.sito)}
+      ${String(s.bollettaId || '').startsWith('affitto:') ? `<div class="ic rent-ic">${ICO_KEY}</div>` : iconHTML(s.descrizione, s.categoria, s.sito)}
       <div class="main"><div class="t">${esc(s.descrizione || s.categoria || 'Spesa')}</div><div class="s">${esc(sub)}</div></div>
       <div class="amt">${eur(s.importo)}</div></div>`;
   }
@@ -235,6 +266,14 @@
       ${iconHTML(b.nome)}
       <div class="main"><div class="t">${esc(b.nome)}</div><div class="s"><span class="chip ${st.cls}">${esc(st.txt)}</span></div></div>
       <div class="right"><div class="amt">${eur(b.importo)}</div><button class="btn sm" data-pay="${esc(b.id)}">Paga</button></div></div>`;
+  }
+
+  function rentDueItem(r) {
+    const st = rentChip(r);
+    return `<div class="item" data-go="affitto">
+      <div class="ic rent-ic">${ICO_KEY}</div>
+      <div class="main"><div class="t">Affitto ${esc(monthShortY(r.month))}</div><div class="s"><span class="chip ${st.cls}">${esc(st.txt)}</span></div></div>
+      <div class="right"><div class="amt">${eur(r.importo)}</div><button class="btn sm" data-rentpay="${r.month}">Paga</button></div></div>`;
   }
 
   /* ================= HOME ================= */
@@ -253,15 +292,29 @@
       dEl.innerHTML = `<span class="${p > 0 ? 'up' : 'down'}">${p > 0 ? '▲' : p < 0 ? '▼' : '='} ${Math.abs(p)}%</span> rispetto a ${esc(monthShort(prevKey))} (${eur0(prev)})`;
     } else dEl.textContent = `${ms.length} ${ms.length === 1 ? 'spesa' : 'spese'}`;
 
-    // bollette
-    const ab = activeBills().sort((a, b) => a.scadenza.localeCompare(b.scadenza));
-    const due30 = ab.filter(b => daysTo(b.scadenza) <= 30);
-    const late = ab.filter(b => daysTo(b.scadenza) < 0);
+    // scadenze: bollette + affitto
+    const ab = activeBills().map(b => ({ kind: 'bill', due: b.scadenza, importo: b.importo, b }));
+    const rents = rentUpcoming().map(r => ({ kind: 'rent', due: r.due, importo: r.importo, r }));
+    const all = [...ab, ...rents].sort((a, b) => a.due.localeCompare(b.due));
+    const due30 = all.filter(x => daysTo(x.due) <= 30);
+    const late = all.filter(x => daysTo(x.due) < 0);
     $('#h-bills').textContent = eur(sum(due30));
     $('#h-bills-sub').innerHTML = late.length
-      ? `<span class="chip late">${late.length} scadut${late.length === 1 ? 'a' : 'e'}</span> · ${due30.length} in totale`
-      : `${due30.length} ${due30.length === 1 ? 'bolletta' : 'bollette'}`;
-    $('#h-due').innerHTML = ab.slice(0, 5).map(dueItem).join('') || `<div class="empty">Nessuna bolletta. <a class="link" href="#bollette">Aggiungine una</a></div>`;
+      ? `<span class="chip late">${late.length} scadut${late.length === 1 ? 'o' : 'i'}</span> · ${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`
+      : `${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`;
+    $('#h-due').innerHTML = all.slice(0, 6).map(x => x.kind === 'rent' ? rentDueItem(x.r) : dueItem(x.b)).join('') || `<div class="empty">Nessuna scadenza. <a class="link" href="#bollette">Aggiungi una bolletta</a></div>`;
+
+    // affitto del mese
+    const rc = rentCfg();
+    if (rc) {
+      const r = rentMonth(ymOf(new Date()));
+      $('#h-rent').textContent = eur(rc.canone);
+      const st = rentChip(r);
+      $('#h-rent-sub').innerHTML = `<span class="chip ${st.cls}">${esc(st.txt)}</span>`;
+    } else {
+      $('#h-rent').textContent = '—';
+      $('#h-rent-sub').innerHTML = '<span class="link">Configura →</span>';
+    }
 
     // categorie
     const byCat = {};
@@ -278,7 +331,7 @@
     renderChart();
     renderInsights();
 
-    const last = [...db.spese].sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || ''))).slice(0, 5);
+    const last = [...db.spese].sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || ''))).slice(0, matchMedia('(min-width: 900px)').matches ? 8 : 5);
     $('#h-last').innerHTML = last.map(speseItem).join('') || '<div class="empty">Ancora nessuna spesa. Tocca + per iniziare.</div>';
   }
 
@@ -288,7 +341,9 @@
     for (let i = 11; i >= 0; i--) months.push(ymOf(new Date(y, m - 1 - i, 1)));
     const vals = months.map(k => sum(db.spese.filter(s => ym(s.data) === k)));
     const nonZero = vals.filter(v => v > 0);
-    $('#h-avg').textContent = nonZero.length ? `media ${eur0(nonZero.reduce((a, b) => a + b, 0) / nonZero.length)}/mese` : '';
+    const avg = nonZero.length ? nonZero.reduce((a, b) => a + b, 0) / nonZero.length : 0;
+    $('#h-avg').textContent = avg ? `media ${eur0(avg)}/mese` : '';
+    $('#h-avg-big').textContent = eur(avg);
 
     const el = $('#h-chart');
     const W = Math.max(280, el.clientWidth || 600), H = 180, pt = 14, pb = 22, pl = 0, pr = 48;
@@ -413,6 +468,210 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
+
+
+  /* ================= AFFITTO ================= */
+  const ICO_KEY = '<svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg>';
+  const monthShortY = k => { const [y, m] = k.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('it-IT', { month: 'short', year: 'numeric' }).replace('.', ''); };
+  const rentCfg = () => (db.config.affitto && db.config.affitto.attivo && Number(db.config.affitto.canone) > 0) ? db.config.affitto : null;
+  const rentKey = mk => 'affitto:' + mk;
+  let rentYear = new Date().getFullYear();
+
+  function rentMonth(mk) {
+    const c = rentCfg() || {};
+    const [y, m] = mk.split('-').map(Number);
+    const last = new Date(y, m, 0).getDate();
+    const due = ymd(new Date(y, m - 1, Math.min(Number(c.giorno) || 1, last)));
+    const paid = db.spese.find(s => s.bollettaId === rentKey(mk)) || null;
+    const start = c.inizio ? String(c.inizio).slice(0, 7) : null;
+    return { month: mk, due, paid, importo: Number(c.canone) || 0, before: !!(start && mk < start), days: daysTo(due) };
+  }
+  function rentChip(r) {
+    if (r.paid) return { cls: 'paid', txt: 'Pagato il ' + parseD(r.paid.data).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+    if (r.days < 0) return { cls: 'late', txt: `Scaduto da ${-r.days} gg` };
+    if (r.days === 0) return { cls: 'late', txt: 'Scade oggi' };
+    if (r.days <= 7) return { cls: 'soon', txt: r.days === 1 ? 'Scade domani' : `Scade tra ${r.days} gg` };
+    return { cls: '', txt: 'Scade il ' + parseD(r.due).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+  }
+  // mesi non pagati già scaduti (ultimi 12)
+  function rentArrears() {
+    if (!rentCfg()) return [];
+    const now = new Date(), out = [];
+    for (let i = 12; i >= 0; i--) {
+      const r = rentMonth(ymOf(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+      if (!r.before && !r.paid && r.days < 0) out.push(r);
+    }
+    return out;
+  }
+  // da mostrare nelle scadenze: arretrati + mese corrente + prossimo se non pagati
+  function rentUpcoming() {
+    if (!rentCfg()) return [];
+    const now = new Date();
+    const list = rentArrears();
+    [0, 1].forEach(o => { const r = rentMonth(ymOf(new Date(now.getFullYear(), now.getMonth() + o, 1))); if (!r.before && !r.paid && r.days >= 0) list.push(r); });
+    return list;
+  }
+  function rentCat() {
+    return db.categorie.find(c => c === 'Affitto / Mutuo') || db.categorie.find(c => /affitt/i.test(c)) || pickCat('Altro');
+  }
+
+  function renderRent() {
+    const c = rentCfg();
+    $('#rent-empty').hidden = !!c;
+    $('#rent-main').hidden = !c;
+    if (!c) return;
+    const cur = ymOf(new Date());
+    const arr = rentArrears();
+    // mostra il primo mese arretrato, altrimenti il corrente
+    const r = arr[0] || rentMonth(cur);
+    const st = rentChip(r);
+    $('#r-month').textContent = 'Affitto di ' + monthName(r.month);
+    $('#r-amount').textContent = eur(c.canone);
+    $('#r-status').innerHTML = `<span class="chip ${st.cls}">${esc(st.txt)}</span>${arr.length > 1 ? ` <span class="chip late">${arr.length} mesi arretrati</span>` : ''}`;
+    const pay = $('#r-pay');
+    pay.hidden = !!r.paid;
+    pay.dataset.month = r.month;
+    $('#r-info').innerHTML = [
+      c.proprietario ? `<div><span class="muted small">Proprietario</span><strong>${esc(c.proprietario)}</strong></div>` : '',
+      c.iban ? `<div><span class="muted small">IBAN</span><strong class="mono">${esc(c.iban)}</strong> <button class="btn sm" data-copy="${esc(c.iban)}">Copia</button></div>` : '',
+      `<div><span class="muted small">Causale</span><strong>${esc((c.causale || 'Affitto {mese}').replace('{mese}', monthName(r.month)))}</strong></div>`
+    ].join('');
+
+    // griglia anno
+    $('#r-year').textContent = rentYear;
+    let paidN = 0, paidTot = 0, dueN = 0;
+    $('#r-months').innerHTML = Array.from({ length: 12 }, (_, i) => {
+      const mk = `${rentYear}-${pad(i + 1)}`;
+      const x = rentMonth(mk);
+      const name = new Date(rentYear, i, 1).toLocaleDateString('it-IT', { month: 'short' }).replace('.', '');
+      let cls = 'future', txt = '';
+      if (x.before) { cls = 'off'; txt = '—'; }
+      else if (x.paid) { cls = 'paid'; txt = eur0(x.paid.importo); paidN++; paidTot += Number(x.paid.importo) || 0; }
+      else if (x.days < 0) { cls = 'late'; txt = 'Non pagato'; dueN++; }
+      else if (mk === cur || x.days <= 31) { cls = 'due'; txt = 'Da pagare'; }
+      else txt = '';
+      const check = cls === 'paid' ? '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : '';
+      return `<button class="m ${cls}${mk === cur ? ' cur' : ''}" data-rentmonth="${mk}" ${x.before ? 'disabled' : ''}>
+        <span class="mn">${esc(name)}</span>${check}<span class="mv">${esc(txt)}</span></button>`;
+    }).join('');
+    $('#r-count').textContent = `${paidN} mesi pagati${dueN ? ` · ${dueN} non pagati` : ''}`;
+    $('#r-total').textContent = eur(paidTot);
+
+    // notifiche
+    const n = db.config.notifiche || {};
+    const on = n.email || n.calendario;
+    $('#r-notify').innerHTML = on ? `<ul class="nlist">
+        ${n.calendario ? `<li><b>Calendario Google</b><span>Promemoria sul telefono ${n.giorniPrima ? n.giorniPrima + ' gg prima e ' : ''}il giorno della scadenza, alle ${n.ora}:00</span></li>` : ''}
+        ${n.email ? `<li><b>Email</b><span>Ogni giorno alle ${n.ora}:00 controllo automatico: ti scrivo solo se non hai ancora pagato${n.bollette ? ' (anche bollette)' : ''}</span></li>` : ''}
+      </ul>${n.email ? '<button class="btn sm" data-rent="testmail">Invia email di prova</button>' : ''}`
+      : `<p class="muted small" style="margin:0">Nessuna notifica attiva. Configura un promemoria sul calendario o via email.</p>`;
+
+    // contratto
+    const kv = [
+      ['Canone mensile', eur(c.canone)],
+      ['Scadenza', `il giorno ${c.giorno} di ogni mese`],
+      ['Pagamento', c.metodo || 'Bonifico'],
+      c.inizio ? ['Inizio contratto', monthName(String(c.inizio).slice(0, 7))] : null,
+      c.note ? ['Note', c.note] : null
+    ].filter(Boolean);
+    $('#r-contract').innerHTML = kv.map(([k, v]) => `<div><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');
+  }
+
+  function formRent() {
+    const c = db.config.affitto || { canone: '', giorno: 5, proprietario: '', iban: '', metodo: 'Bonifico', inizio: '', causale: 'Affitto {mese}', note: '' };
+    const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
+    openSheet('Contratto d\'affitto', `
+      <div class="f-row">
+        <label class="f"><span>Canone mensile (€)</span><input name="canone" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(c.canone))}" required data-focus></label>
+        <label class="f"><span>Giorno di scadenza</span><select name="giorno" class="amount-input">${opt(days, String(c.giorno || 5))}</select></label>
+      </div>
+      <label class="f"><span>Proprietario</span><input name="proprietario" placeholder="Nome e cognome" value="${esc(c.proprietario)}"></label>
+      <label class="f"><span>IBAN</span><input name="iban" placeholder="IT00 X000 0000 0000 0000 0000 000" value="${esc(c.iban)}" autocapitalize="characters"></label>
+      <div class="f-row">
+        <label class="f"><span>Metodo</span><select name="metodo">${opt(METODI, c.metodo || 'Bonifico')}</select></label>
+        <label class="f"><span>Inizio contratto</span><input name="inizio" type="month" value="${esc(String(c.inizio || '').slice(0, 7))}"></label>
+      </div>
+      <label class="f"><span>Causale bonifico</span><input name="causale" value="${esc(c.causale || 'Affitto {mese}')}"><div class="hint muted">{mese} viene sostituito con il mese pagato</div></label>
+      <label class="f"><span>Note</span><textarea name="note" rows="2" placeholder="Durata, deposito cauzionale, spese incluse…">${esc(c.note)}</textarea></label>`,
+      async fd => {
+        const canone = num(fd.get('canone'));
+        if (canone <= 0) return toast('Inserisci il canone');
+        const v = { attivo: true, canone, giorno: Number(fd.get('giorno')), proprietario: fd.get('proprietario').trim(), iban: fd.get('iban').replace(/\s+/g, ' ').trim().toUpperCase(), metodo: fd.get('metodo'), inizio: fd.get('inizio'), causale: fd.get('causale').trim(), note: fd.get('note').trim() };
+        setConfig('affitto', v);
+        closeSheet(); toast('Affitto salvato');
+        const n = db.config.notifiche || {};
+        if (n.calendario && !isLocal()) { try { await syncNow(); await api('reminders'); } catch (e) { toast(e.message); } }
+      },
+      db.config.affitto ? () => {
+        if (!confirm('Eliminare la configurazione dell\'affitto? I pagamenti registrati restano tra le spese.')) return;
+        setConfig('affitto', null); closeSheet(); toast('Affitto eliminato');
+      } : null);
+  }
+
+  function formRentPay(mk) {
+    const c = rentCfg(); if (!c) return formRent();
+    const r = rentMonth(mk);
+    if (r.paid) return formSpesa(r.paid);
+    // mesi selezionabili: 12 indietro, 2 avanti, non pagati
+    const now = new Date(), opts = [];
+    for (let i = -12; i <= 2; i++) {
+      const k = ymOf(new Date(now.getFullYear(), now.getMonth() + i, 1));
+      const x = rentMonth(k);
+      if (!x.paid && !x.before) opts.push(k);
+    }
+    if (!opts.includes(mk)) opts.push(mk);
+    openSheet('Pagamento affitto', `
+      <label class="f"><span>Importo pagato (€)</span><input name="importo" class="amount-input" inputmode="decimal" value="${esc(fmtAmt(c.canone))}" required data-focus></label>
+      <div class="f-row">
+        <label class="f"><span>Mese di riferimento</span><select name="mese">${opts.sort().map(k => `<option value="${k}"${k === mk ? ' selected' : ''}>${esc(monthName(k))}</option>`).join('')}</select></label>
+        <label class="f"><span>Data pagamento</span><input name="data" type="date" value="${today()}" required></label>
+      </div>
+      <label class="f"><span>Metodo</span><select name="metodo">${opt(METODI, c.metodo || 'Bonifico')}</select></label>
+      <label class="f"><span>Note</span><input name="note" placeholder="Es. CRO bonifico" value=""></label>`,
+      fd => {
+        const importo = num(fd.get('importo'));
+        if (importo <= 0) return toast('Inserisci un importo valido');
+        const m = fd.get('mese');
+        const spesa = { id: uid(), data: fd.get('data'), importo, categoria: rentCat(), descrizione: 'Affitto ' + monthName(m), metodo: fd.get('metodo'), note: fd.get('note').trim(), bollettaId: rentKey(m), creato: new Date().toISOString(), sito: '' };
+        write([{ action: 'upsert', sheet: 'Spese', row: spesa }]);
+        closeSheet(); toast('Affitto di ' + monthName(m) + ' registrato');
+      }, null, 'Registra pagamento');
+  }
+
+  function formNotify() {
+    const n = { email: false, calendario: false, bollette: true, giorniPrima: 3, ora: 9, ...(db.config.notifiche || {}) };
+    if (isLocal()) return toast('Le notifiche richiedono il collegamento al Foglio Google');
+    const hours = Array.from({ length: 15 }, (_, i) => String(i + 7));
+    openSheet('Notifiche', `
+      <label class="sw"><input type="checkbox" name="calendario" ${n.calendario ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Calendario Google</b><small>Crea un evento mensile "Pagare affitto" con promemoria: arriva come notifica sul telefono.</small></span></label>
+      <label class="sw"><input type="checkbox" name="email" ${n.email ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Email intelligente</b><small>Controllo ogni giorno: ti scrivo solo se il pagamento non è ancora registrato.</small></span></label>
+      <label class="sw"><input type="checkbox" name="bollette" ${n.bollette ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Includi le bollette</b><small>Nell'email anche le bollette in scadenza.</small></span></label>
+      <div class="f-row" style="margin-top:6px">
+        <label class="f"><span>Avvisami</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
+        <label class="f"><span>Orario</span><select name="ora">${hours.map(hh => `<option value="${hh}"${String(n.ora) === hh ? ' selected' : ''}>${hh}:00</option>`).join('')}</select></label>
+      </div>
+      <p class="muted small" style="margin:0 0 8px">Le email arrivano all'indirizzo Gmail del tuo account Google.</p>`,
+      async fd => {
+        const v = { calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
+        if (v.calendario && !rentCfg()) return toast('Prima configura l\'affitto');
+        setConfig('notifiche', v);
+        setConfig('appUrl', location.href.split('#')[0]);
+        closeSheet(); busy('Attivo le notifiche…');
+        try {
+          await syncNow();
+          const r = await api('reminders');
+          busy();
+          toast(r.calendario || r.email ? 'Notifiche attivate' + (r.indirizzo ? ' · ' + r.indirizzo : '') : 'Notifiche disattivate');
+        } catch (e) {
+          busy();
+          toast(/autorizz|permission|permess/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message);
+        }
+        render();
+      }, null, 'Salva notifiche');
+  }
 
   /* ================= IA ================= */
   const ICO = {
@@ -774,6 +1033,25 @@
         if (!confirm(`Eliminare la categoria “${c}”?${used ? ` (${used} spese la usano: resteranno invariate)` : ''}`)) return;
         write([{ action: 'delete', sheet: 'Categorie', id: c }]); return;
       }
+      const rp = e.target.closest('[data-rentpay]');
+      if (rp) { e.stopPropagation(); formRentPay(rp.dataset.rentpay); return; }
+      const rm = e.target.closest('[data-rentmonth]');
+      if (rm) { formRentPay(rm.dataset.rentmonth); return; }
+      const ra = e.target.closest('[data-rent]');
+      if (ra) {
+        const a = ra.dataset.rent;
+        if (a === 'edit') formRent();
+        else if (a === 'pay') formRentPay(ra.dataset.month || ymOf(new Date()));
+        else if (a === 'notify') formNotify();
+        else if (a === 'testmail') { busy('Invio…'); api('testEmail').then(r => { busy(); toast('Email inviata a ' + r.email); }).catch(err => { busy(); toast(err.message); }); }
+        return;
+      }
+      const yr = e.target.closest('[data-year]');
+      if (yr) { rentYear += Number(yr.dataset.year); renderRent(); return; }
+      const cp = e.target.closest('[data-copy]');
+      if (cp) { navigator.clipboard && navigator.clipboard.writeText(cp.dataset.copy).then(() => toast('IBAN copiato')); return; }
+      const go = e.target.closest('[data-go]');
+      if (go && !e.target.closest('button')) { location.hash = '#' + go.dataset.go; return; }
       const ai = e.target.closest('[data-ai]');
       if (ai) { ai.dataset.ai === 'receipt' ? aiReceipt() : aiTextForm(); return; }
       if (e.target.closest('#ai-save')) { const k = $('#ai-key').value.trim(); if (k) setAIKey(k); return; }
@@ -837,7 +1115,7 @@
         if (!j.ok) throw new Error(j.error);
         if (url !== v) { queue = []; }
         url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, categorie: j.data.categorie, ai: !!j.data.ai };
+        db = { spese: j.data.spese, bollette: j.data.bollette, categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');
