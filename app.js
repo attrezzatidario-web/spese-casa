@@ -287,13 +287,13 @@
   }
 
   /* ================= Router ================= */
-  const TITLES = { home: 'Home', spese: 'Spese', fisse: 'Spese fisse', auto: 'Auto', affitto: 'Affitto', bollette: 'Bollette', impostazioni: 'Impostazioni' };
-  const SUBS = { home: '', spese: 'Tutti i movimenti', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', impostazioni: 'Collegamento, IA e categorie' };
+  const TITLES = { home: 'Home', spese: 'Spese', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', impostazioni: 'Impostazioni' };
+  const SUBS = { home: '', spese: 'Tutti i movimenti', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', impostazioni: 'Collegamento, IA e categorie' };
   function route() {
     view = (location.hash || '#home').slice(1);
     if (!TITLES[view]) view = 'home';
     $$('.view').forEach(v => (v.hidden = v.id !== 'v-' + view));
-    $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
+    $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto'].includes(view) && !isDesk())));
     $('#title').textContent = TITLES[view];
     $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : 'Nuova spesa';
     const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
@@ -314,6 +314,7 @@
     if (view === 'affitto') renderRent();
     if (view === 'fisse') renderFisse();
     if (view === 'auto') renderAuto();
+    if (view === 'estratto') renderStmt();
     if (view === 'impostazioni') renderSettings();
     setSync();
   }
@@ -324,6 +325,8 @@
     const el = $('#badge'); el.hidden = !n; el.textContent = n;
     const r = rentArrears().length;
     const er = $('#badge-rent'); er.hidden = !r; er.textContent = r;
+    const eo = $('#badge-more'); if (eo) { eo.hidden = !r; eo.textContent = r; }
+    const tr = $('#tile-rent-badge'); if (tr) { tr.hidden = !r; tr.textContent = r; }
     const al = autoScadenze().filter(x => daysTo(x.date) < 0).length;
     const ea = $('#badge-auto'); ea.hidden = !al; ea.textContent = al;
     const fl = fisseActive().filter(f => !isOn(f.auto) && f.prossima && daysTo(f.prossima) < 0).length;
@@ -335,7 +338,7 @@
     const sub = [s.categoria, s.metodo].filter(Boolean).join(' · ');
     return `<div class="item" data-spesa="${esc(s.id)}">
       ${String(s.bollettaId || '').startsWith('affitto:') ? `<div class="ic rent-ic">${ICO_KEY}</div>` : iconHTML(s.descrizione, s.categoria, s.sito)}
-      <div class="main"><div class="t">${esc(s.descrizione || s.categoria || 'Spesa')}</div><div class="s">${esc(sub)}</div></div>
+      <div class="main"><div class="t">${esc(s.descrizione || s.categoria || 'Spesa')}${s.verificato ? ' <i class="vchk">✓</i>' : ''}</div><div class="s">${esc(sub)}</div></div>
       <div class="amt">${eur(s.importo)}</div></div>`;
   }
   function dueItem(b) {
@@ -358,7 +361,7 @@
     return `<table class="tbl"><thead><tr>${withDate ? '<th>Data</th>' : ''}<th>Descrizione</th><th>Categoria</th><th>Metodo</th><th class="r">Importo</th></tr></thead><tbody>
       ${list.map(s => `<tr data-spesa="${esc(s.id)}">
         ${withDate ? `<td class="d">${esc(parseD(s.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', ''))}</td>` : ''}
-        <td><div class="tcell">${String(s.bollettaId || '').startsWith('affitto:') ? `<div class="ic rent-ic">${ICO_KEY}</div>` : iconHTML(s.descrizione, s.categoria, s.sito)}<div class="tt"><b>${esc(s.descrizione || s.categoria || 'Spesa')}</b>${s.note ? `<small>${esc(s.note)}</small>` : ''}</div></div></td>
+        <td><div class="tcell">${String(s.bollettaId || '').startsWith('affitto:') ? `<div class="ic rent-ic">${ICO_KEY}</div>` : iconHTML(s.descrizione, s.categoria, s.sito)}<div class="tt"><b>${esc(s.descrizione || s.categoria || 'Spesa')}${s.verificato ? ' <i class="vchk" title="Verificata nell\'estratto conto">✓</i>' : ''}</b>${s.note ? `<small>${esc(s.note)}</small>` : ''}</div></div></td>
         <td><span class="chip">${esc(s.categoria || '—')}</span></td>
         <td class="m2">${esc(s.metodo || '')}</td>
         <td class="r amt">${eur(s.importo)}</td></tr>`).join('')}
@@ -794,6 +797,294 @@
 
 
 
+
+
+  /* ================= ESTRATTO CONTO (riconciliazione IA) ================= */
+  let stmt = null;          // analisi corrente (in memoria)
+  let stmtFilter = 'all';
+  const loadJS = src => new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error('Impossibile caricare ' + src)); document.head.appendChild(sc); });
+  async function libPdf() { await loadJS('lib-pdf.min.js'); window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib-pdf.worker.min.js'; return window.pdfjsLib; }
+  async function libPdfLib() { await loadJS('lib-pdf-lib.min.js'); return window.PDFLib; }
+  const ST_LBL = { ok: 'Coincide', prob: 'Da verificare', miss: 'Non registrata', in: 'Entrata' };
+  const ST_COL = { ok: [0.09, 0.63, 0.38], prob: [0.96, 0.62, 0.04], miss: [0.86, 0.15, 0.15] };
+  const dDiff = (a, b) => Math.abs((parseD(a) - parseD(b)) / 864e5);
+  const words = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(w => w.length > 2 && !/^(pagamento|pos|carta|presso|del|per|con|sdd|addebito|bonifico|favore|disposizione|operazione|roma|italia|srl|spa)$/.test(w));
+
+  function canvasToB64(c) { return c.toDataURL('image/jpeg', 0.85).split(',')[1]; }
+
+  async function readStatementFile(files) {
+    const pages = [];
+    const f0 = files[0];
+    const isPdf = f0.type === 'application/pdf' || /\.pdf$/i.test(f0.name);
+    if (isPdf) {
+      const lib = await libPdf();
+      const bytes = new Uint8Array(await f0.arrayBuffer());
+      const doc = await lib.getDocument({ data: bytes.slice() }).promise;
+      const n = Math.min(doc.numPages, 12);
+      for (let i = 1; i <= n; i++) {
+        busy(`Preparo pagina ${i} di ${n}…`);
+        const page = await doc.getPage(i);
+        const vp0 = page.getViewport({ scale: 1 });
+        const vp = page.getViewport({ scale: Math.min(2.2, 1700 / vp0.width) });
+        const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        pages.push({ canvas: c });
+      }
+      return { kind: 'pdf', name: f0.name, bytes, pages, total: doc.numPages };
+    }
+    for (const f of files) {
+      const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Immagine non leggibile')); im.src = URL.createObjectURL(f); });
+      const k = Math.min(1, 2000 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      pages.push({ canvas: c });
+    }
+    return { kind: 'img', name: f0.name, pages, total: pages.length };
+  }
+
+  async function analyzeStatement(files) {
+    if (!aiReady()) return toast('Attiva prima l\'IA in Altro → Intelligenza artificiale');
+    let doc;
+    try { busy('Apro il file…'); doc = await readStatementFile(files); }
+    catch (e) { busy(); return toast(e.message || 'File non leggibile'); }
+    const movs = [];
+    let banca = '', da = '', a = '';
+    try {
+      for (let i = 0; i < doc.pages.length; i++) {
+        busy(`L'IA legge la pagina ${i + 1} di ${doc.pages.length}…`);
+        const r = await aiCall('statement', { image: canvasToB64(doc.pages[i].canvas), mime: 'image/jpeg', pagina: i + 1 });
+        if (r.valido === false && !r.movimenti?.length) continue;
+        banca = banca || r.banca; da = da || r.periodoDa; a = r.periodoA || a;
+        (r.movimenti || []).forEach(m => {
+          const imp = Math.abs(Number(m.importo) || 0);
+          if (!imp) return;
+          movs.push({ id: uid(), page: i, data: validDate(m.data), descrizione: m.descrizione, importo: Math.round(imp * 100) / 100, segno: m.segno, categoria: m.categoria, box: Array.isArray(m.box) && m.box.length === 4 ? m.box : null });
+        });
+      }
+    } catch (e) { busy(); return toast(e.message); }
+    busy();
+    if (!movs.length) return toast('Non ho trovato movimenti nel file');
+    stmt = { ...doc, banca, periodoDa: da, periodoA: a, movs, created: new Date().toISOString() };
+    reconcile();
+    stmtFilter = 'all';
+    renderStmt(); stagger($('#v-estratto'));
+    toast(`${movs.length} movimenti letti`);
+  }
+
+  // abbinamento movimenti ↔ spese registrate (uno a uno, i migliori per primi)
+  function reconcile() {
+    const out = stmt.movs.filter(m => m.segno !== 'entrata');
+    if (!out.length) { stmt.movs.forEach(m => { m.st = 'in'; m.match = null; }); stmt.onlyApp = []; return; }
+    const dates = out.map(m => m.data).sort();
+    const from = addMonths(dates[0], 0), to = dates[dates.length - 1];
+    const lo = ymd(new Date(parseD(from).getTime() - 12 * 864e5)), hi = ymd(new Date(parseD(to).getTime() + 12 * 864e5));
+    const cand = db.spese.filter(s => s.data >= lo && s.data <= hi && s.metodo !== 'Contanti');
+    const pairs = [];
+    out.forEach(m => cand.forEach(s => {
+      const diff = Math.abs((Number(s.importo) || 0) - m.importo);
+      const dd = dDiff(s.data, m.data);
+      let sc = 0;
+      if (diff < 0.005) sc = 100; else if (diff <= Math.max(0.5, m.importo * 0.01)) sc = 62; else return;
+      if (dd > 12) return;
+      sc -= dd * 3;
+      const mw = words(m.descrizione), sw = words(s.descrizione + ' ' + (s.note || ''));
+      const fm = findMerchant(m.descrizione), fs = findMerchant(s.descrizione);
+      if ((fm && fs && fm.domain === fs.domain) || mw.some(w => sw.includes(w))) sc += 20;
+      pairs.push({ m, s, sc });
+    }));
+    pairs.sort((x, y) => y.sc - x.sc);
+    const usedM = new Set(), usedS = new Set();
+    stmt.movs.forEach(m => { m.st = m.segno === 'entrata' ? 'in' : 'miss'; m.match = null; });
+    pairs.forEach(p => {
+      if (usedM.has(p.m.id) || usedS.has(p.s.id)) return;
+      usedM.add(p.m.id); usedS.add(p.s.id);
+      p.m.match = p.s.id; p.m.st = p.sc >= 85 ? 'ok' : 'prob';
+    });
+    // spese registrate nel periodo dell'estratto ma assenti
+    const pFrom = stmt.periodoDa && /^\d{4}-\d{2}-\d{2}$/.test(stmt.periodoDa) ? stmt.periodoDa : from;
+    const pTo = stmt.periodoA && /^\d{4}-\d{2}-\d{2}$/.test(stmt.periodoA) ? stmt.periodoA : to;
+    stmt.onlyApp = db.spese.filter(s => s.data >= pFrom && s.data <= pTo && s.metodo !== 'Contanti' && !usedS.has(s.id)).sort((x, y) => x.data.localeCompare(y.data));
+  }
+
+  function stmtCounts() {
+    const c = { ok: 0, prob: 0, miss: 0, in: 0, tot: 0, missAmt: 0, outAmt: 0, okAmt: 0 };
+    stmt.movs.forEach(m => { c[m.st]++; if (m.st !== 'in') { c.tot++; c.outAmt += m.importo; } if (m.st === 'miss') c.missAmt += m.importo; if (m.st === 'ok' || m.st === 'prob') c.okAmt += m.importo; });
+    return c;
+  }
+
+  function renderStmt() {
+    const has = !!stmt;
+    $('#st-upload').hidden = has;
+    $('#st-result').hidden = !has;
+    renderStmtHistory();
+    if (!has) return;
+    const c = stmtCounts();
+    const pct = c.tot ? Math.round((c.ok + c.prob) / c.tot * 100) : 0;
+    $('#st-head').innerHTML = `
+      <div class="ring" style="--p:${pct}"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="rg-bg"/><circle cx="60" cy="60" r="52" class="rg-fg" style="stroke-dashoffset:${327 - 327 * pct / 100}"/></svg><div><b>${pct}%</b><span>riconciliato</span></div></div>
+      <div class="st-info"><h3>${esc(stmt.banca || 'Estratto conto')}</h3>
+        <p class="muted small">${esc(stmt.name)} · ${stmt.pages.length} ${stmt.pages.length === 1 ? 'pagina' : 'pagine'}${stmt.periodoDa ? ' · ' + esc(shortDate(stmt.periodoDa)) + ' – ' + esc(shortDate(stmt.periodoA || stmt.periodoDa)) : ''}</p>
+        <div class="st-kpis">
+          <div class="sk ok"><b>${c.ok}</b><span>Coincidono</span></div>
+          <div class="sk prob"><b>${c.prob}</b><span>Da verificare</span></div>
+          <div class="sk miss"><b>${c.miss}</b><span>Non registrate</span></div>
+          <div class="sk sk-app"><b>${stmt.onlyApp.length}</b><span>Solo in app</span></div>
+        </div>
+        <p class="small st-sum">Uscite nell'estratto <b>${eur(c.outAmt)}</b> · trovate in app <b>${eur(c.okAmt)}</b>${c.miss ? ` · mancano <b class="warn-t">${eur(c.missAmt)}</b>` : ''}${c.in ? ` · ${c.in} entrate` : ''}</p>
+      </div>
+      <div class="st-actions">
+        <button class="btn primary btn-ic" data-stmt="download"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Scarica file evidenziato</button>
+        ${c.miss ? `<button class="btn btn-ic" data-stmt="addall"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Aggiungi ${c.miss} mancanti</button>` : ''}
+        <button class="btn" data-stmt="save">Segna come verificate</button>
+        <button class="btn ghost" data-stmt="reset">Nuova analisi</button>
+      </div>`;
+    const F = [['all', 'Tutti', stmt.movs.length], ['ok', 'Coincidono', c.ok], ['prob', 'Da verificare', c.prob], ['miss', 'Non registrate', c.miss], ['app', 'Solo in app', stmt.onlyApp.length], ['in', 'Entrate', c.in]];
+    $('#st-filters').innerHTML = F.filter(f => f[2] || f[0] === 'all').map(([k, l, n]) => `<button class="fchip${stmtFilter === k ? ' on' : ''}" data-stmt="f:${k}">${l} <i>${n}</i></button>`).join('');
+    const sp = id => db.spese.find(x => x.id === id);
+    let rows;
+    if (stmtFilter === 'app') {
+      rows = stmt.onlyApp.map(s => `<div class="st-row"><div class="st-d">${esc(parseD(s.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }))}</div>
+        <div class="st-m">${iconHTML(s.descrizione, s.categoria, s.sito)}<div><b>${esc(s.descrizione)}</b><small>${esc(s.categoria)} · ${esc(s.metodo || '')} · non trovata nell'estratto</small></div></div>
+        <span class="chip">Solo in app</span><div class="amt">${eur(s.importo)}</div><div></div></div>`).join('');
+    } else {
+      rows = stmt.movs.filter(m => stmtFilter === 'all' || m.st === stmtFilter).map(m => {
+        const s2 = m.match && sp(m.match);
+        return `<div class="st-row st-${m.st}"><div class="st-d">${esc(parseD(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }))}</div>
+          <div class="st-m">${iconHTML(m.descrizione, m.descrizione)}<div><b>${esc(m.descrizione)}</b><small>${s2 ? `In app: ${esc(s2.descrizione)} · ${esc(shortDate(s2.data))}${Math.abs(s2.importo - m.importo) > 0.004 ? ' · ' + eur(s2.importo) : ''}` : m.st === 'in' ? 'Accredito' : esc(m.categoria || '')} · pag. ${m.page + 1}</small></div></div>
+          <span class="chip ${m.st === 'ok' ? 'paid' : m.st === 'prob' ? 'soon' : m.st === 'miss' ? 'late' : ''}">${ST_LBL[m.st]}</span>
+          <div class="amt">${m.segno === 'entrata' ? '+' : '−'}${eur(m.importo)}</div>
+          <div class="st-act">${m.st === 'miss' ? `<button class="btn sm" data-stmt="add:${m.id}">Aggiungi</button>` : m.st === 'prob' ? `<button class="btn sm" data-stmt="ok:${m.id}">Conferma</button><button class="icon-btn" data-stmt="un:${m.id}" title="Non coincide">✕</button>` : m.st === 'ok' ? `<button class="icon-btn" data-stmt="un:${m.id}" title="Scollega">✕</button>` : ''}</div></div>`;
+      }).join('');
+    }
+    $('#st-rows').innerHTML = rows || '<div class="empty">Nessun movimento</div>';
+    // anteprime pagine evidenziate
+    $('#st-pages').innerHTML = '';
+    stmt.pages.forEach((p, i) => {
+      const c2 = drawHighlights(p.canvas, i, 520);
+      const wrap = document.createElement('div'); wrap.className = 'st-page';
+      wrap.appendChild(c2);
+      const lb = document.createElement('span'); lb.textContent = 'Pagina ' + (i + 1); wrap.appendChild(lb);
+      $('#st-pages').appendChild(wrap);
+    });
+  }
+
+  function drawHighlights(src, pageIdx, maxW) {
+    const k = maxW ? Math.min(1, maxW / src.width) : 1;
+    const c = document.createElement('canvas'); c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
+    const ctx = c.getContext('2d'); ctx.drawImage(src, 0, 0, c.width, c.height);
+    stmt.movs.filter(m => m.page === pageIdx && m.box && m.st !== 'in').forEach(m => {
+      const [y0, x0, y1, x1] = m.box;
+      const x = x0 / 1000 * c.width, y = y0 / 1000 * c.height, w = (x1 - x0) / 1000 * c.width, h = (y1 - y0) / 1000 * c.height;
+      const col = ST_COL[m.st].map(v => Math.round(v * 255)).join(',');
+      ctx.fillStyle = `rgba(${col},${m.st === 'miss' ? 0.10 : 0.28})`; ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = `rgba(${col},0.9)`; ctx.lineWidth = Math.max(1, 2 * k * (src.width / 1000)); ctx.strokeRect(x, y, w, h);
+    });
+    return c;
+  }
+
+  async function downloadStatement() {
+    busy('Creo il file evidenziato…');
+    try {
+      const L = await libPdfLib();
+      const { rgb, StandardFonts } = L;
+      let pdf;
+      if (stmt.kind === 'pdf') {
+        pdf = await L.PDFDocument.load(stmt.bytes, { ignoreEncryption: true });
+        pdf.getPages().forEach((pg, i) => {
+          if (i >= stmt.pages.length) return;
+          const { width: W, height: H } = pg.getSize();
+          stmt.movs.filter(m => m.page === i && m.box && m.st !== 'in').forEach(m => {
+            const [y0, x0, y1, x1] = m.box, col = rgb(...ST_COL[m.st]);
+            pg.drawRectangle({ x: x0 / 1000 * W, y: H - y1 / 1000 * H, width: (x1 - x0) / 1000 * W, height: (y1 - y0) / 1000 * H, color: col, opacity: m.st === 'miss' ? 0.08 : 0.25, borderColor: col, borderWidth: 1, borderOpacity: 0.9 });
+          });
+        });
+      } else {
+        if (stmt.pages.length === 1) {
+          // immagine singola: restituisco la stessa immagine evidenziata
+          const c = drawHighlights(stmt.pages[0].canvas, 0);
+          busy();
+          return saveBlob(await new Promise(r => c.toBlob(r, 'image/png')), stmt.name.replace(/\.[^.]+$/, '') + '-evidenziato.png');
+        }
+        pdf = await L.PDFDocument.create();
+        for (let i = 0; i < stmt.pages.length; i++) {
+          const c = drawHighlights(stmt.pages[i].canvas, i);
+          const jpg = await pdf.embedJpg(Uint8Array.from(atob(c.toDataURL('image/jpeg', 0.88).split(',')[1]), ch => ch.charCodeAt(0)));
+          const pg = pdf.addPage([c.width * 0.5, c.height * 0.5]);
+          pg.drawImage(jpg, { x: 0, y: 0, width: c.width * 0.5, height: c.height * 0.5 });
+        }
+      }
+      // pagina di resoconto finale
+      const font = await pdf.embedFont(StandardFonts.Helvetica), bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+      const safe = t => String(t || '').replace(/[^\x20-\x7E -ÿ€]/g, '').replace(/€/g, 'EUR');
+      const cnt = stmtCounts();
+      let pg = pdf.addPage([595, 842]), y = 790;
+      const line = (t, o = {}) => { if (y < 60) { pg = pdf.addPage([595, 842]); y = 790; } pg.drawText(safe(t), { x: o.x || 48, y, size: o.size || 10, font: o.bold ? bold : font, color: o.color || rgb(0.1, 0.1, 0.12) }); y -= o.gap || 15; };
+      line('Spese Casa - Resoconto estratto conto', { size: 18, bold: true, gap: 24, color: rgb(0.09, 0.47, 0.35) });
+      line(`${stmt.banca || ''} ${stmt.name}  -  generato il ${new Date().toLocaleDateString('it-IT')}`, { size: 9, gap: 22, color: rgb(0.4, 0.4, 0.45) });
+      [['Coincidono', cnt.ok, 'ok'], ['Da verificare', cnt.prob, 'prob'], ['Non registrate in app', cnt.miss, 'miss']].forEach(([l, n, k]) => {
+        pg.drawRectangle({ x: 48, y: y - 3, width: 12, height: 12, color: rgb(...ST_COL[k]), opacity: 0.6 });
+        line(`${l}: ${n}`, { x: 68, size: 11, gap: 18 });
+      });
+      line(`Spese in app non presenti nell'estratto: ${stmt.onlyApp.length}`, { size: 11, gap: 18 });
+      line(`Uscite estratto ${fmtNum(cnt.outAmt, 2)} EUR  -  trovate in app ${fmtNum(cnt.okAmt, 2)} EUR  -  mancanti ${fmtNum(cnt.missAmt, 2)} EUR`, { size: 10, gap: 26 });
+      const section = (title, list, fn) => { if (!list.length) return; line(title, { size: 12, bold: true, gap: 18 }); list.forEach(x => line(fn(x), { size: 9, gap: 13 })); y -= 10; };
+      const mv = m => `${parseD(m.data).toLocaleDateString('it-IT')}   ${fmtNum(m.importo, 2).padStart(10)} EUR   ${String(m.descrizione).slice(0, 70)}`;
+      section('Non registrate in app', stmt.movs.filter(m => m.st === 'miss'), mv);
+      section('Da verificare', stmt.movs.filter(m => m.st === 'prob'), mv);
+      section('Solo in app (non trovate nell\'estratto)', stmt.onlyApp, s2 => `${parseD(s2.data).toLocaleDateString('it-IT')}   ${fmtNum(s2.importo, 2).padStart(10)} EUR   ${String(s2.descrizione).slice(0, 70)}`);
+      section('Coincidono', stmt.movs.filter(m => m.st === 'ok'), mv);
+      const out = await pdf.save();
+      busy();
+      saveBlob(new Blob([out], { type: 'application/pdf' }), stmt.name.replace(/\.[^.]+$/, '') + '-evidenziato.pdf');
+    } catch (e) { busy(); toast('Errore nel creare il file: ' + e.message); }
+  }
+  function saveBlob(blob, name) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('File scaricato');
+  }
+
+  function stmtAction(act, el) {
+    if (act === 'pick') return $('#st-file').click();
+    if (act === 'reset') { stmt = null; renderStmt(); return; }
+    if (act === 'download') return downloadStatement();
+    if (act.startsWith('f:')) { stmtFilter = act.slice(2); renderStmt(); return; }
+    const mid = act.split(':')[1];
+    const m = stmt && stmt.movs.find(x => x.id === mid);
+    const toSpesa = mm => ({ id: uid(), data: mm.data, importo: mm.importo, categoria: pickCat(mm.categoria), descrizione: mm.descrizione, metodo: 'Carta', note: 'Da estratto conto', bollettaId: '', creato: new Date().toISOString(), sito: '', verificato: today() });
+    if (act.startsWith('add:') && m) { const sp = toSpesa(m); write([{ action: 'upsert', sheet: 'Spese', row: sp }]); m.st = 'ok'; m.match = sp.id; renderStmt(); toast('Spesa aggiunta'); return; }
+    if (act.startsWith('ok:') && m) { m.st = 'ok'; renderStmt(); return; }
+    if (act.startsWith('un:') && m) { m.st = 'miss'; m.match = null; reconcileOnlyApp(); renderStmt(); return; }
+    if (act === 'addall') {
+      const miss = stmt.movs.filter(x => x.st === 'miss');
+      if (!confirm(`Aggiungere ${miss.length} spese all'app?`)) return;
+      const ops = miss.map(x => { const sp = toSpesa(x); x.st = 'ok'; x.match = sp.id; return { action: 'upsert', sheet: 'Spese', row: sp }; });
+      write(ops); renderStmt(); toast(`${ops.length} spese aggiunte`); return;
+    }
+    if (act === 'save') {
+      const ids = stmt.movs.filter(x => x.st === 'ok' && x.match).map(x => x.match);
+      const ops = ids.map(id => db.spese.find(x => x.id === id)).filter(Boolean).map(sp => ({ action: 'upsert', sheet: 'Spese', row: { ...sp, verificato: today() } }));
+      const c = stmtCounts();
+      const hist = (db.config.estratti || []).slice(0, 19);
+      hist.unshift({ data: today(), nome: stmt.name, banca: stmt.banca || '', ok: c.ok, prob: c.prob, miss: c.miss, app: stmt.onlyApp.length, tot: c.tot });
+      write(ops); setConfig('estratti', hist);
+      toast(`${ids.length} spese segnate come verificate`); return;
+    }
+  }
+  function reconcileOnlyApp() {
+    const used = new Set(stmt.movs.filter(m => m.match).map(m => m.match));
+    const ds = stmt.movs.map(m => m.data).sort();
+    const pFrom = stmt.periodoDa || ds[0], pTo = stmt.periodoA || ds[ds.length - 1];
+    stmt.onlyApp = db.spese.filter(s => s.data >= pFrom && s.data <= pTo && s.metodo !== 'Contanti' && !used.has(s.id));
+  }
+
+  function renderStmtHistory() {
+    const h = db.config.estratti || [];
+    $('#st-hist').innerHTML = h.length ? `<div class="list">${h.map(x => `<div class="item" style="cursor:default"><div class="ic doc-ic">${ICO_DOC}</div>
+      <div class="main"><div class="t">${esc(x.banca || x.nome)}</div><div class="s">${esc(shortDate(x.data))} · ${x.ok} coincidono · ${x.miss} non registrate${x.prob ? ' · ' + x.prob + ' da verificare' : ''}</div></div>
+      <div class="amt">${x.tot ? Math.round(x.ok / x.tot * 100) : 0}%</div></div>`).join('')}</div>` : '<p class="muted small" style="margin:0">Nessuna verifica salvata.</p>';
+  }
 
   /* ================= AUTO ================= */
   const ICO_CAR = '<svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/><circle cx="7.5" cy="13.5" r=".8"/><circle cx="16.5" cy="13.5" r=".8"/></svg>';
@@ -1923,6 +2214,11 @@
     document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 300 && !e.target.closest('input,select,textarea')) e.preventDefault(); lastTouch = n; }, { passive: false });
     $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : formSpesa());
     $('#add-bill').onclick = () => formBill();
+    $('#st-file').addEventListener('change', e => { const fl = [...e.target.files]; e.target.value = ''; if (fl.length) analyzeStatement(fl); });
+    const dz = $('#st-drop');
+    ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
+    dz.addEventListener('drop', e => { const fl = [...e.dataTransfer.files]; if (fl.length) analyzeStatement(fl); });
 
     document.addEventListener('click', e => {
       const pay = e.target.closest('[data-pay]');
@@ -1944,6 +2240,8 @@
         if (k === 'auto') { const [vid, voce] = ref.split(':'); const v = db.veicoli.find(x => x.id === vid); if (v) formAutoSpesa(v, null, { voceAuto: voce }); }
         return;
       }
+      const sa = e.target.closest('[data-stmt]');
+      if (sa) { stmtAction(sa.dataset.stmt, sa); return; }
       const vsel = e.target.closest('[data-veh]');
       if (vsel) { autoVid = vsel.dataset.veh; renderAuto(); stagger($('#auto-body')); return; }
       const aa = e.target.closest('[data-autoact]');

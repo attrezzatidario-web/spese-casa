@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=13">
+  <link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -51,9 +51,10 @@
       <a href="#spese" data-view="spese"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Spese</span></a>
       <a href="#fisse" data-view="fisse"><svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg><span class="lbl-d">Spese fisse</span><span class="lbl-m">Fisse</span><i id="badge-fx" class="badge" hidden></i></a>
       <a href="#auto" data-view="auto"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/></svg><span>Auto</span><i id="badge-auto" class="badge" hidden></i></a>
-      <a href="#affitto" data-view="affitto"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg><span>Affitto</span><i id="badge-rent" class="badge" hidden></i></a>
+      <a href="#estratto" data-view="estratto" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg><span>Estratto conto</span></a>
+      <a href="#affitto" data-view="affitto" class="nav-desk"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg><span>Affitto</span><i id="badge-rent" class="badge" hidden></i></a>
       <a href="#bollette" data-view="bollette"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Bollette</span><i id="badge" class="badge" hidden></i></a>
-      <a href="#impostazioni" data-view="impostazioni"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Altro</span></a>
+      <a href="#impostazioni" data-view="impostazioni"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Altro</span><i id="badge-more" class="badge only-mob-b" hidden></i></a>
       <div class="nav-foot"><span id="sync-side" class="sync"></span></div>
     </nav>
 
@@ -196,6 +197,32 @@
         </div>
       </section>
 
+      <!-- ESTRATTO CONTO -->
+      <section id="v-estratto" class="view" hidden>
+        <input id="st-file" type="file" accept="application/pdf,image/*" multiple hidden>
+        <div id="st-upload" class="card st-upload">
+          <div id="st-drop" class="st-drop" data-stmt="pick">
+            <div class="es-ic"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M12 18v-6M9 14l3-3 3 3"/></svg></div>
+            <h3>Carica l'estratto conto</h3>
+            <p class="muted small">PDF della banca oppure foto/screenshot delle pagine. L'IA legge tutti i movimenti, li confronta con le spese registrate e ti restituisce lo stesso file con le righe evidenziate.</p>
+            <button class="btn primary btn-ic" type="button"><svg viewBox="0 0 24 24"><path d="M12 19V7M7 12l5-5 5 5"/></svg>Scegli file</button>
+            <div class="st-legend"><span><i class="dot paid"></i>Coincide</span><span><i class="dot soon"></i>Da verificare</span><span><i class="dot late"></i>Non registrata</span></div>
+          </div>
+          <p class="muted small st-priv">Il file viene letto da Google Gemini (piano gratuito) e non viene salvato. Puoi coprire IBAN e dati personali prima di caricarlo.</p>
+        </div>
+        <div id="st-result" class="st-result" hidden>
+          <div class="card st-head" id="st-head"></div>
+          <div class="st-grid">
+            <div class="card">
+              <div id="st-filters" class="st-filters"></div>
+              <div id="st-rows" class="st-rows"></div>
+            </div>
+            <div class="card st-prev"><div class="card-h"><h3>Anteprima evidenziata</h3></div><div id="st-pages" class="st-pages"></div></div>
+          </div>
+        </div>
+        <div class="card"><div class="card-h"><h3>Verifiche salvate</h3></div><div id="st-hist"></div></div>
+      </section>
+
       <!-- AFFITTO -->
       <section id="v-affitto" class="view" hidden>
         <div id="rent-empty" class="card empty-state" hidden>
@@ -251,6 +278,10 @@
 
       <!-- IMPOSTAZIONI -->
       <section id="v-impostazioni" class="view settings-grid" hidden>
+        <div class="more-tiles">
+          <a href="#affitto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg></span><b>Affitto</b><small>Canone e pagamenti</small><i id="tile-rent-badge" class="badge" hidden></i></a>
+          <a href="#estratto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg></span><b>Estratto conto</b><small>Verifica con l'IA</small></a>
+        </div>
         <div class="card">
           <h3>Collegamento</h3>
           <p id="conn-info" class="muted small"></p>
@@ -311,6 +342,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
