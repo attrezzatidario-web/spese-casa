@@ -372,7 +372,7 @@ main { padding: 0 16px calc(96px + env(safe-area-inset-bottom)); max-width: 1080
 .m.paid { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
 .m.late { background: var(--danger-soft); border-color: transparent; color: var(--danger); }
 .m.due { border-color: var(--warn); color: var(--warn); }
-.m.off { opacity: .4; cursor: default; }
+.m.off { opacity: .45; }
 .m.cur { box-shadow: 0 0 0 2px var(--ink) inset; }
 .m:not(.off):hover { filter: brightness(.97); }
 .rent-sum { margin-top: 10px; }
@@ -565,3 +565,130 @@ body { font-feature-settings: "cv11", "ss01"; letter-spacing: -0.006em; }
   .bill, .day, .filters { border-radius: 14px; }
 }
 @media (min-width: 900px) { input, select, textarea { font-size: 14.5px; min-height: 40px; } }
+.m .mv { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* =========================================================
+   TELEFONO — campi uniformi e allineati
+   ========================================================= */
+.f-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+label.f { min-width: 0; }
+input, select, textarea { font-family: inherit; }
+input:not([type=checkbox]), select { height: 48px; min-height: 48px; line-height: 1.2; }
+.amount-input { height: 60px !important; }
+select {
+  -webkit-appearance: none; appearance: none; padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; background-size: 18px;
+}
+input[type=date], input[type=month] {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; min-width: 0; max-width: 100%;
+  text-align: left; background: var(--surface);
+}
+input[type=date]::-webkit-date-and-time-value, input[type=month]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+input[type=date]::-webkit-calendar-picker-indicator { opacity: .55; }
+input::placeholder, textarea::placeholder { color: #a0a6b0; }
+label.f > span { font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin-bottom: 6px; }
+.desc-wrap input { padding-left: 52px; }
+.desc-wrap .ic { left: 8px; width: 34px; height: 34px; border-radius: 9px; }
+.ic.ph { background: var(--bg); color: var(--muted); }
+.ic.ph svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hint:empty { display: none; }
+.sheet-f .primary { height: 48px; min-width: 140px; font-size: 15px; border-radius: 12px; }
+.ai-btn { height: 52px; }
+
+/* FAB e pulsanti con icona */
+.fab { display: grid; place-items: center; padding: 0; }
+.fab svg, .btn-ic svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.btn-ic { align-items: center; gap: 8px; }
+@media (min-width: 900px) { .btn-ic.only-desk { display: inline-flex; } }
+.btn-ic svg { width: 18px; height: 18px; }
+@media (min-width: 900px) { .fab { display: none; } }
+
+/* =========================================================
+   MOTION
+   ========================================================= */
+:root { --spring: cubic-bezier(.32, .72, 0, 1); --out: cubic-bezier(.2, .8, .2, 1); }
+
+/* ingresso delle card */
+.rise { animation: rise .55s var(--out) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+
+/* barre del grafico che crescono */
+.chart .b.grow { transform-box: fill-box; transform-origin: 50% 100%; animation: grow .7s var(--out) both; }
+@keyframes grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.chart .b { transition: fill .2s; }
+.bar-fill { transition: width .9s var(--out); }
+.tip { animation: tipin .15s ease-out; }
+@keyframes tipin { from { opacity: 0; transform: translate(-50%, -100%); } }
+
+/* pannello: entrata a molla, uscita rapida */
+.sheet-bg { animation: fadein .3s ease both; }
+.sheet-panel { animation: sheetup .45s var(--spring) both; }
+.sheet.closing .sheet-bg { animation: fadeout .23s ease both; }
+.sheet.closing .sheet-panel { animation: sheetdown .23s ease-in both; }
+@keyframes fadein { from { opacity: 0; } }
+@keyframes fadeout { to { opacity: 0; } }
+@keyframes sheetup { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheetdown { to { transform: translateY(100%); } }
+@media (min-width: 640px) {
+  .sheet-panel { animation: popin .35s var(--spring) both; }
+  .sheet.closing .sheet-panel { animation: popout .2s ease-in both; }
+  @keyframes popin { from { opacity: 0; transform: translateY(16px) scale(.97); } }
+  @keyframes popout { to { opacity: 0; transform: translateY(10px) scale(.98); } }
+}
+
+/* pressione dei pulsanti */
+.btn, .fab, .ai-btn, .m, .icon-btn, .nav a { transition: transform .15s var(--out), background .15s, border-color .15s, box-shadow .2s, color .15s; }
+.btn:active, .ai-btn:active, .m:active, .icon-btn:active { transform: scale(.96); }
+.fab:active { transform: scale(.92); }
+.fab { animation: fabin .5s .25s var(--spring) backwards; }
+@keyframes fabin { from { transform: scale(0) rotate(-90deg); opacity: 0; } }
+.item, .tbl tbody tr, .bill, .kpi.link-card { transition: background .15s, transform .15s var(--out), box-shadow .2s; }
+.bill:active, .item:active { transform: scale(.985); }
+@media (hover: hover) {
+  .bill:hover, .kpi.link-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(17, 24, 39, .07); }
+  .btn.primary:hover { box-shadow: 0 6px 16px rgba(23, 121, 90, .25); }
+}
+
+/* barra di navigazione: icona attiva con rimbalzo */
+.nav a.active svg { animation: pop .4s var(--spring); }
+@keyframes pop { 0% { transform: scale(.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@media (max-width: 899px) {
+  .nav a { position: relative; }
+  .nav a::before { content: ""; position: absolute; top: 2px; left: 50%; width: 46px; height: 30px; margin-left: -23px; border-radius: 15px; background: var(--accent-soft); transform: scale(.4); opacity: 0; transition: transform .3s var(--spring), opacity .2s; z-index: -1; }
+  .nav a.active::before { transform: scale(1); opacity: 1; }
+  .nav a { z-index: 0; }
+}
+
+/* toast */
+.toast { display: flex; align-items: center; gap: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+.toast.in { animation: toastin .4s var(--spring) both; }
+.toast.out { animation: toastout .25s ease-in both; }
+@keyframes toastin { from { opacity: 0; transform: translate(-50%, 16px) scale(.95); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes toastout { to { opacity: 0; transform: translate(-50%, 8px); } }
+.t-ic { width: 18px; height: 18px; fill: none; stroke: #4ade80; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.t-ic path { stroke-dasharray: 20; stroke-dashoffset: 20; animation: draw .4s .15s ease-out forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* mesi affitto */
+.m.paid svg path { stroke-dasharray: 22; stroke-dashoffset: 22; animation: draw .45s .3s ease-out forwards; }
+
+/* spinner overlay */
+.busy { animation: fadein .2s ease both; }
+.busy-box { animation: popin2 .3s var(--spring) both; }
+@keyframes popin2 { from { opacity: 0; transform: scale(.94); } }
+
+/* splash di avvio */
+.splash { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: grid; place-content: center; justify-items: center; gap: 18px; }
+.splash.out { animation: splashout .45s ease-in forwards; }
+@keyframes splashout { to { opacity: 0; transform: scale(1.04); visibility: hidden; } }
+.sp-logo { width: 92px; height: 92px; }
+.sp-bg { fill: #17795a; transform-origin: center; animation: spbg .55s var(--spring) both; }
+@keyframes spbg { from { transform: scale(.6); opacity: 0; border-radius: 50%; } }
+.sp-d { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .5s ease-out forwards; }
+.sp-1 { animation-delay: .25s; } .sp-2 { animation-delay: .4s; } .sp-3 { animation-delay: .62s; } .sp-4 { animation-delay: .75s; }
+.sp-name { font-weight: 700; font-size: 20px; letter-spacing: -.02em; color: var(--ink); animation: rise .5s .55s var(--out) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; }
+}

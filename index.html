@@ -15,9 +15,21 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
+  <div id="splash" class="splash" aria-hidden="true">
+    <svg viewBox="0 0 512 512" class="sp-logo">
+      <rect class="sp-bg" width="512" height="512" rx="116"/>
+      <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+        <path class="sp-d sp-1" pathLength="1" d="M112 246 L256 124 L400 246" stroke-width="34"/>
+        <path class="sp-d sp-2" pathLength="1" d="M156 214 V372 a26 26 0 0 0 26 26 H330 a26 26 0 0 0 26 -26 V214" stroke-width="34"/>
+        <path class="sp-d sp-3" pathLength="1" d="M290 272 A52 52 0 1 0 290 348" stroke-width="22"/>
+        <path class="sp-d sp-4" pathLength="1" d="M190 298 H258 M190 322 H250" stroke-width="16"/>
+      </g>
+    </svg>
+    <div class="sp-name">Spese Casa</div>
+  </div>
 
   <!-- Schermata collegamento -->
   <section id="setup" class="setup" hidden>
@@ -48,7 +60,7 @@
         <div class="top-l"><img class="top-logo" src="logo.svg" alt="Spese Casa" width="32" height="32"><div><h2 id="title">Home</h2><span id="subtitle" class="subtitle"></span></div></div>
         <div class="top-r">
           <span id="sync" class="sync" title="Stato sincronizzazione"></span>
-          <button id="add-top" class="btn primary only-desk">+ Nuova spesa</button>
+          <button id="add-top" class="btn primary only-desk btn-ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nuova spesa</button>
         </div>
       </header>
 
@@ -66,7 +78,7 @@
             <span id="h-delta" class="muted small"></span>
           </div>
           <div class="card kpi">
-            <div class="kpi-h"><span class="label">Da pagare entro 30 gg</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span></div>
+            <div class="kpi-h"><span class="label">Da pagare · 30 gg</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span></div>
             <div id="h-bills" class="big">€ 0</div>
             <span id="h-bills-sub" class="muted small"></span>
           </div>
@@ -203,7 +215,7 @@
       </section>
     </main>
 
-    <button id="fab" class="fab" aria-label="Nuova spesa">+</button>
+    <button id="fab" class="fab" aria-label="Nuova spesa"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
   </div>
 
   <!-- Pannello modale -->
@@ -224,6 +236,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

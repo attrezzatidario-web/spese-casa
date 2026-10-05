@@ -60,8 +60,42 @@
   const sum = arr => arr.reduce((a, s) => a + (Number(s.importo) || 0), 0);
 
   function toast(msg) {
-    const t = $('#toast'); t.textContent = msg; t.hidden = false;
-    clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2400);
+    const t = $('#toast');
+    t.innerHTML = `<svg viewBox="0 0 24 24" class="t-ic"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 10"/></svg><span>${esc(msg)}</span>`;
+    t.hidden = false; t.classList.remove('out'); void t.offsetWidth; t.classList.add('in');
+    clearTimeout(toast._t); toast._t = setTimeout(() => { t.classList.add('out'); setTimeout(() => (t.hidden = true), 250); }, 2400);
+  }
+
+  /* ================= Motion ================= */
+  const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let animate = true; // animazioni d'ingresso al cambio pagina
+  const ease = t => 1 - Math.pow(1 - t, 3);
+  // numeri che "contano" fino al valore
+  function countTo(el, value, fmt = eur) {
+    if (!el) return;
+    const to = Number(value) || 0;
+    const from = el._v != null ? el._v : 0;
+    el._v = to;
+    if (reduced() || Math.abs(to - from) < 0.005) { el.textContent = fmt(to); return; }
+    const t0 = performance.now(), dur = 750;
+    cancelAnimationFrame(el._raf);
+    const step = now => {
+      const k = Math.min(1, (now - t0) / dur);
+      el.textContent = fmt(from + (to - from) * ease(k));
+      if (k < 1) el._raf = requestAnimationFrame(step);
+    };
+    el._raf = requestAnimationFrame(step);
+  }
+  // card che entrano in sequenza
+  function stagger(root) {
+    if (reduced()) return;
+    const els = $$('.month-switch, .kpi, .card, .bill, .day, .filters, .sum-row', root).filter(e => e.offsetParent !== null);
+    els.forEach((e, i) => {
+      e.classList.remove('rise'); void e.offsetWidth;
+      e.style.animationDelay = Math.min(i * 45, 420) + 'ms';
+      e.classList.add('rise');
+      e.addEventListener('animationend', () => { e.classList.remove('rise'); e.style.animationDelay = ''; }, { once: true });
+    });
   }
 
 
@@ -111,6 +145,7 @@
     if (domain && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
       return `<div class="ic logo"><img src="${logoUrl(domain)}" alt="""" loading="lazy" onerror="this.parentNode.classList.remove('logo');this.parentNode.textContent='${esc(initials(fallback || text)).replace(/'/g, '')}'"></div>`;
     }
+    if (fallback === '?') return `<div class="ic ph"><svg viewBox="0 0 24 24"><path d="M4 9l1.5-4h13L20 9M4 9v10h16V9M4 9h16M9 19v-5h6v5"/></svg></div>`;
     return `<div class="ic">${esc(initials(fallback || text))}</div>`;
   }
 
@@ -237,7 +272,10 @@
     $('#title').textContent = TITLES[view];
     const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
+    animate = true;
     render();
+    stagger($('#v-' + view));
+    animate = false;
     window.scrollTo(0, 0);
   }
 
@@ -252,6 +290,7 @@
   }
 
   function renderBadge() {
+    if (!renderBadge._busy) { renderBadge._busy = true; ensureRentStart(); renderBadge._busy = false; }
     const n = activeBills().filter(b => daysTo(b.scadenza) <= 0).length;
     const el = $('#badge'); el.hidden = !n; el.textContent = n;
     const r = rentArrears().length;
@@ -298,7 +337,7 @@
     $('.month-label').textContent = monthName(homeMonth);
     const ms = db.spese.filter(s => ym(s.data) === homeMonth);
     const tot = sum(ms);
-    $('#h-total').textContent = eur(tot);
+    countTo($('#h-total'), tot);
 
     const [y, m] = homeMonth.split('-').map(Number);
     const prevKey = ymOf(new Date(y, m - 2, 1));
@@ -315,7 +354,7 @@
     const all = [...ab, ...rents].sort((a, b) => a.due.localeCompare(b.due));
     const due30 = all.filter(x => daysTo(x.due) <= 30);
     const late = all.filter(x => daysTo(x.due) < 0);
-    $('#h-bills').textContent = eur(sum(due30));
+    countTo($('#h-bills'), sum(due30));
     $('#h-bills-sub').innerHTML = late.length
       ? `<span class="chip late">${late.length} scadut${late.length === 1 ? 'o' : 'i'}</span> · ${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`
       : `${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`;
@@ -325,11 +364,11 @@
     const rc = rentCfg();
     if (rc) {
       const r = rentMonth(ymOf(new Date()));
-      $('#h-rent').textContent = eur(rc.canone);
+      countTo($('#h-rent'), rc.canone);
       const st = rentChip(r);
       $('#h-rent-sub').innerHTML = `<span class="chip ${st.cls}">${esc(st.txt)}</span>`;
     } else {
-      $('#h-rent').textContent = '—';
+      $('#h-rent').textContent = '—'; $('#h-rent')._v = null;
       $('#h-rent-sub').innerHTML = '<span class="link">Configura →</span>';
     }
 
@@ -342,9 +381,10 @@
     if (rows.length > 6) top.push(['Altre categorie', rows.slice(6).reduce((a, r) => a + r[1], 0)]);
     $('#h-cat').innerHTML = top.map(([c, v]) => `<div class="bar-row">
       <div class="bar-top"><span>${esc(c)} <span class="muted">${tot ? Math.round(v / tot * 100) : 0}%</span></span><span>${eur(v)}</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, (v / max) * 100)}%"></div></div></div>`).join('')
+      <div class="bar-track"><div class="bar-fill" data-w="${Math.max(2, (v / max) * 100)}" style="width:${animate && !reduced() ? 0 : Math.max(2, (v / max) * 100)}%"></div></div></div>`).join('')
       || '<div class="empty">Nessuna spesa in questo mese</div>';
 
+    if (animate) requestAnimationFrame(() => requestAnimationFrame(() => $$('#h-cat .bar-fill').forEach(b => (b.style.width = b.dataset.w + '%'))));
     renderChart();
     renderInsights();
 
@@ -361,7 +401,7 @@
     const nonZero = vals.filter(v => v > 0);
     const avg = nonZero.length ? nonZero.reduce((a, b) => a + b, 0) / nonZero.length : 0;
     $('#h-avg').textContent = avg ? `media ${eur0(avg)}/mese` : '';
-    $('#h-avg-big').textContent = eur(avg);
+    countTo($('#h-avg-big'), avg);
 
     const el = $('#h-chart');
     const W = Math.max(280, el.clientWidth || 600), H = 180, pt = 14, pb = 22, pl = 0, pr = 48;
@@ -387,7 +427,7 @@
         ? `M${x},${H - pb} V${top + r} Q${x},${top} ${x + r},${top} H${x + barW - r} Q${x + barW},${top} ${x + barW},${top + r} V${H - pb} Z`
         : '';
       g += `<rect class="hit" x="${pl + bw * i}" y="0" width="${bw}" height="${H}" data-i="${i}"/>`;
-      g += `<path class="b ${k === homeMonth ? 'cur' : ''}" d="${path}"/>`;
+      g += `<path class="b ${k === homeMonth ? 'cur' : ''}${animate && !reduced() ? ' grow' : ''}" style="animation-delay:${120 + i * 40}ms" d="${path}"/>`;
       g += `<text class="axis" x="${cx}" y="${H - 6}" text-anchor="middle">${esc(monthShort(k))}</text>`;
     });
     el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Spese ultimi 12 mesi">${g}</svg>`;
@@ -438,7 +478,7 @@
       .filter(s => !q || [s.descrizione, s.categoria, s.note, s.metodo].join(' ').toLowerCase().includes(q))
       .sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || '')));
     $('#f-count').textContent = `${list.length} ${list.length === 1 ? 'spesa' : 'spese'}`;
-    $('#f-total').textContent = eur(sum(list));
+    countTo($('#f-total'), sum(list));
     if (isDesk()) {
       $('#spese-list').innerHTML = list.length ? `<div class="card tbl-card">${speseTable(list)}</div>` : '<div class="card empty">Nessuna spesa trovata</div>';
       return;
@@ -505,7 +545,7 @@
     const last = new Date(y, m, 0).getDate();
     const due = ymd(new Date(y, m - 1, Math.min(Number(c.giorno) || 1, last)));
     const paid = db.spese.find(s => s.bollettaId === rentKey(mk)) || null;
-    const start = c.inizio ? String(c.inizio).slice(0, 7) : null;
+    const start = c.inizio ? String(c.inizio).slice(0, 7) : (firstRentPaid() || ymOf(new Date()));
     return { month: mk, due, paid, importo: Number(c.canone) || 0, before: !!(start && mk < start), days: daysTo(due) };
   }
   function rentChip(r) {
@@ -537,7 +577,17 @@
     return db.categorie.find(c => c === 'Affitto / Mutuo') || db.categorie.find(c => /affitt/i.test(c)) || pickCat('Altro');
   }
 
+  const firstRentPaid = () => db.spese.filter(x => String(x.bollettaId || '').startsWith('affitto:')).map(x => x.bollettaId.slice(8)).sort()[0] || null;
+  // se l'inizio contratto non è stato scelto: parte dal primo affitto registrato (salvato, così anche le email lo rispettano)
+  function ensureRentStart() {
+    const c = rentCfg();
+    if (!c || (c.inizio && !c.inizioAuto)) return;
+    const first = firstRentPaid();
+    if (first && first !== c.inizio) setConfig('affitto', { ...c, inizio: first, inizioAuto: true });
+  }
+
   function renderRent() {
+    ensureRentStart();
     const c = rentCfg();
     $('#rent-empty').hidden = !!c;
     $('#rent-main').hidden = !c;
@@ -548,7 +598,7 @@
     const r = arr[0] || rentMonth(cur);
     const st = rentChip(r);
     $('#r-month').textContent = 'Affitto di ' + monthName(r.month);
-    $('#r-amount').textContent = eur(c.canone);
+    countTo($('#r-amount'), c.canone);
     $('#r-status').innerHTML = `<span class="chip ${st.cls}">${esc(st.txt)}</span>${arr.length > 1 ? ` <span class="chip late">${arr.length} mesi arretrati</span>` : ''}`;
     const pay = $('#r-pay');
     pay.hidden = !!r.paid;
@@ -569,15 +619,15 @@
       let cls = 'future', txt = '';
       if (x.before) { cls = 'off'; txt = '—'; }
       else if (x.paid) { cls = 'paid'; txt = eur0(x.paid.importo); paidN++; paidTot += Number(x.paid.importo) || 0; }
-      else if (x.days < 0) { cls = 'late'; txt = 'Non pagato'; dueN++; }
+      else if (x.days < 0) { cls = 'late'; txt = 'Scaduto'; dueN++; }
       else if (mk === cur || x.days <= 31) { cls = 'due'; txt = 'Da pagare'; }
       else txt = '';
       const check = cls === 'paid' ? '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : '';
-      return `<button class="m ${cls}${mk === cur ? ' cur' : ''}" data-rentmonth="${mk}" ${x.before ? 'disabled' : ''}>
+      return `<button class="m ${cls}${mk === cur ? ' cur' : ''}" data-rentmonth="${mk}">
         <span class="mn">${esc(name)}</span>${check}<span class="mv">${esc(txt)}</span></button>`;
     }).join('');
     $('#r-count').textContent = `${paidN} mesi pagati${dueN ? ` · ${dueN} non pagati` : ''}`;
-    $('#r-total').textContent = eur(paidTot);
+    countTo($('#r-total'), paidTot);
 
     // notifiche
     const n = db.config.notifiche || {};
@@ -618,7 +668,8 @@
       async fd => {
         const canone = num(fd.get('canone'));
         if (canone <= 0) return toast('Inserisci il canone');
-        const v = { attivo: true, canone, giorno: Number(fd.get('giorno')), proprietario: fd.get('proprietario').trim(), iban: fd.get('iban').replace(/\s+/g, ' ').trim().toUpperCase(), metodo: fd.get('metodo'), inizio: fd.get('inizio'), causale: fd.get('causale').trim(), note: fd.get('note').trim() };
+        const inizio = fd.get('inizio');
+        const v = { inizioAuto: !!(c.inizioAuto && inizio === String(c.inizio || '').slice(0, 7)), attivo: true, canone, giorno: Number(fd.get('giorno')), proprietario: fd.get('proprietario').trim(), iban: fd.get('iban').replace(/\s+/g, ' ').trim().toUpperCase(), metodo: fd.get('metodo'), inizio, causale: fd.get('causale').trim(), note: fd.get('note').trim() };
         setConfig('affitto', v);
         closeSheet(); toast('Affitto salvato');
         const n = db.config.notifiche || {};
@@ -639,7 +690,7 @@
     for (let i = -12; i <= 2; i++) {
       const k = ymOf(new Date(now.getFullYear(), now.getMonth() + i, 1));
       const x = rentMonth(k);
-      if (!x.paid && !x.before) opts.push(k);
+      if (!x.paid) opts.push(k);
     }
     if (!opts.includes(mk)) opts.push(mk);
     openSheet('Pagamento affitto', `
@@ -907,12 +958,22 @@
     $('#sheet-ok').textContent = okLabel;
     $('#sheet-del').hidden = !del;
     onSubmit = submit; onDelete = del;
+    clearTimeout(closeSheet._t);
+    $('#sheet').classList.remove('closing');
     $('#sheet').hidden = false;
     document.body.style.overflow = 'hidden';
     const first = $('#sheet-body [data-focus]');
     if (first && matchMedia('(min-width: 640px)').matches) setTimeout(() => first.focus(), 50);
   }
-  function closeSheet() { $('#sheet').hidden = true; document.body.style.overflow = ''; onSubmit = onDelete = null; }
+  function closeSheet() {
+    const sh = $('#sheet');
+    onSubmit = onDelete = null; document.body.style.overflow = '';
+    if (sh.hidden) return;
+    if (reduced()) { sh.hidden = true; return; }
+    sh.classList.add('closing');
+    clearTimeout(closeSheet._t);
+    closeSheet._t = setTimeout(() => { sh.hidden = true; sh.classList.remove('closing'); }, 230);
+  }
 
   const opt = (list, sel) => list.map(v => `<option${v === sel ? ' selected' : ''}>${esc(v)}</option>`).join('');
   const fmtAmt = v => (v === '' || v == null) ? '' : String(Number(v).toFixed(2)).replace('.', ',');
@@ -1117,11 +1178,17 @@
   const DEFAULT_CATS = ['Spesa alimentare', 'Luce', 'Gas', 'Acqua', 'Internet e telefono', 'Affitto / Mutuo', 'Condominio', 'Tasse e tributi', 'Assicurazioni', 'Manutenzione', 'Arredamento', 'Elettrodomestici', 'Pulizia e casa', 'Auto e trasporti', 'Salute', 'Animali', 'Altro'];
 
   function showSetup() {
+    hideSplash();
     $('#app').hidden = true; $('#setup').hidden = false;
     $('#setup-url').value = isLocal() ? '' : url;
   }
+  function hideSplash() {
+    const sp = $('#splash'); if (!sp) return;
+    setTimeout(() => { sp.classList.add('out'); setTimeout(() => sp.remove(), 450); }, reduced() ? 0 : 1050);
+  }
   function startApp() {
     $('#setup').hidden = true; $('#app').hidden = false;
+    hideSplash();
     route();
     if (!isLocal()) pull();
   }
