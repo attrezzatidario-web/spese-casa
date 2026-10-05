@@ -14,7 +14,8 @@
   };
 
   let url = LS.get('sc_url', '');
-  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [] });
+  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
+  if (!db.estratti) db.estratti = [];
   if (!db.fisse) db.fisse = [];
   if (!db.veicoli) db.veicoli = [];
   if (!db.config) db.config = {};
@@ -175,7 +176,7 @@
   }
 
   /* ================= Data layer ================= */
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli' };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -197,7 +198,9 @@
   }
 
   function write(ops) {
+    const before = ops.some(o => o.sheet === 'Spese') ? budgetTotal(ymOf(new Date())) : null;
     ops.forEach(applyLocal);
+    if (before != null) setTimeout(() => budgetCrossCheck(before), 50);
     if (!isLocal()) queue.push(...ops);
     save(); render(); flush();
   }
@@ -241,7 +244,7 @@
       const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
+      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
@@ -424,6 +427,7 @@
 
     if (animate) requestAnimationFrame(() => requestAnimationFrame(() => $$('#h-cat .bar-fill').forEach(b => (b.style.width = b.dataset.w + '%'))));
     renderChart();
+    renderBudget();
     renderInsights();
 
     const last = [...db.spese].sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || ''))).slice(0, matchMedia('(min-width: 900px)').matches ? 8 : 5);
@@ -799,6 +803,122 @@
 
 
 
+
+  /* ================= LIMITE DI SPESA MENSILE ================= */
+  const budgetCfg = () => db.config.budget || {};
+  function budgetTotal(mk) {
+    const b = budgetCfg();
+    return sum(db.spese.filter(s => ym(s.data) === mk && !(b.escludiAffitto && String(s.bollettaId || '').startsWith('affitto:'))));
+  }
+  function budgetCrossCheck(before) {
+    const b = budgetCfg(), lim = Number(b.limite) || 0;
+    if (!lim) return;
+    const mk = ymOf(new Date()), now = budgetTotal(mk);
+    if (before <= lim && now > lim) {
+      toast(`Attenzione: hai superato il limite di ${eur0(lim)} questo mese`);
+      const t = $('#toast'); t.classList.add('alert');
+      setTimeout(() => t.classList.remove('alert'), 3000);
+      if (!isLocal() && b.email !== false) api('budgetAlert', { mese: mk, totale: now }).catch(() => {});
+    } else if (before <= lim * 0.8 && now > lim * 0.8 && now <= lim) {
+      toast(`Hai raggiunto l'80% del limite mensile (${eur0(now)} di ${eur0(lim)})`);
+    }
+  }
+
+  function renderBudget() {
+    const el = $('#bud-chart'); if (!el) return;
+    const b = budgetCfg(), lim = Number(b.limite) || 0;
+    const [y, m] = homeMonth.split('-').map(Number);
+    const days = new Date(y, m, 0).getDate();
+    const isCur = homeMonth === ymOf(new Date());
+    const isPast = homeMonth < ymOf(new Date());
+    const per = Array(days + 1).fill(0);
+    let maxDay = 0;
+    db.spese.filter(s => ym(s.data) === homeMonth && !(b.escludiAffitto && String(s.bollettaId || '').startsWith('affitto:'))).forEach(s => { const d = Number(s.data.slice(8, 10)); per[d] += Number(s.importo) || 0; maxDay = Math.max(maxDay, d); });
+    const lastDay = isCur ? Math.max(new Date().getDate(), maxDay) : isPast ? days : maxDay;
+    const cum = []; let acc = 0;
+    for (let d = 1; d <= days; d++) { acc += per[d]; cum[d] = acc; }
+    const tot = lastDay ? cum[lastDay] : 0;
+    const rate = lastDay ? tot / lastDay : 0;
+    const proj = isCur ? tot + rate * (days - lastDay) : tot;
+
+    // stato
+    const st = $('#bud-status');
+    if (lim) {
+      const pct = Math.round(tot / lim * 100);
+      const cls = tot > lim ? 'late' : pct >= 80 ? 'soon' : 'paid';
+      st.innerHTML = `<div class="bs-top"><span><b>${eur(tot)}</b> <span class="muted">di ${eur(lim)}</span></span>
+        <span class="chip ${cls}">${tot > lim ? 'Superato di ' + eur(tot - lim) : pct + '% del limite'}</span></div>
+        <div class="bs-bar"><i class="${cls}" style="width:${Math.min(100, pct)}%"></i></div>
+        ${isCur ? `<p class="muted small">${tot > lim ? 'Limite superato: da qui a fine mese ogni spesa va oltre il budget.'
+          : proj > lim ? `Restano <b>${eur0(lim - tot)}</b> · <span class="warn-t">a questo ritmo arriveresti a ${eur0(proj)}</span>`
+          : `Restano <b>${eur0(lim - tot)}</b>${days - lastDay ? ` per ${days - lastDay} giorni (${eur0((lim - tot) / (days - lastDay))} al giorno)` : ''} · proiezione ${eur0(proj)}`}</p>` : ''}`;
+    } else {
+      st.innerHTML = `<div class="bs-top"><span><b>${eur(tot)}</b> <span class="muted">spesi${isCur ? ' finora' : ''}</span></span><button class="link-btn" id="bud-set2">Imposta un limite →</button></div>`;
+      $('#bud-set2').onclick = formBudget;
+    }
+
+    $('#bud-btn-t').textContent = lim ? 'Limite ' + eur0(lim) : 'Imposta limite';
+    // grafico cumulativo
+    const W = Math.max(280, el.clientWidth || 600), H = isDesk() ? 220 : 180, pt = 16, pb = 22, pl = 0, pr = 52;
+    const maxV = Math.max(lim * 1.18, tot * 1.12, (lim && tot > lim ? 0 : Math.min(proj, Math.max(lim, tot) * 1.6) * 1.02), 1);
+    const nice = niceMax(maxV);
+    const X = d => pl + (d - 1) / Math.max(1, days - 1) * (W - pl - pr);
+    const Y = v => H - pb - v / nice * (H - pb - pt);
+    let g = '';
+    [0.5, 1].forEach(p => { const yy = Y(nice * p); g += `<line class="grid" x1="0" x2="${W - pr}" y1="${yy}" y2="${yy}"/><text class="axis" x="${W}" y="${yy + 4}" text-anchor="end">${eur0(nice * p)}</text>`; });
+    g += `<line class="grid" x1="0" x2="${W - pr}" y1="${H - pb}" y2="${H - pb}"/>`;
+    [1, 8, 15, 22, days].forEach(d => { g += `<text class="axis" x="${X(d)}" y="${H - 6}" text-anchor="${d === 1 ? 'start' : d === days ? 'end' : 'middle'}">${d}</text>`; });
+    if (lastDay) {
+      const pts = []; for (let d = 1; d <= lastDay; d++) pts.push([X(d), Y(cum[d])]);
+      const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+      const area = line + ` L${pts[pts.length - 1][0].toFixed(1)},${H - pb} L${pts[0][0].toFixed(1)},${H - pb} Z`;
+      const ly = lim ? Y(lim) : -10;
+      g += `<defs><clipPath id="bud-under"><rect x="0" y="${ly}" width="${W}" height="${H}"/></clipPath><clipPath id="bud-over"><rect x="0" y="0" width="${W}" height="${Math.max(0, ly)}"/></clipPath>
+        <linearGradient id="bud-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".28"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient>
+        <linearGradient id="bud-grad-r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dc2626" stop-opacity=".30"/><stop offset="1" stop-color="#dc2626" stop-opacity=".05"/></linearGradient></defs>`;
+      g += `<path class="bud-area" d="${area}" fill="url(#bud-grad)" ${lim ? 'clip-path="url(#bud-under)"' : ''}/>`;
+      if (lim) g += `<path class="bud-area" d="${area}" fill="url(#bud-grad-r)" clip-path="url(#bud-over)"/>`;
+      g += `<path class="bud-line" d="${line}" ${lim ? 'clip-path="url(#bud-under)"' : ''}/>`;
+      if (lim) g += `<path class="bud-line over" d="${line}" clip-path="url(#bud-over)"/>`;
+      if (isCur && lastDay < days && !(lim && tot > lim)) g += `<path class="bud-proj" d="M${X(lastDay)},${Y(tot)} L${X(days)},${Y(proj)}"/><circle class="bud-pd" cx="${X(days)}" cy="${Y(proj)}" r="3.5"/>`;
+      const lp = pts[pts.length - 1];
+      g += `<circle class="bud-dot${lim && tot > lim ? ' over' : ''}" cx="${lp[0]}" cy="${lp[1]}" r="5"/>`;
+    }
+    if (lim) g += `<line class="bud-lim" x1="0" x2="${W - pr}" y1="${Y(lim)}" y2="${Y(lim)}"/><rect class="bud-lim-tag" x="${W - pr + 4}" y="${Y(lim) - 10}" width="${pr - 4}" height="20" rx="6"/><text class="bud-lim-t" x="${W - pr / 2 + 2}" y="${Y(lim) + 4}" text-anchor="middle">${esc(fmtNum(lim, 0))}</text>`;
+    g += `<line class="bud-x" x1="0" x2="0" y1="${pt}" y2="${H - pb}" style="display:none"/><rect class="bud-hit" x="0" y="0" width="${W - pr}" height="${H}"/>`;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="${animate && !reduced() ? 'anim' : ''}" role="img" aria-label="Spesa cumulativa del mese">${g}</svg><div class="tip" hidden></div>`;
+    const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), xl = svg.querySelector('.bud-x');
+    const hit = svg.querySelector('.bud-hit');
+    const move = ev => {
+      const r = svg.getBoundingClientRect(); const px = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) * (W / r.width);
+      const d = Math.max(1, Math.min(lastDay || 1, Math.round((px - pl) / (W - pl - pr) * (days - 1) + 1)));
+      if (!lastDay) return;
+      xl.style.display = ''; xl.setAttribute('x1', X(d)); xl.setAttribute('x2', X(d));
+      tip.hidden = false; tip.innerHTML = `${d} ${esc(monthShort(homeMonth))}<br><b>${eur(cum[d])}</b>${per[d] ? `<br><span style="opacity:.7">+${eur(per[d])} quel giorno</span>` : ''}`;
+      tip.style.left = Math.min(Math.max(X(d) * r.width / W, 60), r.width - 60) + 'px'; tip.style.top = Y(cum[d]) * r.height / H + 'px';
+    };
+    const out = () => { xl.style.display = 'none'; tip.hidden = true; };
+    hit.addEventListener('mousemove', move); hit.addEventListener('touchmove', move, { passive: true }); hit.addEventListener('touchstart', move, { passive: true });
+    hit.addEventListener('mouseleave', out); hit.addEventListener('touchend', () => setTimeout(out, 1500));
+  }
+
+  function formBudget() {
+    const b = { limite: '', email: true, escludiAffitto: false, ...budgetCfg() };
+    openSheet('Limite di spesa mensile', `
+      <p class="muted small" style="margin:0 0 12px">La linea rossa sul grafico segna il limite. Quando lo superi ricevi un avviso nell'app e un'email.</p>
+      <label class="f"><span>Limite al mese (€)</span><input name="limite" class="amount-input" inputmode="decimal" placeholder="Es. 1.500" value="${esc(b.limite ? fmtAmt(b.limite) : '')}" data-focus></label>
+      <label class="sw"><input type="checkbox" name="email" ${b.email !== false ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>Avvisami via email</b><small>Una sola email al mese, appena superi il limite.</small></span></label>
+      <label class="sw"><input type="checkbox" name="escludiAffitto" ${b.escludiAffitto ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>Escludi l'affitto</b><small>Conta solo le altre spese.</small></span></label>`,
+      fd => {
+        const lim = num(fd.get('limite'));
+        setConfig('budget', lim > 0 ? { limite: lim, email: fd.get('email') === 'on', escludiAffitto: fd.get('escludiAffitto') === 'on' } : null);
+        if (lim > 0) setConfig('appUrl', location.href.split('#')[0]);
+        closeSheet(); toast(lim > 0 ? 'Limite impostato a ' + eur0(lim) : 'Limite rimosso');
+        if (lim > 0 && !isLocal() && fd.get('email') === 'on' && budgetTotal(ymOf(new Date())) > lim) api('budgetAlert', { mese: ymOf(new Date()), totale: budgetTotal(ymOf(new Date())) }).catch(() => {});
+      }, budgetCfg().limite ? () => { setConfig('budget', null); closeSheet(); toast('Limite rimosso'); } : null);
+    const del = $('#sheet-del'); if (!del.hidden) del.textContent = 'Rimuovi limite';
+  }
+
   /* ================= ESTRATTO CONTO (riconciliazione IA) ================= */
   let stmt = null;          // analisi corrente (in memoria)
   let stmtFilter = 'all';
@@ -859,7 +979,7 @@
         (r.movimenti || []).forEach(m => {
           const imp = Math.abs(Number(m.importo) || 0);
           if (!imp) return;
-          movs.push({ id: uid(), page: i, data: validDate(m.data), descrizione: m.descrizione, importo: Math.round(imp * 100) / 100, segno: m.segno, categoria: m.categoria, box: Array.isArray(m.box) && m.box.length === 4 ? m.box : null });
+          movs.push({ id: uid(), page: i, data: validDate(m.data), descrizione: m.descrizione, esercente: m.esercente || '', importo: Math.round(imp * 100) / 100, segno: m.segno, categoria: m.categoria, box: Array.isArray(m.box) && m.box.length === 4 ? m.box : null });
         });
       }
     } catch (e) { busy(); return toast(e.message); }
@@ -913,6 +1033,20 @@
     return c;
   }
 
+  const stF = { q: '', es: '', cat: '', from: '', to: '', min: '', max: '' };
+  let stView = 'list';
+  const escName = m => (m.esercente || String(m.descrizione || '').split(/\s+/).slice(0, 2).join(' ')).trim() || '—';
+  function stFiltered() {
+    const q = stF.q.trim().toLowerCase();
+    const mn = stF.min ? num(stF.min) : null, mx = stF.max ? num(stF.max) : null;
+    return stmt.movs.filter(m => (stmtFilter === 'all' || m.st === stmtFilter)
+      && (!q || (m.descrizione + ' ' + escName(m) + ' ' + (m.categoria || '')).toLowerCase().includes(q))
+      && (!stF.es || escName(m) === stF.es) && (!stF.cat || m.categoria === stF.cat)
+      && (!stF.from || m.data >= stF.from) && (!stF.to || m.data <= stF.to)
+      && (mn == null || m.importo >= mn) && (mx == null || m.importo <= mx));
+  }
+  const stActive = () => Object.values(stF).some(Boolean);
+
   function renderStmt() {
     const has = !!stmt;
     $('#st-upload').hidden = has;
@@ -921,10 +1055,11 @@
     if (!has) return;
     const c = stmtCounts();
     const pct = c.tot ? Math.round((c.ok + c.prob) / c.tot * 100) : 0;
+    const np = stmt.pages ? stmt.pages.length : stmt.npages || 0;
     $('#st-head').innerHTML = `
-      <div class="ring" style="--p:${pct}"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="rg-bg"/><circle cx="60" cy="60" r="52" class="rg-fg" style="stroke-dashoffset:${327 - 327 * pct / 100}"/></svg><div><b>${pct}%</b><span>riconciliato</span></div></div>
-      <div class="st-info"><h3>${esc(stmt.banca || 'Estratto conto')}</h3>
-        <p class="muted small">${esc(stmt.name)} · ${stmt.pages.length} ${stmt.pages.length === 1 ? 'pagina' : 'pagine'}${stmt.periodoDa ? ' · ' + esc(shortDate(stmt.periodoDa)) + ' – ' + esc(shortDate(stmt.periodoA || stmt.periodoDa)) : ''}</p>
+      <div class="ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="rg-bg"/><circle cx="60" cy="60" r="52" class="rg-fg" style="stroke-dashoffset:${327 - 327 * pct / 100}"/></svg><div><b>${pct}%</b><span>riconciliato</span></div></div>
+      <div class="st-info"><h3>${esc(stmt.banca || 'Estratto conto')}${stmt.savedId ? ' <span class="chip paid">Salvata</span>' : ''}</h3>
+        <p class="muted small">${esc(stmt.name)}${np ? ` · ${np} ${np === 1 ? 'pagina' : 'pagine'}` : ''}${stmt.periodoDa ? ' · ' + esc(shortDate(stmt.periodoDa)) + ' – ' + esc(shortDate(stmt.periodoA || stmt.periodoDa)) : ''}</p>
         <div class="st-kpis">
           <div class="sk ok"><b>${c.ok}</b><span>Coincidono</span></div>
           <div class="sk prob"><b>${c.prob}</b><span>Da verificare</span></div>
@@ -934,39 +1069,88 @@
         <p class="small st-sum">Uscite nell'estratto <b>${eur(c.outAmt)}</b> · trovate in app <b>${eur(c.okAmt)}</b>${c.miss ? ` · mancano <b class="warn-t">${eur(c.missAmt)}</b>` : ''}${c.in ? ` · ${c.in} entrate` : ''}</p>
       </div>
       <div class="st-actions">
-        <button class="btn primary btn-ic" data-stmt="download"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Scarica file evidenziato</button>
+        ${stmt.pages && stmt.pages.length ? `<button class="btn primary btn-ic" data-stmt="download"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Scarica file evidenziato</button>` : ''}
+        ${stmt.fileUrl ? `<a class="btn btn-ic${stmt.pages && stmt.pages.length ? '' : ' primary'}" href="${esc(stmt.fileUrl)}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/></svg>Apri su Drive</a>` : ''}
+        <button class="btn btn-ic" data-stmt="save"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg>${stmt.savedId ? 'Aggiorna salvataggio' : 'Salva analisi'}</button>
         ${c.miss ? `<button class="btn btn-ic" data-stmt="addall"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Aggiungi ${c.miss} mancanti</button>` : ''}
-        <button class="btn" data-stmt="save">Segna come verificate</button>
         <button class="btn ghost" data-stmt="reset">Nuova analisi</button>
       </div>`;
+
+    // filtri
     const F = [['all', 'Tutti', stmt.movs.length], ['ok', 'Coincidono', c.ok], ['prob', 'Da verificare', c.prob], ['miss', 'Non registrate', c.miss], ['app', 'Solo in app', stmt.onlyApp.length], ['in', 'Entrate', c.in]];
-    $('#st-filters').innerHTML = F.filter(f => f[2] || f[0] === 'all').map(([k, l, n]) => `<button class="fchip${stmtFilter === k ? ' on' : ''}" data-stmt="f:${k}">${l} <i>${n}</i></button>`).join('');
-    const sp = id => db.spese.find(x => x.id === id);
-    let rows;
-    if (stmtFilter === 'app') {
-      rows = stmt.onlyApp.map(s => `<div class="st-row"><div class="st-d">${esc(parseD(s.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }))}</div>
-        <div class="st-m">${iconHTML(s.descrizione, s.categoria, s.sito)}<div><b>${esc(s.descrizione)}</b><small>${esc(s.categoria)} · ${esc(s.metodo || '')} · non trovata nell'estratto</small></div></div>
-        <span class="chip">Solo in app</span><div class="amt">${eur(s.importo)}</div><div></div></div>`).join('');
-    } else {
-      rows = stmt.movs.filter(m => stmtFilter === 'all' || m.st === stmtFilter).map(m => {
-        const s2 = m.match && sp(m.match);
-        return `<div class="st-row st-${m.st}"><div class="st-d">${esc(parseD(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }))}</div>
-          <div class="st-m">${iconHTML(m.descrizione, m.descrizione)}<div><b>${esc(m.descrizione)}</b><small>${s2 ? `In app: ${esc(s2.descrizione)} · ${esc(shortDate(s2.data))}${Math.abs(s2.importo - m.importo) > 0.004 ? ' · ' + eur(s2.importo) : ''}` : m.st === 'in' ? 'Accredito' : esc(m.categoria || '')} · pag. ${m.page + 1}</small></div></div>
-          <span class="chip ${m.st === 'ok' ? 'paid' : m.st === 'prob' ? 'soon' : m.st === 'miss' ? 'late' : ''}">${ST_LBL[m.st]}</span>
-          <div class="amt">${m.segno === 'entrata' ? '+' : '−'}${eur(m.importo)}</div>
-          <div class="st-act">${m.st === 'miss' ? `<button class="btn sm" data-stmt="add:${m.id}">Aggiungi</button>` : m.st === 'prob' ? `<button class="btn sm" data-stmt="ok:${m.id}">Conferma</button><button class="icon-btn" data-stmt="un:${m.id}" title="Non coincide">✕</button>` : m.st === 'ok' ? `<button class="icon-btn" data-stmt="un:${m.id}" title="Scollega">✕</button>` : ''}</div></div>`;
-      }).join('');
-    }
-    $('#st-rows').innerHTML = rows || '<div class="empty">Nessun movimento</div>';
-    // anteprime pagine evidenziate
+    const escs = [...new Set(stmt.movs.map(escName))].sort((x, y) => x.localeCompare(y, 'it'));
+    const catsS = [...new Set(stmt.movs.map(m => m.categoria).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'it'));
+    $('#st-filters').innerHTML = `
+      <div class="st-fbar">
+        <input type="search" id="stf-q" placeholder="Cerca esercente, descrizione…" value="${esc(stF.q)}">
+        <div class="st-view"><button class="${stView === 'list' ? 'on' : ''}" data-stmt="v:list">Movimenti</button><button class="${stView === 'group' ? 'on' : ''}" data-stmt="v:group">Per esercente</button></div>
+      </div>
+      <div class="st-fgrid">
+        <select id="stf-es"><option value="">Tutti gli esercenti</option>${escs.map(x => `<option${x === stF.es ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
+        <select id="stf-cat"><option value="">Tutte le categorie</option>${catsS.map(x => `<option${x === stF.cat ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
+        <label class="mini"><span>Dal</span><input type="date" id="stf-from" value="${esc(stF.from)}"></label>
+        <label class="mini"><span>Al</span><input type="date" id="stf-to" value="${esc(stF.to)}"></label>
+        <label class="mini"><span>Min €</span><input id="stf-min" inputmode="decimal" value="${esc(stF.min)}" placeholder="0"></label>
+        <label class="mini"><span>Max €</span><input id="stf-max" inputmode="decimal" value="${esc(stF.max)}" placeholder="∞"></label>
+      </div>
+      <div class="st-chips">${F.filter(f => f[2] || f[0] === 'all').map(([k, l, n]) => `<button class="fchip${stmtFilter === k ? ' on' : ''}" data-stmt="f:${k}">${l} <i>${n}</i></button>`).join('')}
+        ${stActive() ? '<button class="fchip clear" data-stmt="clear">✕ Azzera filtri</button>' : ''}</div>`;
+    $('#stf-q').addEventListener('input', e => { stF.q = e.target.value; renderStmtRows(); });
+    [['stf-es', 'es'], ['stf-cat', 'cat'], ['stf-from', 'from'], ['stf-to', 'to'], ['stf-min', 'min'], ['stf-max', 'max']].forEach(([id, k]) => {
+      $('#' + id).addEventListener(id.includes('min') || id.includes('max') ? 'input' : 'change', e => { stF[k] = e.target.value; renderStmtRows(); });
+    });
+    renderStmtRows();
+
+    // anteprime
     $('#st-pages').innerHTML = '';
-    stmt.pages.forEach((p, i) => {
+    if (stmt.pages && stmt.pages.length) stmt.pages.forEach((p, i) => {
       const c2 = drawHighlights(p.canvas, i, 520);
       const wrap = document.createElement('div'); wrap.className = 'st-page';
       wrap.appendChild(c2);
       const lb = document.createElement('span'); lb.textContent = 'Pagina ' + (i + 1); wrap.appendChild(lb);
       $('#st-pages').appendChild(wrap);
     });
+    else $('#st-pages').innerHTML = `<div class="empty-state small-es"><div class="es-ic"><svg viewBox="0 0 24 24">${ICO_DOC.replace(/<\/?svg[^>]*>/g, '')}</svg></div>
+      <p class="muted small">${stmt.fileUrl ? 'Il file evidenziato è salvato su Google Drive.' : 'Anteprima non disponibile per le analisi salvate.'}</p>
+      ${stmt.fileUrl ? `<a class="btn sm" href="${esc(stmt.fileUrl)}" target="_blank" rel="noopener">Apri su Drive</a>` : ''}</div>`;
+  }
+
+  function renderStmtRows() {
+    const sp = id => db.spese.find(x => x.id === id);
+    const dl = d => esc(parseD(d).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
+    let rows, info;
+    if (stmtFilter === 'app') {
+      const l = stmt.onlyApp.filter(s => (!stF.q || (s.descrizione + ' ' + s.categoria).toLowerCase().includes(stF.q.toLowerCase())) && (!stF.from || s.data >= stF.from) && (!stF.to || s.data <= stF.to));
+      info = `${l.length} spese · ${eur(sum(l))}`;
+      rows = l.map(s => `<div class="st-row"><div class="st-d">${dl(s.data)}</div>
+        <div class="st-m">${iconHTML(s.descrizione, s.categoria, s.sito)}<div><b>${esc(s.descrizione)}</b><small>${esc(s.categoria)} · ${esc(s.metodo || '')} · non trovata nell'estratto</small></div></div>
+        <span class="chip">Solo in app</span><div class="amt">${eur(s.importo)}</div><div></div></div>`).join('');
+    } else {
+      const l = stFiltered();
+      const out = l.filter(m => m.segno !== 'entrata'), inn = l.filter(m => m.segno === 'entrata');
+      info = `${l.length} movimenti · uscite <b>${eur(sum(out))}</b>${inn.length ? ` · entrate <b>${eur(sum(inn))}</b>` : ''}`;
+      if (stView === 'group') {
+        const g = {};
+        l.filter(m => stmtFilter === 'in' || m.segno !== 'entrata').forEach(m => { const k = escName(m); (g[k] = g[k] || { n: 0, tot: 0, ok: 0, miss: 0, cat: m.categoria, ex: m }); g[k].n++; g[k].tot += (m.segno === 'entrata' ? -1 : 1) * m.importo; if (m.st === 'ok' || m.st === 'prob') g[k].ok++; if (m.st === 'miss') g[k].miss++; });
+        const arr = Object.entries(g).sort((a, b) => Math.abs(b[1].tot) - Math.abs(a[1].tot));
+        const mx = Math.max(1, ...arr.map(x => Math.abs(x[1].tot)));
+        rows = arr.map(([k, v]) => `<div class="st-grp" data-stmt="es:${esc(k)}">
+          ${iconHTML(k, k)}
+          <div class="sg-main"><div class="sg-top"><b>${esc(k)}</b><span class="amt">${v.tot < 0 ? '+' : ''}${eur(Math.abs(v.tot))}</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, Math.abs(v.tot) / mx * 100)}%"></div></div>
+            <small>${v.n} moviment${v.n === 1 ? 'o' : 'i'} · ${esc(v.cat || '')}${v.ok ? ` · <span class="ok-t">${v.ok} in app</span>` : ''}${v.miss ? ` · <span class="warn-t">${v.miss} non registrat${v.miss === 1 ? 'a' : 'e'}</span>` : ''}</small></div></div>`).join('');
+      } else {
+        rows = l.map(m => {
+          const s2 = m.match && sp(m.match);
+          return `<div class="st-row st-${m.st}"><div class="st-d">${dl(m.data)}</div>
+            <div class="st-m">${iconHTML(escName(m), escName(m))}<div><b>${esc(m.descrizione)}</b><small>${s2 ? `In app: ${esc(s2.descrizione)} · ${esc(shortDate(s2.data))}${Math.abs(s2.importo - m.importo) > 0.004 ? ' · ' + eur(s2.importo) : ''}` : m.st === 'in' ? 'Accredito' : esc(m.categoria || '')}${m.page != null ? ' · pag. ' + (m.page + 1) : ''}</small></div></div>
+            <span class="chip ${m.st === 'ok' ? 'paid' : m.st === 'prob' ? 'soon' : m.st === 'miss' ? 'late' : ''}">${ST_LBL[m.st]}</span>
+            <div class="amt">${m.segno === 'entrata' ? '+' : '−'}${eur(m.importo)}</div>
+            <div class="st-act">${m.st === 'miss' ? `<button class="btn sm" data-stmt="add:${m.id}">Aggiungi</button>` : m.st === 'prob' ? `<button class="btn sm" data-stmt="ok:${m.id}">Conferma</button><button class="icon-btn" data-stmt="un:${m.id}" title="Non coincide">✕</button>` : m.st === 'ok' ? `<button class="icon-btn" data-stmt="un:${m.id}" title="Scollega">✕</button>` : ''}</div></div>`;
+        }).join('');
+      }
+    }
+    $('#st-rows').innerHTML = `<div class="st-info2 small muted">${info}</div>` + (rows || '<div class="empty">Nessun movimento con questi filtri</div>');
   }
 
   function drawHighlights(src, pageIdx, maxW) {
@@ -983,37 +1167,35 @@
     return c;
   }
 
-  async function downloadStatement() {
-    busy('Creo il file evidenziato…');
-    try {
-      const L = await libPdfLib();
-      const { rgb, StandardFonts } = L;
-      let pdf;
-      if (stmt.kind === 'pdf') {
-        pdf = await L.PDFDocument.load(stmt.bytes, { ignoreEncryption: true });
-        pdf.getPages().forEach((pg, i) => {
-          if (i >= stmt.pages.length) return;
-          const { width: W, height: H } = pg.getSize();
-          stmt.movs.filter(m => m.page === i && m.box && m.st !== 'in').forEach(m => {
-            const [y0, x0, y1, x1] = m.box, col = rgb(...ST_COL[m.st]);
-            pg.drawRectangle({ x: x0 / 1000 * W, y: H - y1 / 1000 * H, width: (x1 - x0) / 1000 * W, height: (y1 - y0) / 1000 * H, color: col, opacity: m.st === 'miss' ? 0.08 : 0.25, borderColor: col, borderWidth: 1, borderOpacity: 0.9 });
-          });
+
+  // crea il file evidenziato: { blob, name, mime }
+  async function buildStatementFile() {
+    const L = await libPdfLib();
+    const { rgb, StandardFonts } = L;
+    let pdf;
+    if (stmt.kind === 'pdf') {
+      pdf = await L.PDFDocument.load(stmt.bytes, { ignoreEncryption: true });
+      pdf.getPages().forEach((pg, i) => {
+        if (i >= stmt.pages.length) return;
+        const { width: W, height: H } = pg.getSize();
+        stmt.movs.filter(m => m.page === i && m.box && m.st !== 'in').forEach(m => {
+          const [y0, x0, y1, x1] = m.box, col = rgb(...ST_COL[m.st]);
+          pg.drawRectangle({ x: x0 / 1000 * W, y: H - y1 / 1000 * H, width: (x1 - x0) / 1000 * W, height: (y1 - y0) / 1000 * H, color: col, opacity: m.st === 'miss' ? 0.08 : 0.25, borderColor: col, borderWidth: 1, borderOpacity: 0.9 });
         });
-      } else {
-        if (stmt.pages.length === 1) {
-          // immagine singola: restituisco la stessa immagine evidenziata
-          const c = drawHighlights(stmt.pages[0].canvas, 0);
-          busy();
-          return saveBlob(await new Promise(r => c.toBlob(r, 'image/png')), stmt.name.replace(/\.[^.]+$/, '') + '-evidenziato.png');
-        }
-        pdf = await L.PDFDocument.create();
-        for (let i = 0; i < stmt.pages.length; i++) {
-          const c = drawHighlights(stmt.pages[i].canvas, i);
-          const jpg = await pdf.embedJpg(Uint8Array.from(atob(c.toDataURL('image/jpeg', 0.88).split(',')[1]), ch => ch.charCodeAt(0)));
-          const pg = pdf.addPage([c.width * 0.5, c.height * 0.5]);
-          pg.drawImage(jpg, { x: 0, y: 0, width: c.width * 0.5, height: c.height * 0.5 });
-        }
+      });
+    } else {
+      if (stmt.pages.length === 1) {
+        const c = drawHighlights(stmt.pages[0].canvas, 0);
+        return { blob: await new Promise(r => c.toBlob(r, 'image/png')), name: stmt.name.replace(/\.[^.]+$/, '') + '-evidenziato.png', mime: 'image/png' };
       }
+      pdf = await L.PDFDocument.create();
+      for (let i = 0; i < stmt.pages.length; i++) {
+        const c = drawHighlights(stmt.pages[i].canvas, i);
+        const jpg = await pdf.embedJpg(Uint8Array.from(atob(c.toDataURL('image/jpeg', 0.88).split(',')[1]), ch => ch.charCodeAt(0)));
+        const pg = pdf.addPage([c.width * 0.5, c.height * 0.5]);
+        pg.drawImage(jpg, { x: 0, y: 0, width: c.width * 0.5, height: c.height * 0.5 });
+      }
+    }
       // pagina di resoconto finale
       const font = await pdf.embedFont(StandardFonts.Helvetica), bold = await pdf.embedFont(StandardFonts.HelveticaBold);
       const safe = t => String(t || '').replace(/[^\x20-\x7E -ÿ€]/g, '').replace(/€/g, 'EUR');
@@ -1035,24 +1217,80 @@
       section('Solo in app (non trovate nell\'estratto)', stmt.onlyApp, s2 => `${parseD(s2.data).toLocaleDateString('it-IT')}   ${fmtNum(s2.importo, 2).padStart(10)} EUR   ${String(s2.descrizione).slice(0, 70)}`);
       section('Coincidono', stmt.movs.filter(m => m.st === 'ok'), mv);
       const out = await pdf.save();
-      busy();
-      saveBlob(new Blob([out], { type: 'application/pdf' }), stmt.name.replace(/\.[^.]+$/, '') + '-evidenziato.pdf');
-    } catch (e) { busy(); toast('Errore nel creare il file: ' + e.message); }
+    return { blob: new Blob([out], { type: 'application/pdf' }), name: stmt.name.replace(/\.[^.]+$/, '') + '-evidenziato.pdf', mime: 'application/pdf' };
+  }
+  async function downloadStatement() {
+    busy('Creo il file evidenziato…');
+    try { const f = await buildStatementFile(); busy(); saveBlob(f.blob, f.name); }
+    catch (e) { busy(); toast('Errore nel creare il file: ' + e.message); }
   }
   function saveBlob(blob, name) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     toast('File scaricato');
   }
+  const blobB64 = blob => new Promise(res => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.readAsDataURL(blob); });
+
+  // salvataggio compatto (una riga nel foglio "Estratti")
+  const packMovs = () => JSON.stringify(stmt.movs.map(m => [m.data, String(m.descrizione).slice(0, 80), String(m.esercente || '').slice(0, 40), m.importo, m.segno === 'entrata' ? 1 : 0, m.categoria || '', m.box ? m.box.join(',') : '', m.st, m.match || '', m.page == null ? '' : m.page]));
+  const unpackMovs = txt => { try { return JSON.parse(txt || '[]').map(a => ({ id: uid(), data: a[0], descrizione: a[1], esercente: a[2], importo: Number(a[3]), segno: a[4] ? 'entrata' : 'uscita', categoria: a[5], box: a[6] ? a[6].split(',').map(Number) : null, st: a[7], match: a[8] || null, page: a[9] === '' ? null : Number(a[9]) })); } catch { return []; } };
+
+  async function saveStatement() {
+    if (isLocal()) return toast('Il salvataggio richiede il collegamento al Foglio Google');
+    busy('Salvo l\'analisi…');
+    try {
+      const ids = stmt.movs.filter(x => x.st === 'ok' && x.match).map(x => x.match);
+      const ops = ids.map(id => db.spese.find(x => x.id === id)).filter(sp => sp && !sp.verificato).map(sp => ({ action: 'upsert', sheet: 'Spese', row: { ...sp, verificato: today() } }));
+      if (ops.length) { write(ops); await syncNow(); }
+      let pdf = '', mime = '', fileName = '';
+      if (stmt.pages && stmt.pages.length) { const f = await buildStatementFile(); pdf = await blobB64(f.blob); mime = f.mime; fileName = f.name; }
+      const c = stmtCounts();
+      const id = stmt.savedId || uid();
+      const row = { id, data: today(), nome: stmt.name, banca: stmt.banca || '', periodoDa: stmt.periodoDa || '', periodoA: stmt.periodoA || '', ok: c.ok, prob: c.prob, miss: c.miss, tot: c.tot, fileUrl: stmt.fileUrl || '', movimenti: packMovs(), onlyApp: JSON.stringify(stmt.onlyApp.map(s => s.id)) };
+      const r = await api('saveStatement', { row, pdf, mime, fileName });
+      stmt.savedId = id; stmt.fileUrl = r.fileUrl || stmt.fileUrl;
+      const meta = { ...row, fileUrl: stmt.fileUrl }; delete meta.movimenti; delete meta.onlyApp;
+      db.estratti = [meta, ...(db.estratti || []).filter(x => x.id !== id)]; save();
+      busy(); renderStmt(); toast('Analisi salvata' + (r.fileUrl ? ' · file su Google Drive' : ''));
+    } catch (e) {
+      busy();
+      toast(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : 'Errore: ' + e.message);
+    }
+  }
+
+  async function openSavedStatement(id) {
+    busy('Apro l\'analisi…');
+    try {
+      const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+      const j = await r.json(); if (!j.ok) throw new Error(j.error);
+      const d = j.data;
+      let only = []; try { only = JSON.parse(d.onlyApp || '[]'); } catch {}
+      stmt = { savedId: d.id, kind: 'saved', name: d.nome, banca: d.banca, periodoDa: d.periodoDa, periodoA: d.periodoA, fileUrl: d.fileUrl, movs: unpackMovs(d.movimenti), pages: [], onlyApp: only.map(x => db.spese.find(s => s.id === x)).filter(Boolean) };
+      Object.keys(stF).forEach(k => (stF[k] = '')); stmtFilter = 'all'; stView = 'list';
+      busy(); renderStmt(); stagger($('#v-estratto')); window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) { busy(); toast('Impossibile aprire: ' + e.message); }
+  }
 
   function stmtAction(act, el) {
     if (act === 'pick') return $('#st-file').click();
-    if (act === 'reset') { stmt = null; renderStmt(); return; }
+    if (act === 'reset') { stmt = null; Object.keys(stF).forEach(k => (stF[k] = '')); stmtFilter = 'all'; renderStmt(); return; }
     if (act === 'download') return downloadStatement();
+    if (act === 'save') return saveStatement();
+    if (act === 'clear') { Object.keys(stF).forEach(k => (stF[k] = '')); stmtFilter = 'all'; renderStmt(); return; }
     if (act.startsWith('f:')) { stmtFilter = act.slice(2); renderStmt(); return; }
+    if (act.startsWith('v:')) { stView = act.slice(2); renderStmt(); return; }
+    if (act.startsWith('es:')) { stF.es = act.slice(3); stView = 'list'; renderStmt(); return; }
+    if (act.startsWith('open:')) return openSavedStatement(act.slice(5));
+    if (act.startsWith('del:')) {
+      const id = act.slice(4);
+      if (!confirm('Eliminare questa analisi salvata? Il file su Google Drive resta.')) return;
+      write([{ action: 'delete', sheet: 'Estratti', id }]);
+      if (stmt && stmt.savedId === id) stmt.savedId = null;
+      renderStmt(); toast('Analisi eliminata'); return;
+    }
     const mid = act.split(':')[1];
     const m = stmt && stmt.movs.find(x => x.id === mid);
-    const toSpesa = mm => ({ id: uid(), data: mm.data, importo: mm.importo, categoria: pickCat(mm.categoria), descrizione: mm.descrizione, metodo: 'Carta', note: 'Da estratto conto', bollettaId: '', creato: new Date().toISOString(), sito: '', verificato: today() });
+    const toSpesa = mm => ({ id: uid(), data: mm.data, importo: mm.importo, categoria: pickCat(mm.categoria), descrizione: mm.esercente || mm.descrizione, metodo: 'Carta', note: 'Da estratto conto: ' + mm.descrizione, bollettaId: '', creato: new Date().toISOString(), sito: '', verificato: today() });
     if (act.startsWith('add:') && m) { const sp = toSpesa(m); write([{ action: 'upsert', sheet: 'Spese', row: sp }]); m.st = 'ok'; m.match = sp.id; renderStmt(); toast('Spesa aggiunta'); return; }
     if (act.startsWith('ok:') && m) { m.st = 'ok'; renderStmt(); return; }
     if (act.startsWith('un:') && m) { m.st = 'miss'; m.match = null; reconcileOnlyApp(); renderStmt(); return; }
@@ -1061,15 +1299,6 @@
       if (!confirm(`Aggiungere ${miss.length} spese all'app?`)) return;
       const ops = miss.map(x => { const sp = toSpesa(x); x.st = 'ok'; x.match = sp.id; return { action: 'upsert', sheet: 'Spese', row: sp }; });
       write(ops); renderStmt(); toast(`${ops.length} spese aggiunte`); return;
-    }
-    if (act === 'save') {
-      const ids = stmt.movs.filter(x => x.st === 'ok' && x.match).map(x => x.match);
-      const ops = ids.map(id => db.spese.find(x => x.id === id)).filter(Boolean).map(sp => ({ action: 'upsert', sheet: 'Spese', row: { ...sp, verificato: today() } }));
-      const c = stmtCounts();
-      const hist = (db.config.estratti || []).slice(0, 19);
-      hist.unshift({ data: today(), nome: stmt.name, banca: stmt.banca || '', ok: c.ok, prob: c.prob, miss: c.miss, app: stmt.onlyApp.length, tot: c.tot });
-      write(ops); setConfig('estratti', hist);
-      toast(`${ids.length} spese segnate come verificate`); return;
     }
   }
   function reconcileOnlyApp() {
@@ -1080,10 +1309,14 @@
   }
 
   function renderStmtHistory() {
-    const h = db.config.estratti || [];
-    $('#st-hist').innerHTML = h.length ? `<div class="list">${h.map(x => `<div class="item" style="cursor:default"><div class="ic doc-ic">${ICO_DOC}</div>
-      <div class="main"><div class="t">${esc(x.banca || x.nome)}</div><div class="s">${esc(shortDate(x.data))} · ${x.ok} coincidono · ${x.miss} non registrate${x.prob ? ' · ' + x.prob + ' da verificare' : ''}</div></div>
-      <div class="amt">${x.tot ? Math.round(x.ok / x.tot * 100) : 0}%</div></div>`).join('')}</div>` : '<p class="muted small" style="margin:0">Nessuna verifica salvata.</p>';
+    const h = (db.estratti || []).slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+    $('#st-hist').innerHTML = h.length ? `<div class="list">${h.map(x => {
+      const p = Number(x.tot) ? Math.round((Number(x.ok) + Number(x.prob || 0)) / Number(x.tot) * 100) : 0;
+      return `<div class="item st-h${stmt && stmt.savedId === x.id ? ' cur' : ''}" data-stmt="open:${esc(x.id)}">
+        <div class="mini-ring" style="--p:${p}"><span>${p}%</span></div>
+        <div class="main"><div class="t">${esc(x.banca || x.nome)}</div><div class="s">${x.periodoDa ? esc(shortDate(x.periodoDa)) + ' – ' + esc(shortDate(x.periodoA || x.periodoDa)) : esc(x.nome)} · ${x.ok} ok · ${x.miss} non registrate</div></div>
+        <div class="right row">${x.fileUrl ? `<a class="icon-btn" href="${esc(x.fileUrl)}" target="_blank" rel="noopener" title="Apri su Drive" onclick="event.stopPropagation()">↗</a>` : ''}<button class="icon-btn" data-stmt="del:${esc(x.id)}" title="Elimina">✕</button></div></div>`;
+    }).join('')}</div>` : '<p class="muted small" style="margin:0">Nessuna analisi salvata. Dopo un\'analisi premi "Salva analisi".</p>';
   }
 
   /* ================= AUTO ================= */
@@ -2063,7 +2296,7 @@
     $('#sheet-title').textContent = title;
     $('#sheet-body').innerHTML = html;
     $('#sheet-ok').textContent = okLabel;
-    $('#sheet-del').hidden = !del;
+    $('#sheet-del').hidden = !del; $('#sheet-del').textContent = 'Elimina';
     onSubmit = submit; onDelete = del;
     clearTimeout(closeSheet._t);
     $('#sheet').classList.remove('closing');
@@ -2360,7 +2593,8 @@
     };
 
     let rz, wasDesk = isDesk();
-    window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (isDesk() !== wasDesk) { wasDesk = isDesk(); render(); } else if (view === 'home') renderChart(); }, 150); });
+    window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (isDesk() !== wasDesk) { wasDesk = isDesk(); render(); } else if (view === 'home') { renderChart(); renderBudget(); } }, 150); });
+    $('#bud-set').onclick = formBudget;
     window.addEventListener('online', () => { online = true; flush(); pull(); });
     window.addEventListener('offline', () => { online = false; setSync(); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !isLocal()) pull(); });
@@ -2397,7 +2631,7 @@
         if (!j.ok) throw new Error(j.error);
         if (url !== v) { queue = []; }
         url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
+        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');

@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -98,6 +98,11 @@
         </div>
         <div class="home-grid">
           <div class="col-main">
+            <div class="card c-budget">
+              <div class="card-h"><h3>Andamento del mese</h3><button class="btn sm bud-btn" id="bud-set"><i></i><span id="bud-btn-t">Imposta limite</span></button></div>
+              <div id="bud-status" class="bud-status"></div>
+              <div id="bud-chart" class="bud-chart"></div>
+            </div>
             <div class="card c-chart">
               <div class="card-h"><h3>Ultimi 12 mesi</h3><span id="h-avg" class="muted small"></span></div>
               <div id="h-chart" class="chart"></div>
@@ -342,6 +347,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
