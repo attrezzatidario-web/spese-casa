@@ -27,9 +27,15 @@
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const eurF = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' });
-  const eur = n => eurF.format(Number(n) || 0);
-  const eur0 = n => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Number(n) || 0);
+  // formato euro con separatore delle migliaia sempre presente (1.000,00 €)
+  const fmtNum = (n, dec) => {
+    const v = Number(n) || 0, neg = v < 0;
+    const [i, d] = Math.abs(v).toFixed(dec).split('.');
+    return (neg ? '-' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + d : '');
+  };
+  const eur = n => fmtNum(n, 2) + ' €';
+  const eur0 = n => fmtNum(Math.round(Number(n) || 0), 0) + ' €';
+  const isDesk = () => matchMedia('(min-width: 900px)').matches;
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const pad = n => String(n).padStart(2, '0');
   const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -276,6 +282,17 @@
       <div class="right"><div class="amt">${eur(r.importo)}</div><button class="btn sm" data-rentpay="${r.month}">Paga</button></div></div>`;
   }
 
+  function speseTable(list, withDate = true) {
+    return `<table class="tbl"><thead><tr>${withDate ? '<th>Data</th>' : ''}<th>Descrizione</th><th>Categoria</th><th>Metodo</th><th class="r">Importo</th></tr></thead><tbody>
+      ${list.map(s => `<tr data-spesa="${esc(s.id)}">
+        ${withDate ? `<td class="d">${esc(parseD(s.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', ''))}</td>` : ''}
+        <td><div class="tcell">${String(s.bollettaId || '').startsWith('affitto:') ? `<div class="ic rent-ic">${ICO_KEY}</div>` : iconHTML(s.descrizione, s.categoria, s.sito)}<div class="tt"><b>${esc(s.descrizione || s.categoria || 'Spesa')}</b>${s.note ? `<small>${esc(s.note)}</small>` : ''}</div></div></td>
+        <td><span class="chip">${esc(s.categoria || '—')}</span></td>
+        <td class="m2">${esc(s.metodo || '')}</td>
+        <td class="r amt">${eur(s.importo)}</td></tr>`).join('')}
+      </tbody></table>`;
+  }
+
   /* ================= HOME ================= */
   function renderHome() {
     $('.month-label').textContent = monthName(homeMonth);
@@ -332,7 +349,8 @@
     renderInsights();
 
     const last = [...db.spese].sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || ''))).slice(0, matchMedia('(min-width: 900px)').matches ? 8 : 5);
-    $('#h-last').innerHTML = last.map(speseItem).join('') || '<div class="empty">Ancora nessuna spesa. Tocca + per iniziare.</div>';
+    $('#h-last').innerHTML = !last.length ? '<div class="empty">Ancora nessuna spesa. Tocca + per iniziare.</div>'
+      : isDesk() ? speseTable(last) : last.map(speseItem).join('');
   }
 
   function renderChart() {
@@ -421,6 +439,10 @@
       .sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || '')));
     $('#f-count').textContent = `${list.length} ${list.length === 1 ? 'spesa' : 'spese'}`;
     $('#f-total').textContent = eur(sum(list));
+    if (isDesk()) {
+      $('#spese-list').innerHTML = list.length ? `<div class="card tbl-card">${speseTable(list)}</div>` : '<div class="card empty">Nessuna spesa trovata</div>';
+      return;
+    }
     const groups = {};
     list.forEach(s => (groups[s.data] = groups[s.data] || []).push(s));
     $('#spese-list').innerHTML = Object.keys(groups).map(d => `<div class="day">
@@ -1084,7 +1106,8 @@
       showSetup();
     };
 
-    let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => view === 'home' && renderChart(), 150); });
+    let rz, wasDesk = isDesk();
+    window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (isDesk() !== wasDesk) { wasDesk = isDesk(); render(); } else if (view === 'home') renderChart(); }, 150); });
     window.addEventListener('online', () => { online = true; flush(); pull(); });
     window.addEventListener('offline', () => { online = false; setSync(); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !isLocal()) pull(); });

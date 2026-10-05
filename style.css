@@ -481,3 +481,87 @@ main { padding: 0 16px calc(96px + env(safe-area-inset-bottom)); max-width: 1080
   .bills-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (min-width: 900px) { .only-mob { visibility: hidden; } }
+
+/* =========================================================
+   STILE PRO — tipografia, palette, tabelle
+   ========================================================= */
+:root {
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --ink: #111827;
+  --ink-2: #4b5563;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #17795a;
+  --accent-soft: #e8f3ee;
+  --bar: #17795a;
+  --bar-dim: #c3dccf;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115; --surface: #171a20; --ink: #f3f4f6; --ink-2: #c4c8d0; --muted: #8b919c; --line: #262a33;
+    --accent: #3fae84; --accent-soft: #18291f; --bar: #3fae84; --bar-dim: #2a4a3c;
+  }
+}
+body { font-feature-settings: "cv11", "ss01"; letter-spacing: -0.006em; }
+.big, .amt, .kpi .big, .tbl .amt { font-variant-numeric: tabular-nums; }
+
+/* KPI */
+.kpi-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.kpi-ic { width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+.kpi-ic svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Tabelle (PC) */
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th { text-align: left; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 0 12px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tbl td { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl th:first-child, .tbl td:first-child { padding-left: 0; }
+.tbl th:last-child, .tbl td:last-child { padding-right: 0; }
+.tbl tbody tr { cursor: pointer; transition: background .1s; }
+.tbl tbody tr:hover td { background: var(--bg); }
+.tbl .r { text-align: right; }
+.tbl .d { color: var(--muted); white-space: nowrap; width: 72px; text-transform: capitalize; }
+.tbl .m2 { color: var(--ink-2); white-space: nowrap; }
+.tbl .amt { font-weight: 600; white-space: nowrap; }
+.tcell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.tcell .ic { width: 34px; height: 34px; }
+.tt { display: grid; min-width: 0; }
+.tt b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+.tbl-card { padding: 8px 22px 6px; }
+.tbl-card .tbl th { padding-top: 14px; }
+
+@media (min-width: 900px) {
+  body { background: var(--bg); }
+  .nav { background: var(--surface); }
+  .nav .brand { padding-bottom: 28px; }
+  .nav a { font-weight: 500; }
+  .top { padding: 30px 0 18px; }
+  .top h2 { font-size: 24px; font-weight: 700; letter-spacing: -.02em; }
+  .subtitle { font-size: 13.5px; margin-top: 2px; }
+
+  .month-switch { display: inline-flex; justify-self: start; align-items: center; gap: 0; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; padding: 3px; }
+  .month-switch .icon-btn { width: 32px; height: 32px; font-size: 18px; border-radius: 8px; }
+  .month-switch strong { font-size: 14px; padding: 0 12px; min-width: 130px; }
+
+  .card { border-radius: 14px; }
+  .card-h h3 { font-size: 15px; font-weight: 600; }
+  .kpi { min-height: 132px; justify-content: space-between; }
+  .kpi .big { font-size: 28px; font-weight: 700; letter-spacing: -.025em; }
+
+  /* scadenze: importo e pulsante sulla stessa riga */
+  .list .item .right { flex-direction: row; align-items: center; gap: 12px; }
+  .list .item .amt { min-width: 84px; text-align: right; }
+  .c-due .item { padding: 11px 0; }
+
+  .home-grid { grid-template-columns: minmax(0, 1.7fr) minmax(340px, 1fr); }
+  .c-last { padding-bottom: 8px; }
+  .chart svg { display: block; }
+
+  .filters { padding: 10px; gap: 10px; border-radius: 14px; }
+  .sum-row { padding: 2px 4px; }
+  .bill, .day, .filters { border-radius: 14px; }
+}
+@media (min-width: 900px) { input, select, textarea { font-size: 14.5px; min-height: 40px; } }

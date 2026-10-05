@@ -1,6 +1,6 @@
 /* Spese Casa — service worker: app utilizzabile anche offline */
-const CACHE = 'spese-casa-v5';
-const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'logo.svg'];
+const CACHE = 'spese-casa-v7';
+const SHELL = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'logo.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -13,7 +13,7 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || u.origin !== location.origin) return; // i dati Google passano diretti
   // rete prima (aggiornamenti immediati), cache se offline
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, { cache: 'no-cache' }).then(r => {
       const copy = r.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return r;
