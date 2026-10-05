@@ -298,7 +298,7 @@
     const barW = Math.min(28, bw * 0.6);
     const yS = v => H - pb - (v / nice) * (H - pb - pt);
     let g = '';
-    [0.5, 1].forEach(p => {
+    (vals.some(v => v > 0) ? [0.5, 1] : []).forEach(p => {
       const yy = yS(nice * p);
       g += `<line class="grid" x1="0" x2="${W - pr}" y1="${yy}" y2="${yy}"/><text class="axis" x="${W}" y="${yy + 4}" text-anchor="end">${eur0(nice * p)}</text>`;
     });
