@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Spese Casa</title>
+  <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Spese Casa">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Schermata collegamento -->
+  <section id="setup" class="setup" hidden>
+    <div class="setup-card">
+      <img src="icons/icon-192.png" alt="" width="56" height="56">
+      <h1>Spese Casa</h1>
+      <p class="muted">Incolla l'URL dell'App web di Google Apps Script per salvare i dati sul tuo Foglio Google.</p>
+      <input id="setup-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+      <button id="setup-go" class="btn primary block">Collega</button>
+      <p id="setup-err" class="err" hidden></p>
+      <button id="setup-local" class="btn ghost block">Usa solo su questo dispositivo</button>
+    </div>
+  </section>
+
+  <div id="app" class="app" hidden>
+    <nav class="nav">
+      <div class="brand"><img src="icons/icon-192.png" alt="" width="28" height="28"><span>Spese Casa</span></div>
+      <a href="#home" data-view="home"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5"/></svg><span>Home</span></a>
+      <a href="#spese" data-view="spese"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Spese</span></a>
+      <a href="#bollette" data-view="bollette"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Bollette</span><i id="badge" class="badge" hidden></i></a>
+      <a href="#impostazioni" data-view="impostazioni"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Altro</span></a>
+    </nav>
+
+    <main>
+      <header class="top">
+        <h2 id="title">Home</h2>
+        <div class="top-r">
+          <span id="sync" class="sync" title="Stato sincronizzazione"></span>
+          <button id="add-top" class="btn primary only-desk">+ Nuova spesa</button>
+        </div>
+      </header>
+
+      <!-- HOME -->
+      <section id="v-home" class="view">
+        <div class="month-switch">
+          <button class="icon-btn" data-month="-1" aria-label="Mese precedente">‹</button>
+          <strong class="month-label"></strong>
+          <button class="icon-btn" data-month="1" aria-label="Mese successivo">›</button>
+        </div>
+        <div class="grid-2">
+          <div class="card hero">
+            <span class="label">Speso nel mese</span>
+            <div id="h-total" class="big">€ 0</div>
+            <span id="h-delta" class="muted small"></span>
+          </div>
+          <div class="card hero">
+            <span class="label">Bollette entro 30 giorni</span>
+            <div id="h-bills" class="big">€ 0</div>
+            <span id="h-bills-sub" class="muted small"></span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-h"><h3>Prossime scadenze</h3><a href="#bollette" class="link">Tutte</a></div>
+            <div id="h-due" class="list"></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Per categoria</h3></div>
+            <div id="h-cat" class="bars"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Ultimi 12 mesi</h3><span id="h-avg" class="muted small"></span></div>
+          <div id="h-chart" class="chart"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Ultime spese</h3><a href="#spese" class="link">Tutte</a></div>
+          <div id="h-last" class="list"></div>
+        </div>
+      </section>
+
+      <!-- SPESE -->
+      <section id="v-spese" class="view" hidden>
+        <div class="filters">
+          <input id="f-q" type="search" placeholder="Cerca…">
+          <select id="f-month"></select>
+          <select id="f-cat"><option value="">Tutte le categorie</option></select>
+        </div>
+        <div class="sum-row"><span id="f-count" class="muted"></span><strong id="f-total"></strong></div>
+        <div id="spese-list"></div>
+      </section>
+
+      <!-- BOLLETTE -->
+      <section id="v-bollette" class="view" hidden>
+        <div class="sum-row">
+          <span class="muted">Spese ricorrenti e scadenze</span>
+          <button id="add-bill" class="btn">+ Nuova bolletta</button>
+        </div>
+        <div id="bills-list"></div>
+        <div id="bills-off" class="off-wrap"></div>
+      </section>
+
+      <!-- IMPOSTAZIONI -->
+      <section id="v-impostazioni" class="view" hidden>
+        <div class="card">
+          <h3>Collegamento</h3>
+          <p id="conn-info" class="muted small"></p>
+          <div class="row-btns">
+            <button id="btn-sync" class="btn">Sincronizza ora</button>
+            <button id="btn-conn" class="btn ghost">Cambia collegamento</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Categorie</h3>
+          <div class="inline-add">
+            <input id="new-cat" placeholder="Nuova categoria">
+            <button id="add-cat" class="btn">Aggiungi</button>
+          </div>
+          <div id="cat-list" class="chips"></div>
+        </div>
+        <div class="card">
+          <h3>Esporta</h3>
+          <p class="muted small">Scarica tutte le spese in formato CSV (apribile con Excel).</p>
+          <button id="btn-csv" class="btn">Scarica CSV</button>
+        </div>
+      </section>
+    </main>
+
+    <button id="fab" class="fab" aria-label="Nuova spesa">+</button>
+  </div>
+
+  <!-- Pannello modale -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-bg" data-close></div>
+    <form id="sheet-form" class="sheet-panel" autocomplete="off">
+      <div class="sheet-h">
+        <h3 id="sheet-title"></h3>
+        <button type="button" class="icon-btn" data-close aria-label="Chiudi">✕</button>
+      </div>
+      <div id="sheet-body"></div>
+      <div class="sheet-f">
+        <button type="button" id="sheet-del" class="btn danger-ghost" hidden>Elimina</button>
+        <button type="submit" class="btn primary" id="sheet-ok">Salva</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
