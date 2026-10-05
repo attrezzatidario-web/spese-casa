@@ -14,8 +14,9 @@
   };
 
   let url = LS.get('sc_url', '');
-  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {} });
+  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [] });
   if (!db.config) db.config = {};
+  if (!db.fatture) db.fatture = [];
   let queue = LS.get('sc_queue', []);
   let syncing = false;
   let online = navigator.onLine;
@@ -129,14 +130,21 @@
     ['dazn', 'dazn.com', AL], ['poste', 'poste.it', AL], ['paypal', 'paypal.com', AL],
     ['unipol', 'unipol.it', AS], ['generali', 'generali.it', AS], ['allianz', 'allianz.it', AS], ['zurich', 'zurich.it', AS],
     ['prima\\.it|prima assicura', 'prima.it', AS], ['genertel', 'genertel.it', AS], ['linear', 'linear.it', AS],
+    ['jysk', 'jysk.it', AR], ['deghi', 'deghi.it', AR], ['tecnomat', 'tecnomat.it', MA], ['vorwerk|folletto|bimby|kobold', 'vorwerk.com', EL],
     ['farmacia', '', 'Salute'], ['mcdonald', 'mcdonalds.it', AL], ['burger king', 'burgerking.it', AL]
   ].map(([k, domain, cat]) => ({ re: new RegExp(k, 'i'), domain, cat }));
 
+  // negozi aggiunti dall'utente (Altro > Negozi e loghi)
+  const customShops = () => (db.config && Array.isArray(db.config.negozi) ? db.config.negozi : []);
+  const escRe = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   function findMerchant(text) {
     if (!text) return null;
     const t = String(text);
+    const c = customShops().find(n => n.nome && new RegExp(escRe(n.nome), 'i').test(t));
+    if (c) return { domain: c.dominio, cat: c.categoria || '' };
     return MERCHANTS.find(m => m.re.test(t)) || null;
   }
+  const domainOf = u => { try { return new URL(/^https?:/i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); } catch { return ''; } };
   const logoUrl = d => `https://www.google.com/s2/favicons?domain=${d}&sz=128`;
   // icona: logo del negozio se riconosciuto, altrimenti iniziali
   function iconHTML(text, fallback, sito) {
@@ -150,7 +158,7 @@
   }
 
   /* ================= Data layer ================= */
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie' };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -216,7 +224,7 @@
       const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
+      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
@@ -493,11 +501,13 @@
   /* ================= BOLLETTE ================= */
   function billCard(b, inactive) {
     const st = billStatus(b);
-    const paid = db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data))[0];
+    const lf = billFatture(b)[0];
+    const extra = lf && Number(lf.consumo) > 0 ? `<div class="s cons">Ultima: ${esc(fmtNum(lf.consumo, 0))} ${esc(lf.unita || '')} · ${eur(lf.importo)}${lf.unita ? ` · ${esc(fmtNum(lf.importo / lf.consumo, 3))} €/${esc(lf.unita)}` : ''}</div>`
+      : lf ? `<div class="s cons">${billFatture(b).length} fatture registrate</div>` : '';
     return `<div class="bill" data-bill="${esc(b.id)}">
       ${iconHTML(b.nome)}
       <div class="main"><div class="t">${esc(b.nome)}</div>
-        <div class="s">${esc([b.categoria, b.frequenza].filter(Boolean).join(' · '))}${paid ? ` · ultimo pag. ${esc(shortDate(paid.data))}` : ''}</div></div>
+        <div class="s">${esc([b.categoria, b.frequenza].filter(Boolean).join(' · '))}</div>${extra}</div>
       <div class="right"><div class="amt">${eur(b.importo)}</div>
         ${inactive ? '<span class="chip">Disattivata</span>' : `<span class="chip ${st.cls}">${esc(st.txt)}</span>`}
         ${inactive ? '' : `<button class="btn sm" data-pay="${esc(b.id)}">Segna pagata</button>`}</div></div>`;
@@ -517,6 +527,11 @@
       : `Collegato al Foglio Google. ${db.spese.length} spese, ${db.bollette.length} bollette.`;
     $('#btn-sync').hidden = isLocal();
     renderAISettings();
+    $('#shop-list').innerHTML = customShops().map((n, i) => `<div class="item shop">
+      <div class="ic logo"><img src="${logoUrl(n.dominio)}" alt=""></div>
+      <div class="main"><div class="t">${esc(n.nome)}</div><div class="s">${esc(n.dominio)}${n.categoria ? ' · ' + esc(n.categoria) : ''}</div></div>
+      <button class="icon-btn" data-delshop="${i}" aria-label="Rimuovi">✕</button></div>`).join('') || '<p class="muted small" style="margin:0">Nessun negozio aggiunto.</p>';
+    $('#shop-cat').innerHTML = '<option value="">Categoria</option>' + cats().map(c => `<option>${esc(c)}</option>`).join('');
     $('#cat-list').innerHTML = cats().map(c => `<span class="chip">${esc(c)}<button data-delcat="${esc(c)}" aria-label="Elimina ${esc(c)}">✕</button></span>`).join('');
   }
 
@@ -746,6 +761,166 @@
       }, null, 'Salva notifiche');
   }
 
+
+  /* ================= FATTURE (dettaglio bollette) ================= */
+  const ICO_DOC = '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>';
+  const UNITA = ['', 'kWh', 'Smc', 'm³', 'GB', 'minuti'];
+  const VOCI_TIPICHE = {
+    Luce: ['Spesa per la materia energia', 'Spesa per il trasporto e la gestione del contatore', 'Spesa per oneri di sistema', 'Imposte (accise)', 'IVA', 'Canone RAI', 'Altre partite'],
+    Gas: ['Spesa per la materia gas naturale', 'Spesa per il trasporto e la gestione del contatore', 'Spesa per oneri di sistema', 'Accise e addizionale regionale', 'IVA', 'Altre partite'],
+    Acqua: ['Quota fissa', 'Servizio acquedotto', 'Fognatura', 'Depurazione', 'Oneri perequativi', 'IVA'],
+    'Internet e telefono': ['Canone mensile', 'Modem / noleggio', 'Servizi aggiuntivi', 'Traffico extra', 'IVA'],
+    _: ['Quota fissa', 'Quota variabile', 'Imposte', 'IVA', 'Altre partite']
+  };
+  const UNITA_CAT = { Luce: 'kWh', Gas: 'Smc', Acqua: 'm³' };
+  const parseVoci = f => { try { const v = typeof f.voci === 'string' ? JSON.parse(f.voci || '[]') : (f.voci || []); return Array.isArray(v) ? v : []; } catch { return []; } };
+  const billFatture = b => db.fatture.filter(f => f.bollettaId === b.id).sort((a, c) => String(c.periodoA || c.scadenza || c.emissione || '').localeCompare(String(a.periodoA || a.scadenza || a.emissione || '')));
+  const mShort = d => parseD(d).toLocaleDateString('it-IT', { month: 'short' }).replace('.', '');
+  function fattLabel(f) {
+    if (f.periodoDa && f.periodoA) {
+      const y = String(f.periodoA).slice(0, 4);
+      return ym(f.periodoDa) === ym(f.periodoA) ? `${mShort(f.periodoA)} ${y}` : `${mShort(f.periodoDa)}–${mShort(f.periodoA)} ${y}`;
+    }
+    if (f.numero) return 'n. ' + f.numero;
+    return f.scadenza ? 'scad. ' + shortDate(f.scadenza) : 'senza data';
+  }
+  function fattStatus(f) {
+    if (f.spesaId) return { cls: 'paid', txt: 'Pagata' };
+    if (!f.scadenza) return { cls: '', txt: 'Da pagare' };
+    const d = daysTo(f.scadenza);
+    if (d < 0) return { cls: 'late', txt: 'Scaduta' };
+    if (d <= 7) return { cls: 'soon', txt: d === 0 ? 'Scade oggi' : `Tra ${d} gg` };
+    return { cls: '', txt: 'Scad. ' + parseD(f.scadenza).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+  }
+
+  function billDetail(b) {
+    const list = billFatture(b);
+    const st = billStatus(b);
+    const active = b.attiva !== false && String(b.attiva).toUpperCase() !== 'FALSE';
+    const avg = list.length ? sum(list) / list.length : 0;
+    const withC = list.filter(f => Number(f.consumo) > 0);
+    const unit = (withC[0] && withC[0].unita) || '';
+    const avgC = withC.length ? withC.reduce((a, f) => a + Number(f.consumo), 0) / withC.length : 0;
+    const perU = withC.length ? sum(withC) / withC.reduce((a, f) => a + Number(f.consumo), 0) : 0;
+    const chartF = list.slice(0, 8).reverse();
+    const maxF = Math.max(1, ...chartF.map(f => Number(f.importo) || 0));
+    const paidTot = sum(db.spese.filter(x => x.bollettaId === b.id));
+    openSheet(b.nome, `
+      <div class="bd-head">
+        ${iconHTML(b.nome)}
+        <div class="main"><div class="s">${esc([b.categoria, b.frequenza].filter(Boolean).join(' · '))}</div>
+          <div class="bd-line">${active ? `<span class="chip ${st.cls}">${esc(st.txt)}</span><b class="bd-amt">${eur(b.importo)}</b>` : '<span class="chip">Disattivata</span>'}</div></div>
+      </div>
+      <div class="bd-act">
+          ${aiReady() ? `<button type="button" class="btn sm ai-inline" data-billact="photo" data-id="${esc(b.id)}">${ICO.camera}Da foto</button>` : ''}
+          <button type="button" class="btn sm" data-billact="edit" data-id="${esc(b.id)}">Modifica bolletta</button>
+      </div>
+      <div class="bd-stats">
+        <div><span>Media fattura</span><b>${list.length ? eur(avg) : '—'}</b></div>
+        <div><span>Consumo medio</span><b>${avgC ? esc(fmtNum(avgC, 0)) + ' ' + esc(unit) : '—'}</b></div>
+        <div><span>Costo unitario</span><b>${perU && unit ? esc(fmtNum(perU, 3)) + ' €/' + esc(unit) : '—'}</b></div>
+        <div><span>Pagato in totale</span><b>${eur(paidTot)}</b></div>
+      </div>
+      ${chartF.length > 1 ? `<div class="bd-chart">${chartF.map((f, i) => `<div class="bdc" title="${esc(fattLabel(f))}: ${esc(eur(f.importo))}">
+          <span class="bdv">${esc(eur0(f.importo))}</span>
+          <i style="height:${Math.max(4, (Number(f.importo) || 0) / maxF * 100)}%;animation-delay:${i * 50}ms"></i>
+          <span class="bdl">${esc(f.periodoA ? mShort(f.periodoA) : f.scadenza ? mShort(f.scadenza) : '')}</span></div>`).join('')}</div>` : ''}
+      <div class="bd-list-h"><h3>Fatture</h3><span class="muted small">${list.length}</span></div>
+      <div class="list">${list.map(f => {
+        const fs = fattStatus(f), nv = parseVoci(f).length;
+        return `<div class="item" data-fatt="${esc(f.id)}">
+          <div class="ic doc-ic">${ICO_DOC}</div>
+          <div class="main"><div class="t">${esc(fattLabel(f))}</div>
+            <div class="s">${[Number(f.consumo) > 0 ? esc(fmtNum(f.consumo, 0) + ' ' + (f.unita || '')) : '', nv ? nv + ' voci' : '', f.numero ? 'n. ' + esc(f.numero) : ''].filter(Boolean).join(' · ') || '&nbsp;'}</div></div>
+          <div class="right"><div class="amt">${eur(f.importo)}</div>
+            ${f.spesaId ? `<span class="chip paid">Pagata</span>` : `<button type="button" class="btn sm" data-fpay="${esc(f.id)}">Paga</button>`}</div></div>`;
+      }).join('') || '<div class="empty">Nessuna fattura. Aggiungi la prima per tenere traccia di consumi e voci.</div>'}</div>`,
+      () => formFattura(b), null, '+ Aggiungi fattura');
+    $('#sheet-form').classList.add('wide');
+  }
+
+  // righe voci
+  function addVoce(desc, imp) {
+    const box = $('#voci'); if (!box) return;
+    const row = document.createElement('div');
+    row.className = 'voce';
+    row.innerHTML = `<input name="vd" placeholder="Voce" value="${esc(desc)}"><input name="vi" class="vi" inputmode="decimal" placeholder="0,00" value="${esc(imp === '' || imp == null ? '' : fmtAmt(imp))}"><button type="button" class="icon-btn vx" data-vdel aria-label="Rimuovi">✕</button>`;
+    box.appendChild(row);
+    row.querySelector('.vi').addEventListener('input', updVoci);
+    (desc ? row.querySelector('.vi') : row.querySelector('input')).focus();
+    updVoci();
+  }
+  function updVoci() {
+    const box = $('#voci-sum'); if (!box) return;
+    const tot = $$('#voci .vi').reduce((a, i) => a + num(i.value), 0);
+    const target = num(($('#sheet-body [name=importo]') || {}).value || 0);
+    const diff = Math.round((target - tot) * 100) / 100;
+    const n = $$('#voci .voce').length;
+    box.innerHTML = n ? `<span>Somma voci <b>${eur(tot)}</b></span>${target && Math.abs(diff) >= 0.01 ? `<span class="${Math.abs(diff) > 1 ? 'warn-t' : 'muted'}">Differenza ${eur(diff)}</span>` : target ? '<span class="ok-t">Quadra con il totale</span>' : ''}` : '';
+  }
+
+  function formFattura(b, f, pre, newBill) {
+    const isNew = !f;
+    f = f || { id: uid(), bollettaId: b.id, numero: '', emissione: '', periodoDa: '', periodoA: '', consumo: '', unita: UNITA_CAT[b.categoria] || '', importo: '', scadenza: b.scadenza || today(), voci: '[]', spesaId: '', note: '' };
+    if (pre) f = { ...f, ...pre };
+    const voci = parseVoci(f);
+    const tip = (VOCI_TIPICHE[b.categoria] || VOCI_TIPICHE._).filter(t => !voci.some(v => String(v.descrizione).toLowerCase() === t.toLowerCase()));
+    const unpaid = !f.spesaId;
+    const defUpd = unpaid && (!b.scadenza || (f.scadenza || '') >= b.scadenza || newBill);
+    openSheet((isNew ? 'Nuova fattura · ' : 'Fattura · ') + b.nome, `
+      ${f._ai ? `<div class="ai-note">${ICO.spark}<span>${newBill ? `Nuova bolletta “${esc(b.nome)}” letta dall'IA` : 'Letta dall\'IA'}: controlla e salva</span></div>` : ''}
+      <label class="f"><span>Totale fattura (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(f.importo))}" required data-focus></label>
+      <div class="f-row">
+        <label class="f"><span>Scadenza</span><input name="scadenza" type="date" value="${esc(f.scadenza)}"></label>
+        <label class="f"><span>N. fattura</span><input name="numero" value="${esc(f.numero)}" placeholder="Facoltativo"></label>
+      </div>
+      <div class="f-row">
+        <label class="f"><span>Periodo dal</span><input name="periodoDa" type="date" value="${esc(f.periodoDa)}"></label>
+        <label class="f"><span>al</span><input name="periodoA" type="date" value="${esc(f.periodoA)}"></label>
+      </div>
+      <div class="f-row">
+        <label class="f"><span>Consumo</span><input name="consumo" inputmode="decimal" placeholder="Es. 320" value="${esc(f.consumo === '' || f.consumo == null ? '' : String(f.consumo).replace('.', ','))}"></label>
+        <label class="f"><span>Unità</span><select name="unita">${UNITA.map(u => `<option value="${esc(u)}"${u === (f.unita || '') ? ' selected' : ''}>${u || '—'}</option>`).join('')}</select></label>
+      </div>
+      <div class="voci-box">
+        <div class="voci-h"><h3>Voci della bolletta</h3><button type="button" class="btn sm" data-vadd="1">+ Voce</button></div>
+        <div id="voci"></div>
+        ${tip.length ? `<div class="vtips">${tip.map(t => `<button type="button" class="chip vtip" data-vadd="${esc(t)}">+ ${esc(t)}</button>`).join('')}</div>` : ''}
+        <div id="voci-sum" class="voci-sum"></div>
+      </div>
+      <label class="f"><span>Note</span><textarea name="note" rows="2" placeholder="Codice cliente, POD/PDR, offerta…">${esc(f.note)}</textarea></label>
+      ${unpaid ? `<label class="sw"><input type="checkbox" name="upd" ${defUpd ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Aggiorna la bolletta</b><small>Usa importo e scadenza di questa fattura per i promemoria.</small></span></label>` : `<p class="muted small"><span class="chip paid">Pagata</span> collegata al pagamento registrato.</p>`}`,
+      fd => {
+        const importo = num(fd.get('importo'));
+        if (importo <= 0) return toast('Inserisci il totale');
+        const vd = fd.getAll('vd'), vi = fd.getAll('vi');
+        const vv = vd.map((d, i) => ({ descrizione: String(d).trim(), importo: num(vi[i]) })).filter(v => v.descrizione || v.importo);
+        const c = String(fd.get('consumo') || '').trim();
+        const row = { ...f, importo, scadenza: fd.get('scadenza') || '', numero: fd.get('numero').trim(), periodoDa: fd.get('periodoDa') || '', periodoA: fd.get('periodoA') || '',
+          consumo: c ? num(c) : '', unita: fd.get('unita'), voci: JSON.stringify(vv), note: fd.get('note').trim() };
+        delete row._ai;
+        const ops = [];
+        let bill = b;
+        if (newBill || fd.get('upd') === 'on') {
+          bill = { ...b, importo, scadenza: row.scadenza || b.scadenza };
+          ops.push({ action: 'upsert', sheet: 'Bollette', row: bill });
+        }
+        ops.push({ action: 'upsert', sheet: 'Fatture', row });
+        write(ops);
+        toast(isNew ? 'Fattura salvata' : 'Fattura aggiornata');
+        billDetail(bill);
+      },
+      isNew ? null : () => {
+        if (!confirm('Eliminare questa fattura?')) return;
+        write([{ action: 'delete', sheet: 'Fatture', id: f.id }]); toast('Fattura eliminata'); billDetail(b);
+      });
+    $('#sheet-form').classList.add('wide');
+    voci.forEach(v => addVoce(v.descrizione, v.importo));
+    $('#sheet-body [name=importo]').addEventListener('input', updVoci);
+    updVoci();
+  }
+
   /* ================= IA ================= */
   const ICO = {
     camera: '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
@@ -860,7 +1035,7 @@
       }, null, 'Aggiungi tutte');
   }
 
-  async function aiBill() {
+  async function aiBill(forBill) {
     let img;
     try { img = await pickImage(); } catch { return; }
     busy('Leggo la bolletta…');
@@ -876,8 +1051,11 @@
         if (m && mb) return m.domain === mb.domain && b.categoria === pre.categoria;
         return b.nome.toLowerCase().trim() === String(r.nome).toLowerCase().trim();
       });
-      if (ex) formBill(ex, { _ai: true, importo: pre.importo, scadenza: pre.scadenza });
-      else formBill(null, { ...pre, nome: r.nome, note: r.note || '' });
+      const target = forBill || ex;
+      const fpre = { _ai: true, importo: r.importo, scadenza: pre.scadenza, numero: r.numero || '', emissione: r.emissione || '', periodoDa: r.periodoDa || '', periodoA: r.periodoA || '',
+        consumo: Number(r.consumo) > 0 ? r.consumo : '', unita: r.unita || '', voci: JSON.stringify((r.voci || []).filter(v => v.descrizione)), note: r.note || '' };
+      if (target) formFattura(target, null, fpre);
+      else formFattura({ id: uid(), nome: r.nome, categoria: pre.categoria, importo: pre.importo, frequenza: pre.frequenza, scadenza: pre.scadenza, attiva: true, note: r.note || '' }, null, fpre, true);
     } catch (e) { busy(); toast(e.message); }
   }
 
@@ -894,7 +1072,8 @@
     });
     const speseMese = db.spese.filter(s => ym(s.data) === month).slice(0, 200).map(s => ({ d: s.data, e: Number(s.importo), c: s.categoria, n: s.descrizione, p: s.metodo }));
     const bollette = activeBills().map(b => ({ nome: b.nome, previsto: Number(b.importo), freq: b.frequenza, scadenza: b.scadenza,
-      pagamenti: db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data)).slice(0, 6).map(s => [s.data, Number(s.importo)]) }));
+      pagamenti: db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data)).slice(0, 6).map(s => [s.data, Number(s.importo)]),
+      fatture: billFatture(b).slice(0, 6).map(f => ({ periodo: [f.periodoDa, f.periodoA].filter(Boolean).join('/'), totale: Number(f.importo), consumo: f.consumo, unita: f.unita, voci: parseVoci(f).map(v => [v.descrizione, v.importo]) })) }));
     return { perMese, speseMese, bollette };
   }
   const insKey = month => 'sc_ins_' + month;
@@ -960,6 +1139,7 @@
     onSubmit = submit; onDelete = del;
     clearTimeout(closeSheet._t);
     $('#sheet').classList.remove('closing');
+    $('#sheet-form').classList.remove('wide');
     $('#sheet').hidden = false;
     document.body.style.overflow = 'hidden';
     const first = $('#sheet-body [data-focus]');
@@ -1062,7 +1242,8 @@
         delete row._ai;
         if (!row.nome) return toast('Inserisci il nome');
         write([{ action: 'upsert', sheet: 'Bollette', row }]);
-        closeSheet(); toast(isNew ? 'Bolletta aggiunta' : 'Bolletta aggiornata');
+        toast(isNew ? 'Bolletta aggiunta' : 'Bolletta aggiornata');
+        billDetail(row);
       },
       isNew ? null : () => {
         if (!confirm('Eliminare questa bolletta? Le spese già registrate restano.')) return;
@@ -1070,22 +1251,28 @@
       });
   }
 
-  function formPay(b) {
+  function formPay(b, fatt) {
+    // fattura collegata: quella indicata, o quella non pagata con la stessa scadenza della bolletta
+    fatt = fatt || db.fatture.find(f => f.bollettaId === b.id && !f.spesaId && f.scadenza === b.scadenza) || null;
+    const advance = !fatt || !fatt.scadenza || fatt.scadenza >= b.scadenza;
     const months = FREQ[b.frequenza] ?? 1;
-    const next = months ? addMonths(b.scadenza, months) : null;
+    const next = advance ? (months ? addMonths(b.scadenza, months) : null) : b.scadenza;
     openSheet('Paga ' + b.nome, `
-      <label class="f"><span>Importo pagato (€)</span><input name="importo" class="amount-input" inputmode="decimal" value="${esc(fmtAmt(b.importo))}" required data-focus></label>
+      ${fatt ? `<div class="ai-note">${ICO_DOC}<span>Fattura ${esc(fattLabel(fatt))}</span></div>` : ''}
+      <label class="f"><span>Importo pagato (€)</span><input name="importo" class="amount-input" inputmode="decimal" value="${esc(fmtAmt(fatt ? fatt.importo : b.importo))}" required data-focus></label>
       <div class="f-row">
         <label class="f"><span>Data pagamento</span><input name="data" type="date" value="${today()}" required></label>
         <label class="f"><span>Metodo</span><select name="metodo">${opt(METODI, 'Addebito in conto')}</select></label>
       </div>
-      <p class="muted small" style="margin:0 0 10px">${next ? `Prossima scadenza: <b>${esc(shortDate(next))}</b>` : 'Bolletta una tantum: verrà disattivata.'} La spesa sarà registrata in “${esc(b.categoria)}”.</p>`,
+      <p class="muted small" style="margin:0 0 10px">${!advance ? '' : next ? `Prossima scadenza: <b>${esc(shortDate(next))}</b>. ` : 'Bolletta una tantum: verrà disattivata. '}La spesa sarà registrata in “${esc(b.categoria)}”.</p>`,
       fd => {
         const importo = num(fd.get('importo'));
         if (importo <= 0) return toast('Inserisci un importo valido');
-        const spesa = { id: uid(), data: fd.get('data'), importo, categoria: b.categoria, descrizione: b.nome, metodo: fd.get('metodo'), note: 'Scadenza ' + shortDate(b.scadenza), bollettaId: b.id, creato: new Date().toISOString() };
-        const bill = next ? { ...b, scadenza: next } : { ...b, attiva: false };
-        write([{ action: 'upsert', sheet: 'Spese', row: spesa }, { action: 'upsert', sheet: 'Bollette', row: bill }]);
+        const spesa = { id: uid(), data: fd.get('data'), importo, categoria: b.categoria, descrizione: b.nome, metodo: fd.get('metodo'), note: fatt ? 'Fattura ' + fattLabel(fatt) : 'Scadenza ' + shortDate(b.scadenza), bollettaId: b.id, creato: new Date().toISOString() };
+        const ops = [{ action: 'upsert', sheet: 'Spese', row: spesa }];
+        if (advance) ops.push({ action: 'upsert', sheet: 'Bollette', row: next ? { ...b, scadenza: next } : { ...b, attiva: false } });
+        if (fatt) ops.push({ action: 'upsert', sheet: 'Fatture', row: { ...fatt, spesaId: spesa.id } });
+        write(ops);
         closeSheet(); toast('Pagamento registrato');
       }, null, 'Conferma pagamento');
   }
@@ -1106,7 +1293,32 @@
       const sp = e.target.closest('[data-spesa]');
       if (sp && !e.target.closest('.hist')) { const s = db.spese.find(x => String(x.id) === sp.dataset.spesa); if (s) formSpesa(s); return; }
       const bl = e.target.closest('[data-bill]');
-      if (bl) { const b = db.bollette.find(x => x.id === bl.dataset.bill); if (b) formBill(b); return; }
+      if (bl) { const b = db.bollette.find(x => x.id === bl.dataset.bill); if (b) billDetail(b); return; }
+      const fa = e.target.closest('[data-fatt]');
+      if (fa) { const f = db.fatture.find(x => x.id === fa.dataset.fatt); const b = f && db.bollette.find(x => x.id === f.bollettaId); if (b) formFattura(b, f); return; }
+      const fp = e.target.closest('[data-fpay]');
+      if (fp) { e.stopPropagation(); const f = db.fatture.find(x => x.id === fp.dataset.fpay); const b = f && db.bollette.find(x => x.id === f.bollettaId); if (b) formPay(b, f); return; }
+      const ba = e.target.closest('[data-billact]');
+      if (ba) {
+        const b = db.bollette.find(x => x.id === ba.dataset.id);
+        if (b && ba.dataset.billact === 'edit') formBill(b);
+        if (b && ba.dataset.billact === 'add') formFattura(b);
+        if (b && ba.dataset.billact === 'photo') aiBill(b);
+        return;
+      }
+      if (e.target.closest('#shop-add')) {
+        const nome = $('#shop-name').value.trim(), dominio = domainOf($('#shop-url').value.trim());
+        if (!nome || !dominio) return toast('Inserisci nome e link del negozio');
+        setConfig('negozi', [...customShops().filter(n => n.nome.toLowerCase() !== nome.toLowerCase()), { nome, dominio, categoria: $('#shop-cat').value }]);
+        $('#shop-name').value = ''; $('#shop-url').value = ''; toast(nome + ' aggiunto');
+        return;
+      }
+      const ds = e.target.closest('[data-delshop]');
+      if (ds) { const l = customShops().slice(); l.splice(Number(ds.dataset.delshop), 1); setConfig('negozi', l); return; }
+      const vadd = e.target.closest('[data-vadd]');
+      if (vadd) { addVoce(vadd.dataset.vadd === '1' ? '' : vadd.dataset.vadd, ''); if (vadd.dataset.vadd !== '1') vadd.remove(); return; }
+      const vdel = e.target.closest('[data-vdel]');
+      if (vdel) { vdel.closest('.voce').remove(); updVoci(); return; }
       const mo = e.target.closest('[data-month]');
       if (mo) { const [y, m] = homeMonth.split('-').map(Number); homeMonth = ymOf(new Date(y, m - 1 + Number(mo.dataset.month), 1)); renderHome(); return; }
       const dc = e.target.closest('[data-delcat]');
@@ -1205,7 +1417,7 @@
         if (!j.ok) throw new Error(j.error);
         if (url !== v) { queue = []; }
         url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
+        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');

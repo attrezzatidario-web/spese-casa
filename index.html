@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -200,6 +200,17 @@
           <div id="ai-set"></div>
         </div>
         <div class="card">
+          <h3>Negozi e loghi</h3>
+          <p class="muted small" style="margin:0 0 10px">Se un negozio non mostra il logo, aggiungilo con il link del suo sito.</p>
+          <div class="shop-form">
+            <input id="shop-name" placeholder="Nome (es. Jysk)">
+            <input id="shop-url" placeholder="Sito (es. jysk.it)" inputmode="url" autocapitalize="off">
+            <select id="shop-cat"></select>
+            <button id="shop-add" class="btn primary">Aggiungi</button>
+          </div>
+          <div id="shop-list" class="list"></div>
+        </div>
+        <div class="card">
           <h3>Categorie</h3>
           <div class="inline-add">
             <input id="new-cat" placeholder="Nuova categoria">
@@ -236,6 +247,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
