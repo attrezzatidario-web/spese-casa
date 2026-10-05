@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Spese Casa</title>
   <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Spese Casa">
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/logo.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -20,7 +20,7 @@
   <!-- Schermata collegamento -->
   <section id="setup" class="setup" hidden>
     <div class="setup-card">
-      <img src="icons/icon-192.png" alt="" width="56" height="56">
+      <img src="icons/logo.svg" alt="Spese Casa" width="64" height="64">
       <h1>Spese Casa</h1>
       <p class="muted">Incolla l'URL dell'App web di Google Apps Script per salvare i dati sul tuo Foglio Google.</p>
       <input id="setup-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
@@ -32,7 +32,7 @@
 
   <div id="app" class="app" hidden>
     <nav class="nav">
-      <div class="brand"><img src="icons/icon-192.png" alt="" width="28" height="28"><span>Spese Casa</span></div>
+      <div class="brand"><img src="icons/logo.svg" alt="" width="30" height="30"><span>Spese Casa</span></div>
       <a href="#home" data-view="home"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5"/></svg><span>Home</span></a>
       <a href="#spese" data-view="spese"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Spese</span></a>
       <a href="#bollette" data-view="bollette"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Bollette</span><i id="badge" class="badge" hidden></i></a>
@@ -41,7 +41,7 @@
 
     <main>
       <header class="top">
-        <h2 id="title">Home</h2>
+        <div class="top-l"><img class="top-logo" src="icons/logo.svg" alt="Spese Casa" width="32" height="32"><h2 id="title">Home</h2></div>
         <div class="top-r">
           <span id="sync" class="sync" title="Stato sincronizzazione"></span>
           <button id="add-top" class="btn primary only-desk">+ Nuova spesa</button>
@@ -77,6 +77,10 @@
             <div id="h-cat" class="bars"></div>
           </div>
         </div>
+        <div class="card ai-card" id="h-ai" hidden>
+          <div class="card-h"><h3 class="ai-title"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Consigli IA</h3><button class="btn sm" id="h-ai-btn">Analizza</button></div>
+          <div id="h-ai-body"></div>
+        </div>
         <div class="card">
           <div class="card-h"><h3>Ultimi 12 mesi</h3><span id="h-avg" class="muted small"></span></div>
           <div id="h-chart" class="chart"></div>
@@ -101,8 +105,8 @@
       <!-- BOLLETTE -->
       <section id="v-bollette" class="view" hidden>
         <div class="sum-row">
-          <span class="muted">Spese ricorrenti e scadenze</span>
-          <button id="add-bill" class="btn">+ Nuova bolletta</button>
+          <span class="muted small">Ricorrenti e scadenze</span>
+          <div class="row-btns nowrap"><button id="bill-photo" class="btn ai-inline" hidden><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Da foto</button><button id="add-bill" class="btn">+ Nuova</button></div>
         </div>
         <div id="bills-list"></div>
         <div id="bills-off" class="off-wrap"></div>
@@ -117,6 +121,10 @@
             <button id="btn-sync" class="btn">Sincronizza ora</button>
             <button id="btn-conn" class="btn ghost">Cambia collegamento</button>
           </div>
+        </div>
+        <div class="card">
+          <h3>Intelligenza artificiale</h3>
+          <div id="ai-set"></div>
         </div>
         <div class="card">
           <h3>Categorie</h3>

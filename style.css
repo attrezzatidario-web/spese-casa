@@ -43,6 +43,8 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overscroll-behavior-y: none; }
 body {
   font-family: var(--font);
   background: var(--bg);
@@ -92,6 +94,7 @@ input, select, textarea {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px 12px;
+  font-size: 16px; /* sotto 16px iPhone fa zoom */
   outline: none;
   min-height: 42px;
 }
@@ -293,3 +296,48 @@ main { padding: 0 16px calc(96px + env(safe-area-inset-bottom)); max-width: 1080
   max-width: calc(100% - 32px);
 }
 @media (min-width: 900px) { .toast { bottom: 28px; } }
+
+/* ---------- Logo ---------- */
+.top-l { display: flex; align-items: center; gap: 10px; }
+.top-logo { border-radius: 9px; display: block; }
+@media (min-width: 900px) { .top-logo { display: none; } }
+.setup-card img { border-radius: 16px; }
+
+/* ---------- Loghi negozi ---------- */
+.ic.logo { background: #fff; border: 1px solid var(--line); padding: 5px; overflow: hidden; }
+.ic.logo img { width: 100%; height: 100%; object-fit: contain; display: block; border-radius: 4px; }
+.desc-wrap { position: relative; }
+.desc-wrap input { padding-left: 50px; }
+.desc-wrap .ic { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; font-size: 11px; }
+.hint { font-size: 12px; color: var(--accent); margin-top: 4px; min-height: 16px; }
+
+/* ---------- IA ---------- */
+.ai-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.ai-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 10px;
+  border-radius: 12px; border: 1px solid var(--line); background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 14px; cursor: pointer;
+}
+.ai-btn svg, .ai-note svg, .ai-title svg, .mic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ai-note { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--accent); background: var(--accent-soft); padding: 8px 12px; border-radius: 10px; margin-bottom: 12px; font-weight: 500; }
+.ai-title { display: flex; align-items: center; gap: 6px; }
+.ai-title svg { color: var(--accent); }
+.ins-sum { margin: 0 0 8px; font-weight: 600; }
+.ins { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ins li { display: flex; gap: 10px; font-size: 14px; color: var(--ink-2); }
+.ins li i { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--muted); }
+.ins li.attenzione i { background: var(--danger); }
+.ins li.positivo i { background: var(--accent); }
+.dict { position: relative; }
+.dict textarea { padding-right: 56px; min-height: 96px; }
+.mic { position: absolute; right: 8px; bottom: 8px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; cursor: pointer; }
+.mic.on { background: var(--danger); color: #fff; animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .6; } }
+.busy { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.35); display: grid; place-items: center; }
+.busy-box { background: var(--surface); padding: 18px 22px; border-radius: 16px; display: flex; align-items: center; gap: 12px; font-weight: 500; }
+.spin { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--accent-soft); border-top-color: var(--accent); animation: rot .8s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+.row-btns.nowrap { flex-wrap: nowrap; }
+.ai-inline { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
+.ai-inline svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

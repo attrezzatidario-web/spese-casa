@@ -57,6 +57,56 @@
     clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2400);
   }
 
+
+  /* ================= Riconoscimento negozi ================= */
+  // [parole chiave, dominio per il logo, categoria suggerita]
+  const SA = 'Spesa alimentare', AT = 'Auto e trasporti', IT = 'Internet e telefono', MA = 'Manutenzione', AR = 'Arredamento', EL = 'Elettrodomestici', PC = 'Pulizia e casa', AS = 'Assicurazioni', AL = 'Altro';
+  const MERCHANTS = [
+    ['conad', 'conad.it', SA], ['coop', 'e-coop.it', SA], ['esselunga', 'esselunga.it', SA], ['lidl', 'lidl.it', SA],
+    ['eurospin', 'eurospin.it', SA], ['carrefour', 'carrefour.it', SA], ['pam|panorama', 'pampanorama.it', SA],
+    ['todis', 'todis.it', SA], ['md discount|\\bmd\\b', 'mdspa.it', SA], ['penny', 'pennymarket.it', SA],
+    ['despar|eurospar|interspar', 'despar.it', SA], ['aldi', 'aldi.it', SA], ['famila', 'famila.it', SA],
+    ['tigre', 'gruppogabrielli.it', SA], ['sigma', 'supersigma.com', SA], ['crai', 'crai-supermercati.it', SA],
+    ['iper\\b|la grande i', 'iper.it', SA], ['ins mercato|\\bins\\b', 'insmercato.it', SA], ['tuod[iì]', 'tuodi.it', SA],
+    ['prix', 'prixquality.com', SA], ['dec[oò]\\b', 'supermercatideco.it', SA], ['bennet', 'bennet.com', SA],
+    ['u2|unes', 'unes.it', SA], ['elite', 'supermercatielite.it', SA], ['ard\\b', 'arddiscount.com', SA],
+    ['amazon', 'amazon.it', AL], ['ikea', 'ikea.com', AR], ['leroy', 'leroymerlin.it', MA], ['bricocenter', 'bricocenter.it', MA],
+    ['bricoman', 'bricoman.it', MA], ['brico ?io', 'bricoio.it', MA], ['bricofer', 'bricofer.it', MA], ['\\bobi\\b', 'obi-italia.it', MA],
+    ['mediaworld', 'mediaworld.it', EL], ['unieuro', 'unieuro.it', EL], ['euronics', 'euronics.it', EL], ['expert', 'expertonline.it', EL],
+    ['decathlon', 'decathlon.it', AL], ['acqua ?(e|&) ?sapone', 'acquaesapone.it', PC], ['tigot[aà]', 'tigota.it', PC],
+    ['risparmio casa', 'risparmiocasa.com', PC], ['maury', 'maurys.it', PC], ['action\\b', 'action.com', PC],
+    ['mondo convenienza', 'mondoconvenienza.it', AR], ['maison du monde', 'maisonsdumonde.com', AR], ['zara home', 'zarahome.com', AR],
+    ['\\beni\\b|enilive', 'enilive.it', AT], ['\\bq8\\b', 'q8.it', AT], ['\\bip\\b|api ip', 'gruppoapi.com', AT], ['esso', 'esso.it', AT],
+    ['tamoil', 'tamoil.it', AT], ['telepass', 'telepass.com', AT], ['autostrad', 'autostrade.it', AT], ['trenitalia', 'trenitalia.com', AT],
+    ['italo', 'italotreno.com', AT], ['atac', 'atac.roma.it', AT],
+    ['enel', 'enel.it', 'Luce'], ['edison', 'edison.it', 'Luce'], ['a2a', 'a2a.it', 'Luce'], ['sorgenia', 'sorgenia.it', 'Luce'],
+    ['plenitude', 'eniplenitude.com', 'Gas'], ['hera', 'gruppohera.it', 'Gas'], ['iren', 'iren.it', 'Gas'], ['italgas', 'italgas.it', 'Gas'],
+    ['acea', 'acea.it', 'Acqua'],
+    ['\\btim\\b', 'tim.it', IT], ['vodafone', 'vodafone.it', IT], ['wind|windtre', 'windtre.it', IT], ['iliad', 'iliad.it', IT],
+    ['fastweb', 'fastweb.it', IT], ['ho\\.? ?mobile', 'ho-mobile.it', IT], ['very mobile', 'verymobile.it', IT],
+    ['sky\\b', 'sky.it', IT], ['netflix', 'netflix.com', AL], ['spotify', 'spotify.com', AL], ['disney', 'disneyplus.com', AL],
+    ['dazn', 'dazn.com', AL], ['poste', 'poste.it', AL], ['paypal', 'paypal.com', AL],
+    ['unipol', 'unipol.it', AS], ['generali', 'generali.it', AS], ['allianz', 'allianz.it', AS], ['zurich', 'zurich.it', AS],
+    ['prima\\.it|prima assicura', 'prima.it', AS], ['genertel', 'genertel.it', AS], ['linear', 'linear.it', AS],
+    ['farmacia', '', 'Salute'], ['mcdonald', 'mcdonalds.it', AL], ['burger king', 'burgerking.it', AL]
+  ].map(([k, domain, cat]) => ({ re: new RegExp(k, 'i'), domain, cat }));
+
+  function findMerchant(text) {
+    if (!text) return null;
+    const t = String(text);
+    return MERCHANTS.find(m => m.re.test(t)) || null;
+  }
+  const logoUrl = d => `https://www.google.com/s2/favicons?domain=${d}&sz=128`;
+  // icona: logo del negozio se riconosciuto, altrimenti iniziali
+  function iconHTML(text, fallback, sito) {
+    const m = findMerchant(text);
+    const domain = (m && m.domain) || String(sito || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
+    if (domain && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+      return `<div class="ic logo"><img src="${logoUrl(domain)}" alt="""" loading="lazy" onerror="this.parentNode.classList.remove('logo');this.parentNode.textContent='${esc(initials(fallback || text)).replace(/'/g, '')}'"></div>`;
+    }
+    return `<div class="ic">${esc(initials(fallback || text))}</div>`;
+  }
+
   /* ================= Data layer ================= */
   const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie' };
 
@@ -105,7 +155,7 @@
       const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], categorie: j.data.categorie || [] };
+      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], categorie: j.data.categorie || [], ai: !!j.data.ai };
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
@@ -175,14 +225,14 @@
   function speseItem(s) {
     const sub = [s.categoria, s.metodo].filter(Boolean).join(' · ');
     return `<div class="item" data-spesa="${esc(s.id)}">
-      <div class="ic">${esc(initials(s.categoria))}</div>
+      ${iconHTML(s.descrizione, s.categoria, s.sito)}
       <div class="main"><div class="t">${esc(s.descrizione || s.categoria || 'Spesa')}</div><div class="s">${esc(sub)}</div></div>
       <div class="amt">${eur(s.importo)}</div></div>`;
   }
   function dueItem(b) {
     const st = billStatus(b);
     return `<div class="item" data-bill="${esc(b.id)}">
-      <div class="ic">${esc(initials(b.nome))}</div>
+      ${iconHTML(b.nome)}
       <div class="main"><div class="t">${esc(b.nome)}</div><div class="s"><span class="chip ${st.cls}">${esc(st.txt)}</span></div></div>
       <div class="right"><div class="amt">${eur(b.importo)}</div><button class="btn sm" data-pay="${esc(b.id)}">Paga</button></div></div>`;
   }
@@ -226,6 +276,7 @@
       || '<div class="empty">Nessuna spesa in questo mese</div>';
 
     renderChart();
+    renderInsights();
 
     const last = [...db.spese].sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || ''))).slice(0, 5);
     $('#h-last').innerHTML = last.map(speseItem).join('') || '<div class="empty">Ancora nessuna spesa. Tocca + per iniziare.</div>';
@@ -327,7 +378,7 @@
     const st = billStatus(b);
     const paid = db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data))[0];
     return `<div class="bill" data-bill="${esc(b.id)}">
-      <div class="ic">${esc(initials(b.nome))}</div>
+      ${iconHTML(b.nome)}
       <div class="main"><div class="t">${esc(b.nome)}</div>
         <div class="s">${esc([b.categoria, b.frequenza].filter(Boolean).join(' · '))}${paid ? ` · ultimo pag. ${esc(shortDate(paid.data))}` : ''}</div></div>
       <div class="right"><div class="amt">${eur(b.importo)}</div>
@@ -336,6 +387,7 @@
   }
   function renderBills() {
     const ab = activeBills().sort((a, b) => a.scadenza.localeCompare(b.scadenza));
+    $('#bill-photo').hidden = !aiReady();
     $('#bills-list').innerHTML = ab.map(b => billCard(b)).join('') || '<div class="card empty">Nessuna bolletta. Aggiungi luce, gas, mutuo, assicurazioni… e l\'app ti ricorderà le scadenze.</div>';
     const ib = inactiveBills();
     $('#bills-off').innerHTML = ib.length ? `<div class="off-title">Disattivate / pagate (una tantum)</div>` + ib.map(b => billCard(b, true)).join('') : '';
@@ -347,6 +399,7 @@
       ? 'Modalità solo dispositivo: i dati restano su questo browser e non sono condivisi.'
       : `Collegato al Foglio Google. ${db.spese.length} spese, ${db.bollette.length} bollette.`;
     $('#btn-sync').hidden = isLocal();
+    renderAISettings();
     $('#cat-list').innerHTML = cats().map(c => `<span class="chip">${esc(c)}<button data-delcat="${esc(c)}" aria-label="Elimina ${esc(c)}">✕</button></span>`).join('');
   }
 
@@ -358,6 +411,211 @@
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = `spese-casa-${today()}.csv`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+
+  /* ================= IA ================= */
+  const ICO = {
+    camera: '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
+    spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>'
+  };
+  const aiReady = () => !isLocal() && !!db.ai;
+
+  function busy(txt) {
+    let el = $('#busy');
+    if (!txt) { if (el) el.hidden = true; return; }
+    if (!el) { el = document.createElement('div'); el.id = 'busy'; el.className = 'busy'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="busy-box"><div class="spin"></div><span>${esc(txt)}</span></div>`;
+    el.hidden = false;
+  }
+
+  async function aiCall(task, extra) {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'ai', task, categorie: cats(), oggi: today(), ...extra }) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Errore IA');
+    return j.result;
+  }
+
+  // scatta/sceglie una foto e la riduce (più veloce da inviare)
+  function pickImage() {
+    return new Promise((resolve, reject) => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment');
+      inp.onchange = () => {
+        const file = inp.files && inp.files[0];
+        if (!file) return reject(new Error('annullato'));
+        const img = new Image();
+        img.onload = () => {
+          const max = 1600, k = Math.min(1, max / Math.max(img.width, img.height));
+          const c = document.createElement('canvas');
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(img.src);
+          resolve({ image: c.toDataURL('image/jpeg', 0.82).split(',')[1], mime: 'image/jpeg' });
+        };
+        img.onerror = () => reject(new Error('Immagine non leggibile'));
+        img.src = URL.createObjectURL(file);
+      };
+      inp.click();
+    });
+  }
+
+  const validDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d : today();
+  const pickCat = c => db.categorie.includes(c) ? c : (db.categorie.includes('Altro') ? 'Altro' : cats()[0]);
+
+  async function aiReceipt() {
+    let img;
+    try { img = await pickImage(); } catch { return; }
+    closeSheet(); busy('Leggo lo scontrino…');
+    try {
+      const r = await aiCall('receipt', img);
+      busy();
+      if (!r.valido) return toast('Non sembra uno scontrino, riprova');
+      formSpesa(null, { _ai: true, importo: r.importo, descrizione: r.negozio, data: validDate(r.data), categoria: pickCat(r.categoria), metodo: r.metodo, note: r.note || '', sito: r.sito || '' });
+    } catch (e) { busy(); toast(e.message); }
+  }
+
+  function aiTextForm() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    openSheet('Scrivi o detta', `
+      <p class="muted small" style="margin:0 0 10px">Es. “ieri 45 euro benzina Eni e 12,50 farmacia in contanti”</p>
+      <div class="dict">
+        <textarea name="testo" rows="3" placeholder="Descrivi la spesa…" data-focus></textarea>
+        ${SR ? `<button type="button" class="mic" id="mic" aria-label="Detta">${ICO.mic}</button>` : ''}
+      </div>
+      ${SR ? '' : '<p class="muted small" style="margin:6px 0 0">Per dettare usa il microfono della tastiera.</p>'}`,
+      async fd => {
+        const testo = String(fd.get('testo') || '').trim();
+        if (!testo) return toast('Scrivi qualcosa');
+        closeSheet(); busy('Creo la spesa…');
+        try {
+          const r = await aiCall('text', { testo });
+          busy();
+          const list = (r.spese || []).filter(x => Number(x.importo) > 0);
+          if (!list.length) return toast('Non ho trovato importi, riprova');
+          const rows = list.map(x => ({ id: uid(), importo: Math.round(Number(x.importo) * 100) / 100, descrizione: x.descrizione, data: validDate(x.data), categoria: pickCat(x.categoria), metodo: x.metodo || 'Carta', note: '', sito: x.sito || '' }));
+          if (rows.length === 1) return formSpesa(null, { _ai: true, ...rows[0] });
+          confirmMany(rows);
+        } catch (e) { busy(); toast(e.message); }
+      }, null, 'Crea');
+    const mic = $('#mic');
+    if (mic) {
+      let rec = null;
+      mic.onclick = () => {
+        if (rec) { rec.stop(); return; }
+        rec = new SR(); rec.lang = 'it-IT'; rec.interimResults = false;
+        const ta = $('#sheet-body [name=testo]');
+        mic.classList.add('on');
+        rec.onresult = e => { ta.value = (ta.value + ' ' + [...e.results].map(x => x[0].transcript).join(' ')).trim(); };
+        rec.onend = rec.onerror = () => { mic.classList.remove('on'); rec = null; };
+        rec.start();
+      };
+    }
+  }
+
+  function confirmMany(rows) {
+    openSheet(`${rows.length} spese trovate`, `
+      <div class="list">${rows.map(r => `<div class="item" style="cursor:default">${iconHTML(r.descrizione, r.categoria, r.sito)}
+        <div class="main"><div class="t">${esc(r.descrizione)}</div><div class="s">${esc(r.categoria)} · ${esc(shortDate(r.data))} · ${esc(r.metodo)}</div></div>
+        <div class="amt">${eur(r.importo)}</div></div>`).join('')}</div>
+      <div class="sum-row" style="margin:8px 0"><span class="muted">Totale</span><strong>${eur(sum(rows))}</strong></div>`,
+      () => {
+        const now = new Date().toISOString();
+        write(rows.map(r => ({ action: 'upsert', sheet: 'Spese', row: { ...r, creato: now } })));
+        closeSheet(); toast(`${rows.length} spese aggiunte`);
+      }, null, 'Aggiungi tutte');
+  }
+
+  async function aiBill() {
+    let img;
+    try { img = await pickImage(); } catch { return; }
+    busy('Leggo la bolletta…');
+    try {
+      const r = await aiCall('bill', img);
+      busy();
+      if (!r.valido) return toast('Non sembra una bolletta, riprova');
+      const pre = { _ai: true, importo: r.importo, scadenza: validDate(r.scadenza), frequenza: FREQ[r.frequenza] !== undefined ? r.frequenza : 'mensile', categoria: pickCat(r.categoria) };
+      // bolletta già presente? stesso fornitore o stesso nome
+      const m = findMerchant(r.nome);
+      const ex = activeBills().find(b => {
+        const mb = findMerchant(b.nome);
+        if (m && mb) return m.domain === mb.domain && b.categoria === pre.categoria;
+        return b.nome.toLowerCase().trim() === String(r.nome).toLowerCase().trim();
+      });
+      if (ex) formBill(ex, { _ai: true, importo: pre.importo, scadenza: pre.scadenza });
+      else formBill(null, { ...pre, nome: r.nome, note: r.note || '' });
+    } catch (e) { busy(); toast(e.message); }
+  }
+
+  /* Consigli del mese */
+  function insightsData(month) {
+    const [y, m] = month.split('-').map(Number);
+    const mesi = [];
+    for (let i = 5; i >= 0; i--) mesi.push(ymOf(new Date(y, m - 1 - i, 1)));
+    const perMese = mesi.map(k => {
+      const ms = db.spese.filter(s => ym(s.data) === k);
+      const cat = {};
+      ms.forEach(s => (cat[s.categoria] = Math.round(((cat[s.categoria] || 0) + Number(s.importo || 0)) * 100) / 100));
+      return { mese: k, totale: Math.round(sum(ms) * 100) / 100, numero: ms.length, perCategoria: cat };
+    });
+    const speseMese = db.spese.filter(s => ym(s.data) === month).slice(0, 200).map(s => ({ d: s.data, e: Number(s.importo), c: s.categoria, n: s.descrizione, p: s.metodo }));
+    const bollette = activeBills().map(b => ({ nome: b.nome, previsto: Number(b.importo), freq: b.frequenza, scadenza: b.scadenza,
+      pagamenti: db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data)).slice(0, 6).map(s => [s.data, Number(s.importo)]) }));
+    return { perMese, speseMese, bollette };
+  }
+  const insKey = month => 'sc_ins_' + month;
+  const insSig = month => { const ms = db.spese.filter(s => ym(s.data) === month); return ms.length + ':' + sum(ms).toFixed(2); };
+
+  function renderInsights() {
+    const card = $('#h-ai');
+    if (!card) return;
+    card.hidden = !aiReady();
+    if (!aiReady()) return;
+    const saved = LS.get(insKey(homeMonth), null);
+    const stale = saved && saved.sig !== insSig(homeMonth);
+    const box = $('#h-ai-body');
+    $('#h-ai-btn').textContent = saved ? 'Aggiorna' : 'Analizza';
+    if (!saved) { box.innerHTML = `<p class="muted small" style="margin:0">L'IA analizza le spese di ${esc(monthName(homeMonth))} e ti dice dove intervenire.</p>`; return; }
+    box.innerHTML = `<p class="ins-sum">${esc(saved.r.sintesi)}</p>
+      <ul class="ins">${(saved.r.punti || []).map(p => `<li class="${esc(p.tipo)}"><i></i><span>${esc(p.testo)}</span></li>`).join('')}</ul>
+      ${stale ? '<p class="muted small" style="margin:6px 0 0">Ci sono nuove spese: premi Aggiorna.</p>' : ''}`;
+  }
+
+  async function runInsights() {
+    const month = homeMonth;
+    if (!db.spese.some(s => ym(s.data) === month)) return toast('Nessuna spesa in questo mese');
+    const btn = $('#h-ai-btn'); btn.disabled = true; btn.textContent = 'Analizzo…';
+    try {
+      const r = await aiCall('insights', { mese: monthName(month), dati: insightsData(month) });
+      LS.set(insKey(month), { r, sig: insSig(month) });
+    } catch (e) { toast(e.message); }
+    btn.disabled = false;
+    renderInsights();
+  }
+
+  function renderAISettings() {
+    const box = $('#ai-set');
+    if (isLocal()) { box.innerHTML = '<p class="muted small" style="margin:0">Disponibile solo con il collegamento al Foglio Google.</p>'; return; }
+    box.innerHTML = db.ai
+      ? `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati.</p>
+         <button class="btn ghost" id="ai-off">Rimuovi chiave</button>`
+      : `<p class="muted small" style="margin:0 0 10px">Incolla la chiave gratuita di Google Gemini. Viene salvata solo nel tuo Google Apps Script.</p>
+         <div class="inline-add"><input id="ai-key" type="password" placeholder="Chiave API (AIza…)" autocomplete="off"><button class="btn primary" id="ai-save">Attiva</button></div>
+         <a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Ottieni la chiave gratuita →</a>`;
+  }
+
+  async function setAIKey(key) {
+    busy(key ? 'Verifico la chiave…' : 'Rimuovo…');
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'setKey', key }) });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      db.ai = !!key; save(); render();
+      toast(key ? 'IA attivata' : 'IA disattivata');
+    } catch (e) { toast(e.message || 'Errore'); }
+    busy();
   }
 
   /* ================= Sheet (form) ================= */
@@ -384,12 +642,17 @@
     return opt(list, sel);
   }
 
-  function formSpesa(s) {
+  function formSpesa(s, pre) {
     const isNew = !s;
-    s = s || { id: uid(), data: today(), importo: '', categoria: LS.get('sc_lastcat', cats()[0] || ''), descrizione: '', metodo: LS.get('sc_lastmet', 'Carta'), note: '' };
+    s = s || { id: uid(), data: today(), importo: '', categoria: LS.get('sc_lastcat', cats()[0] || ''), descrizione: '', metodo: LS.get('sc_lastmet', 'Carta'), note: '', sito: '' };
+    if (pre) s = { ...s, ...pre };
     openSheet(isNew ? 'Nuova spesa' : 'Modifica spesa', `
+      ${isNew && !pre && aiReady() ? `<div class="ai-row">
+        <button type="button" class="ai-btn" data-ai="receipt">${ICO.camera}<span>Foto scontrino</span></button>
+        <button type="button" class="ai-btn" data-ai="text">${ICO.mic}<span>Scrivi o detta</span></button></div>` : ''}
+      ${pre && pre._ai ? `<div class="ai-note">${ICO.spark}<span>Compilato dall'IA: controlla e salva</span></div>` : ''}
       <label class="f"><span>Importo (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(s.importo))}" required data-focus></label>
-      <label class="f"><span>Descrizione</span><input name="descrizione" placeholder="Es. Spesa Conad" value="${esc(s.descrizione)}"></label>
+      <label class="f"><span>Descrizione / negozio</span><div class="desc-wrap"><span id="desc-ic">${iconHTML(s.descrizione, '?', s.sito)}</span><input name="descrizione" placeholder="Es. Conad, Enel, Leroy Merlin…" value="${esc(s.descrizione)}"></div><div class="hint" id="desc-hint"></div></label>
       <div class="f-row">
         <label class="f"><span>Categoria</span><select name="categoria">${catOptions(s.categoria)}</select></label>
         <label class="f"><span>Data</span><input name="data" type="date" value="${esc(s.data)}" required></label>
@@ -400,6 +663,8 @@
         const importo = num(fd.get('importo'));
         if (importo <= 0) return toast('Inserisci un importo valido');
         const row = { ...s, importo, descrizione: fd.get('descrizione').trim(), categoria: fd.get('categoria'), data: fd.get('data'), metodo: fd.get('metodo'), note: fd.get('note').trim(), creato: s.creato || new Date().toISOString() };
+        delete row._ai;
+        row.sito = row.descrizione === (s.descrizione || '') ? (s.sito || '') : '';
         LS.set('sc_lastcat', row.categoria); LS.set('sc_lastmet', row.metodo);
         write([{ action: 'upsert', sheet: 'Spese', row }]);
         closeSheet(); toast(isNew ? 'Spesa aggiunta' : 'Spesa aggiornata');
@@ -408,14 +673,36 @@
         if (!confirm('Eliminare questa spesa?')) return;
         write([{ action: 'delete', sheet: 'Spese', id: s.id }]); closeSheet(); toast('Spesa eliminata');
       });
+    bindMerchantField(isNew && !(pre && pre._ai), s);
   }
 
-  function formBill(b) {
+  function bindMerchantField(autoCat, s0) {
+    const inp = $('#sheet-body [name=descrizione]'), sel = $('#sheet-body [name=categoria]');
+    let touched = !autoCat, lastKey = '';
+    sel.addEventListener('change', () => (touched = true));
+    const upd = () => {
+      const m = findMerchant(inp.value);
+      const key = m ? m.domain + m.cat : '';
+      if (key === lastKey) return;
+      lastKey = key;
+      $('#desc-ic').innerHTML = iconHTML(inp.value, '?', s0 && inp.value === s0.descrizione ? s0.sito : '');
+      const hint = $('#desc-hint');
+      if (m && !touched && db.categorie.includes(m.cat) && sel.value !== m.cat) {
+        sel.value = m.cat; hint.textContent = `Categoria impostata: ${m.cat}`;
+      } else hint.textContent = '';
+    };
+    inp.addEventListener('input', upd);
+  }
+
+  function formBill(b, pre) {
     const isNew = !b;
     b = b || { id: uid(), nome: '', categoria: cats().find(c => c === 'Luce') || cats()[0] || '', importo: '', frequenza: 'mensile', scadenza: today(), attiva: true, note: '' };
+    if (pre) b = { ...b, ...pre };
+    const aiMsg = pre && pre._ai ? (isNew ? 'Nuova bolletta letta dall\'IA: controlla e salva' : 'Bolletta già presente: aggiornati importo e scadenza') : '';
     const active = b.attiva !== false && String(b.attiva).toUpperCase() !== 'FALSE';
     const hist = db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data));
     openSheet(isNew ? 'Nuova bolletta' : 'Modifica bolletta', `
+      ${aiMsg ? `<div class="ai-note">${ICO.spark}<span>${esc(aiMsg)}</span></div>` : ''}
       <label class="f"><span>Nome</span><input name="nome" placeholder="Es. Luce Enel" value="${esc(b.nome)}" required data-focus></label>
       <div class="f-row">
         <label class="f"><span>Importo previsto (€)</span><input name="importo" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(b.importo))}"></label>
@@ -429,7 +716,8 @@
       ${isNew ? '' : `<label class="f" style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="attiva" ${active ? 'checked' : ''} style="width:auto;min-height:0"> <span style="margin:0;font-size:14px;color:var(--ink)">Attiva</span></label>`}
       ${hist.length ? `<div class="hist"><h3 style="margin-bottom:4px">Storico pagamenti · ${eur(sum(hist))}</h3>${hist.slice(0, 12).map(s => `<div class="item"><div class="main"><div class="t">${esc(shortDate(s.data))}</div><div class="s">${esc(s.metodo || '')}</div></div><div class="amt">${eur(s.importo)}</div></div>`).join('')}</div>` : ''}`,
       fd => {
-        const row = { ...b, nome: fd.get('nome').trim(), importo: num(fd.get('importo')), scadenza: fd.get('scadenza'), frequenza: fd.get('frequenza'), categoria: fd.get('categoria'), note: fd.get('note').trim(), attiva: isNew ? true : fd.get('attiva') === 'on' };
+        const row = { ...b, _ai: undefined, nome: fd.get('nome').trim(), importo: num(fd.get('importo')), scadenza: fd.get('scadenza'), frequenza: fd.get('frequenza'), categoria: fd.get('categoria'), note: fd.get('note').trim(), attiva: isNew ? true : fd.get('attiva') === 'on' };
+        delete row._ai;
         if (!row.nome) return toast('Inserisci il nome');
         write([{ action: 'upsert', sheet: 'Bollette', row }]);
         closeSheet(); toast(isNew ? 'Bolletta aggiunta' : 'Bolletta aggiornata');
@@ -463,6 +751,10 @@
   /* ================= Events ================= */
   function bind() {
     window.addEventListener('hashchange', route);
+    // blocca lo zoom (pizzico e doppio tocco) su iPhone
+    ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
+    let lastTouch = 0;
+    document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 300 && !e.target.closest('input,select,textarea')) e.preventDefault(); lastTouch = n; }, { passive: false });
     $('#fab').onclick = $('#add-top').onclick = () => formSpesa();
     $('#add-bill').onclick = () => formBill();
 
@@ -482,6 +774,12 @@
         if (!confirm(`Eliminare la categoria “${c}”?${used ? ` (${used} spese la usano: resteranno invariate)` : ''}`)) return;
         write([{ action: 'delete', sheet: 'Categorie', id: c }]); return;
       }
+      const ai = e.target.closest('[data-ai]');
+      if (ai) { ai.dataset.ai === 'receipt' ? aiReceipt() : aiTextForm(); return; }
+      if (e.target.closest('#ai-save')) { const k = $('#ai-key').value.trim(); if (k) setAIKey(k); return; }
+      if (e.target.closest('#ai-off')) { if (confirm('Disattivare l\'IA?')) setAIKey(''); return; }
+      if (e.target.closest('#h-ai-btn')) { runInsights(); return; }
+      if (e.target.closest('#bill-photo')) { aiBill(); return; }
       if (e.target.closest('[data-close]')) closeSheet();
     });
 
@@ -539,7 +837,7 @@
         if (!j.ok) throw new Error(j.error);
         if (url !== v) { queue = []; }
         url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, categorie: j.data.categorie };
+        db = { spese: j.data.spese, bollette: j.data.bollette, categorie: j.data.categorie, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');
