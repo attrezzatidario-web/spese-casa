@@ -14,7 +14,8 @@
   };
 
   let url = LS.get('sc_url', '');
-  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [] });
+  let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [] });
+  if (!db.fisse) db.fisse = [];
   if (!db.config) db.config = {};
   if (!db.fatture) db.fatture = [];
   let queue = LS.get('sc_queue', []);
@@ -102,6 +103,7 @@
 
   /* ================= Riconoscimento negozi ================= */
   // [parole chiave, dominio per il logo, categoria suggerita]
+  const AB = 'Abbonamenti', RF = 'Rate e finanziamenti';
   const SA = 'Spesa alimentare', AT = 'Auto e trasporti', IT = 'Internet e telefono', MA = 'Manutenzione', AR = 'Arredamento', EL = 'Elettrodomestici', PC = 'Pulizia e casa', AS = 'Assicurazioni', AL = 'Altro';
   const MERCHANTS = [
     ['conad', 'conad.it', SA], ['coop', 'e-coop.it', SA], ['esselunga', 'esselunga.it', SA], ['lidl', 'lidl.it', SA],
@@ -126,13 +128,27 @@
     ['acea', 'acea.it', 'Acqua'],
     ['\\btim\\b', 'tim.it', IT], ['vodafone', 'vodafone.it', IT], ['wind|windtre', 'windtre.it', IT], ['iliad', 'iliad.it', IT],
     ['fastweb', 'fastweb.it', IT], ['ho\\.? ?mobile', 'ho-mobile.it', IT], ['very mobile', 'verymobile.it', IT],
-    ['sky\\b', 'sky.it', IT], ['netflix', 'netflix.com', AL], ['spotify', 'spotify.com', AL], ['disney', 'disneyplus.com', AL],
-    ['dazn', 'dazn.com', AL], ['poste', 'poste.it', AL], ['paypal', 'paypal.com', AL],
-    ['unipol', 'unipol.it', AS], ['generali', 'generali.it', AS], ['allianz', 'allianz.it', AS], ['zurich', 'zurich.it', AS],
-    ['prima\\.it|prima assicura', 'prima.it', AS], ['genertel', 'genertel.it', AS], ['linear', 'linear.it', AS],
+    ['sky\\b', 'sky.it', AB, 'Abbonamento'], ['netflix', 'netflix.com', AB, 'Abbonamento'], ['spotify', 'spotify.com', AB, 'Abbonamento'], ['disney', 'disneyplus.com', AB, 'Abbonamento'],
+    ['dazn', 'dazn.com', AB, 'Abbonamento'], ['poste', 'poste.it', AL], ['paypal', 'paypal.com', AL],
+    ['unipol', 'unipol.it', AS, 'Assicurazione'], ['generali', 'generali.it', AS, 'Assicurazione'], ['allianz', 'allianz.it', AS, 'Assicurazione'], ['zurich', 'zurich.it', AS, 'Assicurazione'],
+    ['prima\\.it|prima assicura', 'prima.it', AS], ['genertel', 'genertel.it', AS, 'Assicurazione'], ['linear', 'linear.it', AS, 'Assicurazione'],
+    ['timvision', 'timvision.it', AB, 'Abbonamento'], ['now ?tv', 'nowtv.it', AB, 'Abbonamento'], ['paramount', 'paramountplus.com', AB, 'Abbonamento'],
+    ['apple|icloud', 'apple.com', AB, 'Abbonamento'], ['youtube', 'youtube.com', AB, 'Abbonamento'], ['google one', 'google.com', AB, 'Abbonamento'],
+    ['chatgpt|openai', 'openai.com', AB, 'Abbonamento'], ['claude', 'claude.ai', AB, 'Abbonamento'], ['microsoft|office 365|xbox', 'microsoft.com', AB, 'Abbonamento'],
+    ['playstation', 'playstation.com', AB, 'Abbonamento'], ['nintendo', 'nintendo.com', AB, 'Abbonamento'], ['audible', 'audible.it', AB, 'Abbonamento'],
+    ['canva', 'canva.com', AB, 'Abbonamento'], ['adobe', 'adobe.com', AB, 'Abbonamento'], ['dropbox', 'dropbox.com', AB, 'Abbonamento'],
+    ['mcfit', 'mcfit.com', AB, 'Abbonamento'], ['virgin active', 'virginactive.it', AB, 'Abbonamento'], ['canone rai|\\brai\\b', 'rai.it', 'Tasse e tributi', 'Tassa'],
+    ['findomestic', 'findomestic.it', RF, 'Rata'], ['\\bagos\\b', 'agos.it', RF, 'Rata'], ['compass', 'compass.it', RF, 'Rata'], ['cofidis', 'cofidis.it', RF, 'Rata'],
+    ['santander', 'santanderconsumer.it', RF, 'Rata'], ['scalapay', 'scalapay.com', RF, 'Rata'], ['klarna', 'klarna.com', RF, 'Rata'],
+    ['leasys', 'leasys.com', RF, 'Rata'], ['ayvens', 'ayvens.com', RF, 'Rata'], ['arval', 'arval.it', RF, 'Rata'],
+    ['fineco', 'finecobank.com', RF, 'Rata'], ['intesa', 'intesasanpaolo.com', RF, 'Rata'], ['unicredit', 'unicredit.it', RF, 'Rata'], ['\\bbnl\\b', 'bnl.it', RF, 'Rata'],
+    ['bper', 'bper.it', RF, 'Rata'], ['mediolanum', 'bancamediolanum.it', RF, 'Rata'],
+    ['verti', 'verti.it', AS, 'Assicurazione'], ['conte\\.it|conte assicura', 'conte.it', AS, 'Assicurazione'], ['quixa', 'quixa.it', AS, 'Assicurazione'],
+    ['\\baxa\\b', 'axa.it', AS, 'Assicurazione'], ['reale mutua', 'realemutua.it', AS, 'Assicurazione'], ['cattolica', 'cattolica.it', AS, 'Assicurazione'],
+    ['vittoria', 'vittoriaassicurazioni.com', AS, 'Assicurazione'], ['helvetia', 'helvetia.com', AS, 'Assicurazione'], ['groupama', 'groupama.it', AS, 'Assicurazione'],
     ['jysk', 'jysk.it', AR], ['deghi', 'deghi.it', AR], ['tecnomat', 'tecnomat.it', MA], ['vorwerk|folletto|bimby|kobold', 'vorwerk.com', EL],
     ['farmacia', '', 'Salute'], ['mcdonald', 'mcdonalds.it', AL], ['burger king', 'burgerking.it', AL]
-  ].map(([k, domain, cat]) => ({ re: new RegExp(k, 'i'), domain, cat }));
+  ].map(([k, domain, cat, tipo]) => ({ re: new RegExp(k, 'i'), domain, cat, tipo }));
 
   // negozi aggiunti dall'utente (Altro > Negozi e loghi)
   const customShops = () => (db.config && Array.isArray(db.config.negozi) ? db.config.negozi : []);
@@ -141,7 +157,7 @@
     if (!text) return null;
     const t = String(text);
     const c = customShops().find(n => n.nome && new RegExp(escRe(n.nome), 'i').test(t));
-    if (c) return { domain: c.dominio, cat: c.categoria || '' };
+    if (c) return { domain: c.dominio, cat: c.categoria || '', tipo: '' };
     return MERCHANTS.find(m => m.re.test(t)) || null;
   }
   const domainOf = u => { try { return new URL(/^https?:/i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); } catch { return ''; } };
@@ -158,7 +174,7 @@
   }
 
   /* ================= Data layer ================= */
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture' };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -224,7 +240,7 @@
       const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
+      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
@@ -270,14 +286,15 @@
   }
 
   /* ================= Router ================= */
-  const TITLES = { home: 'Home', spese: 'Spese', affitto: 'Affitto', bollette: 'Bollette', impostazioni: 'Impostazioni' };
-  const SUBS = { home: '', spese: 'Tutti i movimenti', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', impostazioni: 'Collegamento, IA e categorie' };
+  const TITLES = { home: 'Home', spese: 'Spese', fisse: 'Spese fisse', affitto: 'Affitto', bollette: 'Bollette', impostazioni: 'Impostazioni' };
+  const SUBS = { home: '', spese: 'Tutti i movimenti', fisse: 'Abbonamenti, rate e calendario', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', impostazioni: 'Collegamento, IA e categorie' };
   function route() {
     view = (location.hash || '#home').slice(1);
     if (!TITLES[view]) view = 'home';
     $$('.view').forEach(v => (v.hidden = v.id !== 'v-' + view));
     $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
     $('#title').textContent = TITLES[view];
+    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : 'Nuova spesa';
     const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     animate = true;
@@ -288,11 +305,13 @@
   }
 
   function render() {
+    if (!render._auto) { render._auto = true; try { autoDebit(); } finally { render._auto = false; } }
     renderBadge();
     if (view === 'home') renderHome();
     if (view === 'spese') renderSpese();
     if (view === 'bollette') renderBills();
     if (view === 'affitto') renderRent();
+    if (view === 'fisse') renderFisse();
     if (view === 'impostazioni') renderSettings();
     setSync();
   }
@@ -303,6 +322,8 @@
     const el = $('#badge'); el.hidden = !n; el.textContent = n;
     const r = rentArrears().length;
     const er = $('#badge-rent'); er.hidden = !r; er.textContent = r;
+    const fl = fisseActive().filter(f => !isOn(f.auto) && f.prossima && daysTo(f.prossima) < 0).length;
+    const ef = $('#badge-fx'); ef.hidden = !fl; ef.textContent = fl;
   }
 
   /* ================= Item templates ================= */
@@ -359,14 +380,15 @@
     // scadenze: bollette + affitto
     const ab = activeBills().map(b => ({ kind: 'bill', due: b.scadenza, importo: b.importo, b }));
     const rents = rentUpcoming().map(r => ({ kind: 'rent', due: r.due, importo: r.importo, r }));
-    const all = [...ab, ...rents].sort((a, b) => a.due.localeCompare(b.due));
+    const fxs = fisseActive().filter(f => f.prossima && daysTo(f.prossima) <= 30).map(f => ({ kind: 'fx', due: f.prossima, importo: f.importo, f }));
+    const all = [...ab, ...rents, ...fxs].sort((a, b) => a.due.localeCompare(b.due));
     const due30 = all.filter(x => daysTo(x.due) <= 30);
     const late = all.filter(x => daysTo(x.due) < 0);
     countTo($('#h-bills'), sum(due30));
     $('#h-bills-sub').innerHTML = late.length
       ? `<span class="chip late">${late.length} scadut${late.length === 1 ? 'o' : 'i'}</span> · ${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`
       : `${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`;
-    $('#h-due').innerHTML = all.slice(0, 6).map(x => x.kind === 'rent' ? rentDueItem(x.r) : dueItem(x.b)).join('') || `<div class="empty">Nessuna scadenza. <a class="link" href="#bollette">Aggiungi una bolletta</a></div>`;
+    $('#h-due').innerHTML = all.slice(0, 6).map(x => x.kind === 'rent' ? rentDueItem(x.r) : x.kind === 'fx' ? fxItem(x.f, true) : dueItem(x.b)).join('') || `<div class="empty">Nessuna scadenza. <a class="link" href="#bollette">Aggiungi una bolletta</a></div>`;
 
     // affitto del mese
     const rc = rentCfg();
@@ -648,7 +670,7 @@
     const n = db.config.notifiche || {};
     const on = n.email || n.calendario;
     $('#r-notify').innerHTML = on ? `<ul class="nlist">
-        ${n.calendario ? `<li><b>Calendario Google</b><span>Promemoria sul telefono ${n.giorniPrima ? n.giorniPrima + ' gg prima e ' : ''}il giorno della scadenza, alle ${n.ora}:00</span></li>` : ''}
+        ${n.calendario ? `<li><b>Calendario Google</b><span>Affitto${n.fisse !== false ? ' e spese fisse' : ''}: promemoria sul telefono ${n.giorniPrima ? n.giorniPrima + ' gg prima e ' : ''}il giorno della scadenza, alle ${n.ora}:00</span></li>` : ''}
         ${n.email ? `<li><b>Email</b><span>Ogni giorno alle ${n.ora}:00 controllo automatico: ti scrivo solo se non hai ancora pagato${n.bollette ? ' (anche bollette)' : ''}</span></li>` : ''}
       </ul>${n.email ? '<button class="btn sm" data-rent="testmail">Invia email di prova</button>' : ''}`
       : `<p class="muted small" style="margin:0">Nessuna notifica attiva. Configura un promemoria sul calendario o via email.</p>`;
@@ -732,19 +754,21 @@
     const hours = Array.from({ length: 15 }, (_, i) => String(i + 7));
     openSheet('Notifiche', `
       <label class="sw"><input type="checkbox" name="calendario" ${n.calendario ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Calendario Google</b><small>Crea un evento mensile "Pagare affitto" con promemoria: arriva come notifica sul telefono.</small></span></label>
+        <span class="sw-t"><b>Calendario Google</b><small>Crea eventi ricorrenti con promemoria per affitto e spese fisse: arrivano come notifica sul telefono.</small></span></label>
       <label class="sw"><input type="checkbox" name="email" ${n.email ? 'checked' : ''}><span class="sw-ui"></span>
         <span class="sw-t"><b>Email intelligente</b><small>Controllo ogni giorno: ti scrivo solo se il pagamento non è ancora registrato.</small></span></label>
       <label class="sw"><input type="checkbox" name="bollette" ${n.bollette ? 'checked' : ''}><span class="sw-ui"></span>
         <span class="sw-t"><b>Includi le bollette</b><small>Nell'email anche le bollette in scadenza.</small></span></label>
+      <label class="sw"><input type="checkbox" name="fisse" ${n.fisse !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Includi le spese fisse</b><small>Abbonamenti, rate e assicurazioni con l'avviso attivo.</small></span></label>
       <div class="f-row" style="margin-top:6px">
         <label class="f"><span>Avvisami</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
         <label class="f"><span>Orario</span><select name="ora">${hours.map(hh => `<option value="${hh}"${String(n.ora) === hh ? ' selected' : ''}>${hh}:00</option>`).join('')}</select></label>
       </div>
       <p class="muted small" style="margin:0 0 8px">Le email arrivano all'indirizzo Gmail del tuo account Google.</p>`,
       async fd => {
-        const v = { calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
-        if (v.calendario && !rentCfg()) return toast('Prima configura l\'affitto');
+        const v = { calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
+        if (v.calendario && !rentCfg() && !fisseActive().length) return toast('Aggiungi prima l\'affitto o una spesa fissa');
         setConfig('notifiche', v);
         setConfig('appUrl', location.href.split('#')[0]);
         closeSheet(); busy('Attivo le notifiche…');
@@ -761,6 +785,304 @@
       }, null, 'Salva notifiche');
   }
 
+
+
+  /* ================= SPESE FISSE ================= */
+  const isOn = v => v === true || String(v).toUpperCase() === 'TRUE';
+  const TIPI = ['Abbonamento', 'Rata', 'Assicurazione', 'Utenza', 'Tassa', 'Altro'];
+  const TIPO_CAT = { Abbonamento: 'Abbonamenti', Rata: 'Rate e finanziamenti', Assicurazione: 'Assicurazioni', Utenza: 'Internet e telefono', Tassa: 'Tasse e tributi', Altro: 'Altro' };
+  const TIPO_ICO = {
+    Abbonamento: '<path d="M4 6h16v12H4z"/><path d="M10 9.5v5l4-2.5z"/>',
+    Rata: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 15h4"/>',
+    Assicurazione: '<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+    Utenza: '<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>',
+    Tassa: '<path d="M4 10l8-5 8 5M6 10v8M10 10v8M14 10v8M18 10v8M4 20h16"/>',
+    Altro: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>'
+  };
+  const FREQ_FX = { settimanale: 0.25, mensile: 1, bimestrale: 2, trimestrale: 3, quadrimestrale: 4, semestrale: 6, annuale: 12 };
+  const tipoIcon = t => `<div class="ic tipo-ic"><svg viewBox="0 0 24 24">${TIPO_ICO[t] || TIPO_ICO.Altro}</svg></div>`;
+  const fxIcon = f => (findMerchant(f.nome) || f.sito) ? iconHTML(f.nome, f.nome, f.sito) : tipoIcon(f.tipo);
+  const fisseActive = () => (db.fisse || []).filter(f => f.attiva === '' || f.attiva == null || isOn(f.attiva));
+  const fxPaid = f => db.spese.filter(s => s.bollettaId === 'fissa:' + f.id);
+  const nextDate = (d, freq) => freq === 'settimanale' ? ymd(new Date(parseD(d).getTime() + 7 * 864e5)) : addMonths(d, FREQ_FX[freq] || 1);
+  const perMonth = f => (Number(f.importo) || 0) / (FREQ_FX[f.frequenza] || 1);
+  function fxEnded(f, date, paidCount) {
+    if (f.fine && date > f.fine) return true;
+    if (Number(f.rate) > 0 && paidCount >= Number(f.rate)) return true;
+    return false;
+  }
+  // date previste da "prossima" in avanti fino a "to"
+  function fxOccurrences(f, to) {
+    const out = [];
+    if (!f.prossima) return out;
+    let d = f.prossima, n = fxPaid(f).length, i = 0;
+    while (d <= to && i < 120) {
+      if (fxEnded(f, d, n)) break;
+      out.push(d); d = nextDate(d, f.frequenza); n++; i++;
+    }
+    return out;
+  }
+  function fxChip(f) {
+    if (!f.prossima) return { cls: '', txt: '—' };
+    const d = daysTo(f.prossima);
+    if (isOn(f.auto)) return { cls: d <= 3 ? 'soon' : '', txt: d === 0 ? 'Addebito oggi' : d === 1 ? 'Addebito domani' : 'Addebito ' + parseD(f.prossima).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+    if (d < 0) return { cls: 'late', txt: `Scaduta da ${-d} gg` };
+    if (d === 0) return { cls: 'late', txt: 'Scade oggi' };
+    if (d <= 7) return { cls: 'soon', txt: d === 1 ? 'Domani' : `Tra ${d} gg` };
+    return { cls: '', txt: parseD(f.prossima).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+  }
+
+  // addebiti automatici: registra da soli i pagamenti scaduti (id fisso = nessun doppione)
+  function autoDebit() {
+    if (!db.fisse || !db.fisse.length) return;
+    const t = today(), ops = [];
+    fisseActive().filter(f => isOn(f.auto) && f.prossima && f.prossima <= t).forEach(f => {
+      let d = f.prossima, n = fxPaid(f).length, guard = 0, row = { ...f };
+      while (d <= t && guard++ < 60) {
+        if (fxEnded(f, d, n)) { row.attiva = false; break; }
+        const id = 'fx-' + f.id + '-' + d;
+        if (!db.spese.some(s => s.id === id)) ops.push({ action: 'upsert', sheet: 'Spese', row: { id, data: d, importo: Number(f.importo) || 0, categoria: f.categoria, descrizione: f.nome, metodo: f.metodo || 'Addebito in conto', note: 'Addebito automatico', bollettaId: 'fissa:' + f.id, creato: new Date().toISOString(), sito: f.sito || '' } });
+        n++; d = nextDate(d, f.frequenza);
+      }
+      row.prossima = d;
+      if (fxEnded(f, d, n)) row.attiva = false;
+      ops.push({ action: 'upsert', sheet: 'Fisse', row });
+    });
+    if (ops.length) write(ops);
+  }
+
+  function fxItem(f, home) {
+    const st = fxChip(f);
+    const paid = fxPaid(f).length, tot = Number(f.rate) || 0;
+    const sub = home ? `<span class="chip ${st.cls}">${esc(st.txt)}</span>`
+      : `${esc(f.frequenza)}${f.metodo ? ' · ' + esc(f.metodo) : ''}${tot ? ` · rata ${Math.min(paid + 1, tot)}/${tot}` : ''}`;
+    return `<div class="item fx" data-fx="${esc(f.id)}">
+      ${fxIcon(f)}
+      <div class="main"><div class="t">${esc(f.nome)}</div><div class="s">${sub}</div>
+        ${!home && tot ? `<div class="prog"><i style="width:${Math.min(100, paid / tot * 100)}%"></i></div>` : ''}</div>
+      <div class="right"><div class="amt">${eur(f.importo)}</div>
+        ${home ? (isOn(f.auto) ? '<span class="chip">Auto</span>' : `<button class="btn sm" data-fxpay="${esc(f.id)}">Paga</button>`)
+          : `<span class="chip ${st.cls}">${esc(st.txt)}</span>`}</div></div>`;
+  }
+
+  let fxTab = 'cal';
+  let calMonth = ymOf(new Date());
+  let calSel = today();
+
+  function renderFisse() {
+    const list = fisseActive();
+    const month = list.reduce((a, f) => a + perMonth(f), 0);
+    countTo($('#fx-month'), month);
+    countTo($('#fx-year'), month * 12);
+    const nx = list.filter(f => f.prossima).sort((a, b) => a.prossima.localeCompare(b.prossima))[0];
+    if (nx) { countTo($('#fx-next'), nx.importo); $('#fx-next-sub').textContent = nx.nome + ' · ' + parseD(nx.prossima).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }); }
+    else { $('#fx-next').textContent = '—'; $('#fx-next')._v = null; $('#fx-next-sub').textContent = 'nessuna in programma'; }
+    $('#fx-count').textContent = list.length;
+    const byT = TIPI.map(t => [t, list.filter(f => (f.tipo || 'Altro') === t).length]).filter(x => x[1]);
+    const PL = { Abbonamento: ['abbonamento', 'abbonamenti'], Rata: ['rata', 'rate'], Assicurazione: ['assicurazione', 'assicurazioni'], Utenza: ['utenza', 'utenze'], Tassa: ['tassa', 'tasse'], Altro: ['altra', 'altre'] };
+    $('#fx-count-sub').textContent = byT.length ? byT.slice(0, 3).map(([t, n]) => `${n} ${PL[t][n === 1 ? 0 : 1]}`).join(' · ') : 'aggiungi la prima';
+
+    $('#fx-grid').dataset.tab = fxTab;
+    $$('[data-fxtab]').forEach(b => b.classList.toggle('on', b.dataset.fxtab === fxTab));
+
+    // elenco per tipo
+    const sorted = list.slice().sort((a, b) => String(a.prossima || '9').localeCompare(String(b.prossima || '9')));
+    $('#fx-list').innerHTML = list.length ? TIPI.map(t => {
+      const g = sorted.filter(f => (f.tipo || 'Altro') === t);
+      if (!g.length) return '';
+      return `<div class="fx-group"><div class="fx-gh"><span>${esc(t === 'Rata' ? 'Rate' : t === 'Utenza' ? 'Utenze' : t === 'Tassa' ? 'Tasse' : t === 'Assicurazione' ? 'Assicurazioni' : t === 'Abbonamento' ? 'Abbonamenti' : 'Altro')}</span><b>${eur(g.reduce((a, f) => a + perMonth(f), 0))}/mese</b></div>
+        <div class="list">${g.map(f => fxItem(f)).join('')}</div></div>`;
+    }).join('') : `<div class="empty-state"><div class="es-ic"><svg viewBox="0 0 24 24">${TIPO_ICO.Altro}</svg></div><h3>Nessuna spesa fissa</h3><p class="muted small">Aggiungi abbonamenti, rate, assicurazioni: l'app calcola quanto spendi al mese e ti avvisa prima di ogni pagamento.</p></div>`;
+    const off = (db.fisse || []).filter(f => !fisseActive().includes(f));
+    $('#fx-off').innerHTML = off.length ? `<div class="fx-gh muted"><span>Concluse / disattivate</span></div><div class="list dim">${off.map(f => fxItem(f)).join('')}</div>` : '';
+    renderCal();
+  }
+
+  /* ---------- Calendario ---------- */
+  function calEvents(from, to) {
+    const ev = [];
+    const t = today();
+    const status = d => d < t ? 'late' : daysTo(d) <= 7 ? 'soon' : 'plan';
+    // spese pagate
+    db.spese.filter(s => s.data >= from && s.data <= to).forEach(s => {
+      const b = String(s.bollettaId || '');
+      ev.push({ date: s.data, title: s.descrizione || s.categoria, importo: Number(s.importo) || 0, st: 'paid',
+        kind: b.startsWith('affitto:') ? 'rent' : b.startsWith('fissa:') ? 'fx' : b ? 'bill' : 'spesa',
+        icon: b.startsWith('affitto:') ? `<div class="ic rent-ic">${ICO_KEY}</div>` : iconHTML(s.descrizione, s.categoria, s.sito), ref: s.id });
+    });
+    // spese fisse previste
+    fisseActive().forEach(f => fxOccurrences(f, to).filter(d => d >= from).forEach(d => {
+      ev.push({ date: d, title: f.nome, importo: Number(f.importo) || 0, st: isOn(f.auto) ? (d < t ? 'paid' : 'auto') : status(d), kind: 'fx', icon: fxIcon(f), ref: f.id, payable: !isOn(f.auto) && d === f.prossima });
+    }));
+    // bollette (prossima scadenza + proiezioni stimate)
+    activeBills().forEach(b => {
+      let d = b.scadenza, i = 0;
+      const months = FREQ[b.frequenza] || 0;
+      while (d && d <= to && i++ < 24) {
+        if (d >= from) ev.push({ date: d, title: b.nome, importo: Number(b.importo) || 0, st: i === 1 ? status(d) : 'plan', kind: 'bill', icon: iconHTML(b.nome), ref: b.id, payable: i === 1, est: i > 1 });
+        if (!months) break;
+        d = addMonths(d, months);
+      }
+    });
+    // fatture non pagate con scadenza diversa
+    db.fatture.filter(f => !f.spesaId && f.scadenza && f.scadenza >= from && f.scadenza <= to).forEach(f => {
+      const b = db.bollette.find(x => x.id === f.bollettaId);
+      if (!b || f.scadenza === b.scadenza) return;
+      ev.push({ date: f.scadenza, title: b.nome + ' · fattura', importo: Number(f.importo) || 0, st: status(f.scadenza), kind: 'fatt', icon: iconHTML(b.nome), ref: f.id, payable: true });
+    });
+    // affitto
+    if (rentCfg()) {
+      let m = ym(from);
+      while (m <= ym(to)) {
+        const r = rentMonth(m);
+        if (!r.paid && !r.before && r.due >= from && r.due <= to) ev.push({ date: r.due, title: 'Affitto', importo: r.importo, st: status(r.due), kind: 'rent', icon: `<div class="ic rent-ic">${ICO_KEY}</div>`, ref: m, payable: r.due <= addMonths(t, 1) });
+        const [y, mm] = m.split('-').map(Number); m = ymOf(new Date(y, mm, 1));
+      }
+    }
+    return ev.sort((a, b) => a.date.localeCompare(b.date) || (a.st === 'paid') - (b.st === 'paid'));
+  }
+
+  const ST_TXT = { paid: 'Pagato', late: 'Scaduto', soon: 'In scadenza', plan: 'Previsto', auto: 'Addebito automatico' };
+  function renderCal() {
+    const [y, m] = calMonth.split('-').map(Number);
+    const first = new Date(y, m - 1, 1), last = new Date(y, m, 0);
+    const from = ymd(first), to = ymd(last);
+    const ev = calEvents(from, to);
+    $('#cal-title').textContent = monthName(calMonth);
+    const paid = ev.filter(e => e.st === 'paid').reduce((a, e) => a + e.importo, 0);
+    const plan = ev.filter(e => e.st !== 'paid').reduce((a, e) => a + e.importo, 0);
+    $('#cal-tot').innerHTML = `<span><i class="dot paid"></i>Pagato <b>${eur(paid)}</b></span><span><i class="dot plan"></i>Previsto <b>${eur(plan)}</b></span>`;
+    const lead = (first.getDay() + 6) % 7;
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push('<div class="cd out"></div>');
+    const desk = isDesk(), t = today();
+    if (calSel.slice(0, 7) !== calMonth) calSel = calMonth === ym(t) ? t : from;
+    for (let d = 1; d <= last.getDate(); d++) {
+      const ds = `${calMonth}-${pad(d)}`;
+      const de = ev.filter(e => e.date === ds);
+      const tot = de.reduce((a, e) => a + e.importo, 0);
+      const worst = de.some(e => e.st === 'late') ? 'late' : de.some(e => e.st === 'soon') ? 'soon' : de.length && de.every(e => e.st === 'paid') ? 'paid' : de.length ? 'plan' : '';
+      const body = desk
+        ? de.slice(0, 3).map(e => `<div class="ev st-${e.st}">${e.icon}<span class="evt">${esc(e.title)}</span><b>${esc(eur0(e.importo))}</b></div>`).join('') + (de.length > 3 ? `<div class="ev-more">+${de.length - 3} altre</div>` : '')
+        : `<div class="dots">${de.slice(0, 4).map(e => `<i class="dot ${e.st}"></i>`).join('')}</div>${tot ? `<div class="ctot">${esc(fmtNum(tot, 0))}</div>` : ''}`;
+      cells.push(`<button type="button" class="cd${ds === t ? ' today' : ''}${ds === calSel ? ' sel' : ''}${worst ? ' has-' + worst : ''}" data-day="${ds}" style="animation-delay:${Math.min((lead + d) * 12, 400)}ms">
+        <span class="cn">${d}</span>${body}</button>`);
+    }
+    $('#cal-grid').innerHTML = cells.join('');
+    renderAgenda(ev);
+  }
+
+  function renderAgenda(ev) {
+    ev = ev || calEvents(calSel, calSel);
+    const de = ev.filter(e => e.date === calSel);
+    const label = parseD(calSel).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+    $('#cal-agenda').innerHTML = `<div class="ag-h"><b>${esc(label.charAt(0).toUpperCase() + label.slice(1))}</b><span class="muted small">${de.length ? eur(de.reduce((a, e) => a + e.importo, 0)) : ''}</span></div>
+      ${de.length ? `<div class="list">${de.map(e => `<div class="item ag" ${e.kind === 'spesa' || e.st === 'paid' ? `data-spesa="${esc(e.ref)}"` : e.kind === 'fx' ? `data-fx="${esc(e.ref)}"` : e.kind === 'bill' ? `data-bill="${esc(e.ref)}"` : e.kind === 'fatt' ? `data-fatt="${esc(e.ref)}"` : 'data-go="affitto"'}>
+        ${e.icon}<div class="main"><div class="t">${esc(e.title)}</div><div class="s"><span class="chip ${e.st === 'plan' || e.st === 'auto' ? '' : e.st}">${esc(e.est ? 'Stima' : ST_TXT[e.st])}</span></div></div>
+        <div class="right"><div class="amt">${eur(e.importo)}</div>${e.payable && e.st !== 'paid' ? `<button class="btn sm" data-calpay="${e.kind}:${esc(e.ref)}">Paga</button>` : ''}</div></div>`).join('')}</div>`
+      : '<div class="empty">Nessuna spesa in questo giorno</div>'}`;
+  }
+
+  function formFissa(f, pre) {
+    const isNew = !f;
+    f = f || { id: uid(), nome: '', tipo: 'Abbonamento', categoria: '', importo: '', frequenza: 'mensile', prossima: today(), fine: '', rate: '', metodo: 'Carta', sito: '', auto: false, notifica: true, attiva: true, note: '' };
+    if (pre) f = { ...f, ...pre };
+    const cat0 = f.categoria || TIPO_CAT[f.tipo] || 'Altro';
+    const catList = cats(); if (!catList.includes(cat0)) catList.push(cat0);
+    const hist = fxPaid(f).sort((a, b) => b.data.localeCompare(a.data));
+    const tot = Number(f.rate) || 0;
+    openSheet(isNew ? 'Nuova spesa fissa' : f.nome, `
+      <div class="tipi">${TIPI.map(t => `<label class="tp"><input type="radio" name="tipo" value="${t}" ${t === (f.tipo || 'Altro') ? 'checked' : ''}><span><svg viewBox="0 0 24 24">${TIPO_ICO[t]}</svg>${t}</span></label>`).join('')}</div>
+      <label class="f"><span>Nome</span><div class="desc-wrap"><span id="desc-ic">${f.nome ? fxIcon(f) : iconHTML('', '?')}</span><input name="descrizione" placeholder="Es. Netflix, Rata auto, Assicurazione casa…" value="${esc(f.nome)}" required data-focus></div><div class="hint" id="desc-hint"></div></label>
+      <div class="f-row">
+        <label class="f"><span>Importo (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(f.importo))}" required></label>
+        <label class="f"><span>Frequenza</span><select name="frequenza" class="amount-sel">${Object.keys(FREQ_FX).map(k => `<option${k === f.frequenza ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
+      </div>
+      <div class="f-row">
+        <label class="f"><span>Prossimo pagamento</span><input name="prossima" type="date" value="${esc(f.prossima)}" required></label>
+        <label class="f"><span>Metodo</span><select name="metodo">${opt(METODI, f.metodo || 'Carta')}</select></label>
+      </div>
+      <div class="f-row">
+        <label class="f"><span>Termina il <i class="opt">facoltativo</i></span><input name="fine" type="date" value="${esc(f.fine)}"></label>
+        <label class="f"><span>N. rate totali <i class="opt">facoltativo</i></span><input name="rate" inputmode="numeric" placeholder="Es. 36" value="${esc(f.rate)}"></label>
+      </div>
+      <div class="f-row">
+        <label class="f"><span>Categoria</span><select name="categoria">${opt(catList.sort((a, b) => a.localeCompare(b, 'it')), cat0)}</select></label>
+        <label class="f"><span>Sito per il logo <i class="opt">facoltativo</i></span><input name="sito" placeholder="es. netflix.com" value="${esc(f.sito)}" autocapitalize="off"></label>
+      </div>
+      <label class="sw"><input type="checkbox" name="auto" ${isOn(f.auto) ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Addebito automatico</b><small>Il pagamento viene registrato da solo alla data prevista (es. carta o RID).</small></span></label>
+      <label class="sw"><input type="checkbox" name="notifica" ${f.notifica === '' || f.notifica == null || isOn(f.notifica) ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Avvisami</b><small>Promemoria su calendario e/o email secondo le impostazioni notifiche.</small></span></label>
+      ${!isNew ? `<label class="sw"><input type="checkbox" name="attiva" ${f.attiva === '' || isOn(f.attiva) ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>Attiva</b><small>Disattiva quando la disdici o è terminata.</small></span></label>` : ''}
+      <label class="f"><span>Note</span><textarea name="note" rows="2" placeholder="Numero contratto, polizza, scadenza disdetta…">${esc(f.note)}</textarea></label>
+      ${!isNew ? `<div class="hist"><h3 style="margin-bottom:6px">Pagamenti · ${eur(sum(hist))}</h3>
+        ${tot ? `<div class="rate-box"><div class="prog big"><i style="width:${Math.min(100, hist.length / tot * 100)}%"></i></div><span class="small muted">${hist.length} di ${tot} rate pagate · residuo ${eur(Math.max(0, tot - hist.length) * (Number(f.importo) || 0))}</span></div>` : ''}
+        ${hist.slice(0, 12).map(s => `<div class="item"><div class="main"><div class="t">${esc(shortDate(s.data))}</div><div class="s">${esc(s.metodo || '')}${s.note ? ' · ' + esc(s.note) : ''}</div></div><div class="amt">${eur(s.importo)}</div></div>`).join('') || '<p class="muted small">Nessun pagamento registrato.</p>'}</div>` : ''}`,
+      fd => {
+        const importo = num(fd.get('importo'));
+        const nome = String(fd.get('descrizione') || '').trim();
+        if (!nome) return toast('Inserisci il nome');
+        if (importo <= 0) return toast('Inserisci un importo valido');
+        const row = { ...f, nome, tipo: fd.get('tipo') || 'Altro', importo, frequenza: fd.get('frequenza'), prossima: fd.get('prossima'), fine: fd.get('fine') || '',
+          rate: fd.get('rate') ? Math.max(0, parseInt(fd.get('rate'), 10) || 0) || '' : '', metodo: fd.get('metodo'), categoria: fd.get('categoria'),
+          sito: domainOf(String(fd.get('sito') || '').trim()) || '', auto: fd.get('auto') === 'on', notifica: fd.get('notifica') === 'on',
+          attiva: isNew ? true : fd.get('attiva') === 'on', note: fd.get('note').trim() };
+        if (!String(fd.get('sito') || '').trim()) row.sito = '';
+        const ops = [];
+        if (!db.categorie.includes(row.categoria)) ops.push({ action: 'upsert', sheet: 'Categorie', row: { nome: row.categoria } });
+        ops.push({ action: 'upsert', sheet: 'Fisse', row });
+        write(ops);
+        closeSheet(); toast(isNew ? 'Spesa fissa aggiunta' : 'Spesa fissa aggiornata');
+        refreshCalendarReminders();
+      },
+      isNew ? null : () => {
+        if (!confirm('Eliminare questa spesa fissa? I pagamenti già registrati restano.')) return;
+        write([{ action: 'delete', sheet: 'Fisse', id: f.id }]); closeSheet(); toast('Spesa fissa eliminata'); refreshCalendarReminders();
+      });
+    $('#sheet-form').classList.add('wide');
+    // logo e categoria dal nome; categoria dal tipo
+    const inp = $('#sheet-body [name=descrizione]'), sel = $('#sheet-body [name=categoria]');
+    let catTouched = !isNew;
+    sel.addEventListener('change', () => (catTouched = true));
+    const setCat = c => { if (catTouched || !c) return; if (![...sel.options].some(o => o.value === c)) sel.add(new Option(c, c)); sel.value = c; };
+    $$('#sheet-body [name=tipo]').forEach(r => r.addEventListener('change', () => setCat(TIPO_CAT[r.value])));
+    inp.addEventListener('input', () => {
+      const mm = findMerchant(inp.value);
+      $('#desc-ic').innerHTML = mm ? iconHTML(inp.value, inp.value) : iconHTML('', '?');
+      if (mm && mm.tipo && isNew) { const r = $(`#sheet-body [name=tipo][value="${mm.tipo}"]`); if (r && !r.checked) { r.checked = true; } }
+      if (mm && isNew) setCat(mm.cat || TIPO_CAT[(($('#sheet-body [name=tipo]:checked') || {}).value)]);
+      $('#desc-hint').textContent = mm && mm.tipo && isNew ? `Riconosciuto: ${mm.tipo.toLowerCase()}` : '';
+    });
+  }
+
+  function formPayFissa(f) {
+    const due = f.prossima || today();
+    const next = nextDate(due, f.frequenza);
+    const n = fxPaid(f).length + 1;
+    const ends = fxEnded(f, next, n);
+    openSheet('Paga ' + f.nome, `
+      <label class="f"><span>Importo pagato (€)</span><input name="importo" class="amount-input" inputmode="decimal" value="${esc(fmtAmt(f.importo))}" required data-focus></label>
+      <div class="f-row">
+        <label class="f"><span>Data pagamento</span><input name="data" type="date" value="${today()}" required></label>
+        <label class="f"><span>Metodo</span><select name="metodo">${opt(METODI, f.metodo || 'Carta')}</select></label>
+      </div>
+      <p class="muted small" style="margin:0 0 10px">Scadenza ${esc(shortDate(due))}${Number(f.rate) ? ` · rata ${n} di ${f.rate}` : ''}. ${ends ? 'È l\'ultimo pagamento: la spesa fissa verrà conclusa.' : `Prossimo pagamento: <b>${esc(shortDate(next))}</b>.`}</p>`,
+      fd => {
+        const importo = num(fd.get('importo'));
+        if (importo <= 0) return toast('Inserisci un importo valido');
+        const spesa = { id: uid(), data: fd.get('data'), importo, categoria: f.categoria, descrizione: f.nome, metodo: fd.get('metodo'), note: 'Scadenza ' + shortDate(due) + (Number(f.rate) ? ` · rata ${n}/${f.rate}` : ''), bollettaId: 'fissa:' + f.id, creato: new Date().toISOString(), sito: f.sito || '' };
+        write([{ action: 'upsert', sheet: 'Spese', row: spesa }, { action: 'upsert', sheet: 'Fisse', row: ends ? { ...f, prossima: next, attiva: false } : { ...f, prossima: next } }]);
+        closeSheet(); toast('Pagamento registrato');
+      }, null, 'Conferma pagamento');
+  }
+
+  // aggiorna gli eventi del calendario Google in background
+  function refreshCalendarReminders() {
+    const n = db.config.notifiche || {};
+    if (isLocal() || !n.calendario || n.fisse === false) return;
+    syncNow().then(() => api('reminders')).catch(() => {});
+  }
 
   /* ================= FATTURE (dettaglio bollette) ================= */
   const ICO_DOC = '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>';
@@ -1284,7 +1606,7 @@
     ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
     let lastTouch = 0;
     document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 300 && !e.target.closest('input,select,textarea')) e.preventDefault(); lastTouch = n; }, { passive: false });
-    $('#fab').onclick = $('#add-top').onclick = () => formSpesa();
+    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : formSpesa());
     $('#add-bill').onclick = () => formBill();
 
     document.addEventListener('click', e => {
@@ -1294,6 +1616,34 @@
       if (sp && !e.target.closest('.hist')) { const s = db.spese.find(x => String(x.id) === sp.dataset.spesa); if (s) formSpesa(s); return; }
       const bl = e.target.closest('[data-bill]');
       if (bl) { const b = db.bollette.find(x => x.id === bl.dataset.bill); if (b) billDetail(b); return; }
+      const fxp = e.target.closest('[data-fxpay]');
+      if (fxp) { e.stopPropagation(); const f = db.fisse.find(x => x.id === fxp.dataset.fxpay); if (f) formPayFissa(f); return; }
+      const cp2 = e.target.closest('[data-calpay]');
+      if (cp2) {
+        e.stopPropagation();
+        const [k, ...rest] = cp2.dataset.calpay.split(':'); const ref = rest.join(':');
+        if (k === 'fx') { const f = db.fisse.find(x => x.id === ref); if (f) formPayFissa(f); }
+        if (k === 'bill') { const b = db.bollette.find(x => x.id === ref); if (b) formPay(b); }
+        if (k === 'fatt') { const f = db.fatture.find(x => x.id === ref); const b = f && db.bollette.find(x => x.id === f.bollettaId); if (b) formPay(b, f); }
+        if (k === 'rent') formRentPay(ref);
+        return;
+      }
+      const fxi = e.target.closest('[data-fx]');
+      if (fxi) { const f = db.fisse.find(x => x.id === fxi.dataset.fx); if (f) formFissa(f); return; }
+      const day = e.target.closest('[data-day]');
+      if (day) { calSel = day.dataset.day; $$('.cd.sel').forEach(c => c.classList.remove('sel')); day.classList.add('sel'); renderAgenda(); if (!isDesk()) $('#cal-agenda').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
+      const cm = e.target.closest('[data-calm]');
+      if (cm) {
+        const v = cm.dataset.calm;
+        if (v === '0') { calMonth = ymOf(new Date()); calSel = today(); }
+        else { const [y, m] = calMonth.split('-').map(Number); calMonth = ymOf(new Date(y, m - 1 + Number(v), 1)); }
+        const g = $('#cal-grid'); g.classList.remove('slide-l', 'slide-r'); void g.offsetWidth;
+        renderCal(); g.classList.add(Number(v) < 0 ? 'slide-r' : 'slide-l'); return;
+      }
+      const ft = e.target.closest('[data-fxtab]');
+      if (ft) { fxTab = ft.dataset.fxtab; renderFisse(); stagger($('#fx-grid')); return; }
+      if (e.target.closest('#fx-add')) { formFissa(); return; }
+      if (e.target.closest('#fx-notify')) { formNotify(); return; }
       const fa = e.target.closest('[data-fatt]');
       if (fa) { const f = db.fatture.find(x => x.id === fa.dataset.fatt); const b = f && db.bollette.find(x => x.id === f.bollettaId); if (b) formFattura(b, f); return; }
       const fp = e.target.closest('[data-fpay]');
@@ -1417,7 +1767,7 @@
         if (!j.ok) throw new Error(j.error);
         if (url !== v) { queue = []; }
         url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
+        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');
