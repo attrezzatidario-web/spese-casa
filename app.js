@@ -16,6 +16,7 @@
   let url = LS.get('sc_url', '');
   let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
   if (!db.estratti) db.estratti = [];
+  ['persone', 'entrate', 'entrateFisse', 'obiettivi'].forEach(k => { if (!db[k]) db[k] = []; });
   if (!db.fisse) db.fisse = [];
   if (!db.veicoli) db.veicoli = [];
   if (!db.config) db.config = {};
@@ -176,7 +177,7 @@
   }
 
   /* ================= Data layer ================= */
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti' };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -244,7 +245,7 @@
       const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
+      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
@@ -290,15 +291,15 @@
   }
 
   /* ================= Router ================= */
-  const TITLES = { home: 'Home', spese: 'Spese', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', impostazioni: 'Impostazioni' };
-  const SUBS = { home: '', spese: 'Tutti i movimenti', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', impostazioni: 'Collegamento, IA e categorie' };
+  const TITLES = { home: 'Home', spese: 'Spese', entrate: 'Entrate', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', impostazioni: 'Impostazioni' };
+  const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', impostazioni: 'Collegamento, IA e categorie' };
   function route() {
     view = (location.hash || '#home').slice(1);
     if (!TITLES[view]) view = 'home';
     $$('.view').forEach(v => (v.hidden = v.id !== 'v-' + view));
     $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto'].includes(view) && !isDesk())));
     $('#title').textContent = TITLES[view];
-    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : 'Nuova spesa';
+    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : view === 'entrate' ? 'Nuova entrata' : 'Nuova spesa';
     const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     animate = true;
@@ -309,7 +310,7 @@
   }
 
   function render() {
-    if (!render._auto) { render._auto = true; try { autoDebit(); } finally { render._auto = false; } }
+    if (!render._auto) { render._auto = true; try { autoDebit(); autoIncome(); } finally { render._auto = false; } }
     renderBadge();
     if (view === 'home') renderHome();
     if (view === 'spese') renderSpese();
@@ -317,6 +318,7 @@
     if (view === 'affitto') renderRent();
     if (view === 'fisse') renderFisse();
     if (view === 'auto') renderAuto();
+    if (view === 'entrate') renderEntrate();
     if (view === 'estratto') renderStmt();
     if (view === 'impostazioni') renderSettings();
     setSync();
@@ -428,6 +430,8 @@
     if (animate) requestAnimationFrame(() => requestAnimationFrame(() => $$('#h-cat .bar-fill').forEach(b => (b.style.width = b.dataset.w + '%'))));
     renderChart();
     renderBudget();
+    renderSaldoKpi();
+    renderForecast();
     renderInsights();
 
     const last = [...db.spese].sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || ''))).slice(0, matchMedia('(min-width: 900px)').matches ? 8 : 5);
@@ -804,6 +808,327 @@
 
 
 
+
+  /* ================= ENTRATE ================= */
+  const P_COLORS = ['#17795a', '#2563eb', '#c026d3', '#ea580c', '#0891b2', '#ca8a04'];
+  const TIPI_IN = {
+    Stipendio: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
+    Tredicesima: '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.6 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>',
+    Bonus: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
+    Rimborso: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+    Vendita: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+    'Affitto percepito': '<path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5"/>',
+    Regalo: '<rect x="3" y="8" width="18" height="4"/><path d="M5 12v9h14v-9M12 8v13M12 8s-2-5-5-4 1 4 5 4zM12 8s2-5 5-4-1 4-5 4z"/>',
+    Interessi: '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+    Altro: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>'
+  };
+  const TIPO_LBL = { Tredicesima: '13ª / 14ª', 'Affitto percepito': 'Affitto' };
+  const personaById = id => db.persone.find(p => p.id === id) || null;
+  const personeAttive = () => db.persone.filter(p => p.attiva === '' || p.attiva == null || isOn(p.attiva));
+  const pColor = p => (p && p.colore) || P_COLORS[0];
+  const avatar = (p, cls = '') => `<span class="av ${cls}" style="--c:${pColor(p)}">${esc(initials(p ? p.nome : '?'))}</span>`;
+  const tipoInIcon = (t, p) => `<div class="ic tin-ic" style="--c:${pColor(p)}"><svg viewBox="0 0 24 24">${TIPI_IN[t] || TIPI_IN.Altro}</svg></div>`;
+  let inSel = 'all', inAll = false;
+  const entrateOf = sel => db.entrate.filter(e => sel === 'all' || e.personaId === sel).sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || '')));
+  const ricorrentiOf = sel => db.entrateFisse.filter(r => (r.attiva === '' || r.attiva == null || isOn(r.attiva)) && (sel === 'all' || r.personaId === sel));
+  const dayIn = (y, m0, g) => ymd(new Date(y, m0, Math.min(g, new Date(y, m0 + 1, 0).getDate())));
+  const nextMonthDay = (d, g) => { const x = parseD(d); return dayIn(x.getFullYear(), x.getMonth() + 1, g); };
+  const nextPay = (g, from) => { const x = parseD(from); const a = dayIn(x.getFullYear(), x.getMonth(), g); return a >= from ? a : dayIn(x.getFullYear(), x.getMonth() + 1, g); };
+
+  // entrate ricorrenti: registrate da sole alla data di accredito (id fisso = nessun doppione)
+  function autoIncome() {
+    const t = today(), ops = [];
+    ricorrentiOf('all').filter(r => r.prossima && r.prossima <= t).forEach(r => {
+      let d = r.prossima, g = 0;
+      while (d <= t && g++ < 24) {
+        const id = 'in-' + r.id + '-' + d;
+        if (!db.entrate.some(e => e.id === id)) ops.push({ action: 'upsert', sheet: 'Entrate', row: { id, data: d, importo: Number(r.importo) || 0, personaId: r.personaId, tipo: r.tipo, descrizione: r.descrizione || r.tipo, note: 'Accredito automatico', ricorrenteId: r.id, creato: new Date().toISOString() } });
+        d = nextMonthDay(d, Number(r.giorno) || 27);
+      }
+      ops.push({ action: 'upsert', sheet: 'EntrateFisse', row: { ...r, prossima: d } });
+    });
+    if (ops.length) write(ops);
+  }
+
+  function renderEntrate() {
+    const pp = personeAttive();
+    $('#in-empty').hidden = !!pp.length;
+    $('#in-body').hidden = !pp.length;
+    renderGoals();
+    if (!pp.length) return;
+    if (inSel !== 'all' && !pp.some(p => p.id === inSel)) inSel = 'all';
+    const p = inSel === 'all' ? null : personaById(inSel);
+    $('#in-tabs').innerHTML = `<button class="veh-tab${inSel === 'all' ? ' on' : ''}" data-insel="all"><span class="av-stack">${pp.slice(0, 3).map(x => avatar(x, 'xs')).join('')}</span><span>Famiglia</span></button>`
+      + pp.map(x => `<button class="veh-tab${x.id === inSel ? ' on' : ''}" data-insel="${esc(x.id)}">${avatar(x, 'xs')}<span>${esc(x.nome)}</span></button>`).join('')
+      + `<button class="veh-tab add" data-inact="newp">+ Persona</button>`;
+
+    const mk = ymOf(new Date()), y = String(new Date().getFullYear());
+    const list = entrateOf(inSel);
+    const month = sum(list.filter(e => ym(e.data) === mk));
+    const year = sum(list.filter(e => e.data.startsWith(y)));
+    const famIn = sum(db.entrate.filter(e => ym(e.data) === mk));
+    const famOut = sum(db.spese.filter(s => ym(s.data) === mk));
+    const famYear = sum(db.entrate.filter(e => e.data.startsWith(y)));
+    const rec = ricorrentiOf(inSel);
+
+    const hero = $('#in-hero');
+    hero.style.setProperty('--c', p ? pColor(p) : '#17795a');
+    hero.innerHTML = p
+      ? `${avatar(p, 'lg')}<div class="vh-main"><h3>${esc(p.nome)}</h3><div class="vh-sub">${rec.length ? rec.map(r => `<span>${esc(r.descrizione || r.tipo)} ${eur0(r.importo)} il ${r.giorno}</span>`).join('<span>·</span>') : '<span>Nessuna entrata ricorrente</span>'}</div></div>
+         <div class="vh-km"><span>Quota delle entrate ${y}</span><b>${famYear ? Math.round(year / famYear * 100) + '%' : '—'}</b></div>
+         <button class="btn sm" data-inact="editp">Modifica</button>`
+      : `<span class="av-stack lg">${pp.map(x => avatar(x, 'lg')).join('')}</span><div class="vh-main"><h3>Famiglia</h3><div class="vh-sub"><span>${pp.map(x => esc(x.nome)).join(' · ')}</span></div></div>
+         <div class="vh-km"><span>Saldo del mese</span><b>${famIn - famOut >= 0 ? '+' : '−'}${eur0(Math.abs(famIn - famOut))}</b></div>`;
+
+    countTo($('#in-month'), month);
+    countTo($('#in-year'), year);
+    $('#in-k3-l').textContent = p ? 'Media mensile' : 'Risparmio del mese';
+    if (p) {
+      const nm = new Set(list.filter(e => e.data.startsWith(y)).map(e => ym(e.data))).size || 1;
+      countTo($('#in-k3'), year / nm); $('#in-k3-sub').textContent = 'anno ' + y;
+    } else {
+      const rate = famIn ? Math.round((famIn - famOut) / famIn * 100) : 0;
+      const k3 = $('#in-k3'); k3.textContent = famIn ? rate + '%' : '—'; k3._v = null;
+      k3.classList.toggle('neg-t', famIn && rate < 0);
+      $('#in-k3-sub').textContent = famIn ? `entrate ${eur0(famIn)} · spese ${eur0(famOut)}` : 'registra le entrate del mese';
+    }
+
+    // grafico entrate vs spese (12 mesi)
+    const now = new Date(), ms = [];
+    for (let i = 11; i >= 0; i--) ms.push(ymOf(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+    const vin = ms.map(k => sum(list.filter(e => ym(e.data) === k)));
+    const showOut = !p;
+    const vout = ms.map(k => showOut ? sum(db.spese.filter(s => ym(s.data) === k)) : 0);
+    const mx = Math.max(1, ...vin, ...vout);
+    $('#in-chart').innerHTML = `<div class="legend"><span><i style="background:var(--accent)"></i>Entrate</span>${showOut ? '<span><i style="background:#94a3b8"></i>Spese</span>' : ''}</div>
+      <div class="mbars dual">${ms.map((k, i) => `<div class="mb" title="${esc(monthName(k))}&#10;Entrate ${esc(eur(vin[i]))}${showOut ? `&#10;Spese ${esc(eur(vout[i]))}&#10;Saldo ${esc(eur(vin[i] - vout[i]))}` : ''}">
+        ${showOut ? `<span class="mbv ${vin[i] - vout[i] >= 0 ? 'pos-t' : 'neg-t'}">${vin[i] || vout[i] ? (vin[i] - vout[i] >= 0 ? '+' : '−') + esc(fmtNum(Math.abs(vin[i] - vout[i]) / 1000, 1)) + 'k' : ''}</span>` : `<span class="mbv">${vin[i] ? esc(eur0(vin[i])) : ''}</span>`}
+        <div class="mb2"><i class="in" style="height:${vin[i] ? Math.max(3, vin[i] / mx * 100) : 0}%;animation-delay:${i * 35}ms"></i>${showOut ? `<i class="out" style="height:${vout[i] ? Math.max(3, vout[i] / mx * 100) : 0}%;animation-delay:${i * 35 + 60}ms"></i>` : ''}</div>
+        <span class="mbl">${esc(monthShort(k))}</span></div>`).join('')}</div>`;
+
+    $('#in-rec').innerHTML = rec.length ? `<div class="list">${rec.map(r => { const pr = personaById(r.personaId); return `<div class="item" data-inrec="${esc(r.id)}">${tipoInIcon(r.tipo, pr)}
+      <div class="main"><div class="t">${esc(r.descrizione || r.tipo)}</div><div class="s">${pr && inSel === 'all' ? esc(pr.nome) + ' · ' : ''}ogni mese il ${r.giorno} · prossimo ${esc(shortDate(r.prossima))}</div></div>
+      <div class="right"><div class="amt pos-t">+${eur(r.importo)}</div><span class="chip">Auto</span></div></div>`; }).join('')}</div>`
+      : '<p class="muted small" style="margin:0">Aggiungi lo stipendio come entrata ricorrente: verrà registrato da solo ogni mese.</p>';
+
+    const byT = {}; list.filter(e => e.data.startsWith(y)).forEach(e => (byT[e.tipo || 'Altro'] = (byT[e.tipo || 'Altro'] || 0) + (Number(e.importo) || 0)));
+    const rows = Object.entries(byT).sort((a, b) => b[1] - a[1]); const mxT = rows[0] ? rows[0][1] : 1, totT = rows.reduce((a, r) => a + r[1], 0);
+    $('#in-tipi').innerHTML = rows.map(([k, v]) => `<div class="bar-row"><div class="bar-top"><span>${esc(TIPO_LBL[k] || k)} <span class="muted">${Math.round(v / totT * 100)}%</span></span><span>${eur(v)}</span></div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, v / mxT * 100)}%"></div></div></div>`).join('') || '<div class="empty">Nessuna entrata quest\'anno</div>';
+
+    $('#in-contrib-card').hidden = !!p || pp.length < 2;
+    if (!p && pp.length > 1) {
+      const fy = pp.map(x => [x, sum(db.entrate.filter(e => e.personaId === x.id && e.data.startsWith(y)))]); const tt = fy.reduce((a, r) => a + r[1], 0) || 1;
+      $('#in-contrib').innerHTML = `<div class="stack">${fy.map(([x, v]) => `<i style="width:${v / tt * 100}%;background:${pColor(x)}" title="${esc(x.nome)}"></i>`).join('')}</div>
+        <div class="list">${fy.map(([x, v]) => `<div class="item" data-insel="${esc(x.id)}">${avatar(x)}<div class="main"><div class="t">${esc(x.nome)}</div><div class="s">${Math.round(v / tt * 100)}% delle entrate ${y}</div></div><div class="amt">${eur(v)}</div></div>`).join('')}</div>`;
+    }
+
+    const lim = inAll ? 400 : 10;
+    $('#in-list').innerHTML = list.length ? `<div class="list">${list.slice(0, lim).map(e => { const pr = personaById(e.personaId); return `<div class="item" data-inid="${esc(e.id)}">${tipoInIcon(e.tipo, pr)}
+      <div class="main"><div class="t">${esc(e.descrizione || e.tipo)}</div><div class="s">${esc(shortDate(e.data))} · ${esc(TIPO_LBL[e.tipo] || e.tipo)}${pr && inSel === 'all' ? ' · ' + esc(pr.nome) : ''}${e.ricorrenteId ? ' · auto' : ''}</div></div>
+      <div class="amt pos-t">+${eur(e.importo)}</div></div>`; }).join('')}</div>${list.length > lim ? `<button class="btn block more-btn" data-inact="all">Mostra tutte (${list.length})</button>` : ''}`
+      : '<div class="empty">Nessuna entrata registrata</div>';
+  }
+
+  const whoPicker = (pp, sel) => pp.length > 1
+    ? `<div class="who">${pp.map(x => `<label class="whop"><input type="radio" name="personaId" value="${esc(x.id)}" ${x.id === sel ? 'checked' : ''}><span>${avatar(x, 'xs')}${esc(x.nome)}</span></label>`).join('')}</div>`
+    : `<input type="hidden" name="personaId" value="${esc((pp[0] || {}).id || '')}">`;
+
+  function formPersona(p) {
+    const isNew = !p;
+    p = p || { id: uid(), nome: '', colore: P_COLORS[db.persone.length % P_COLORS.length], attiva: true };
+    openSheet(isNew ? 'Nuova persona' : p.nome, `
+      <label class="f"><span>Nome</span><input name="nome" placeholder="Es. Dario" value="${esc(p.nome)}" required data-focus></label>
+      <label class="f"><span>Colore</span><div class="colors">${P_COLORS.map(c => `<label class="cl"><input type="radio" name="colore" value="${c}" ${c === p.colore ? 'checked' : ''}><span style="background:${c}"></span></label>`).join('')}</div></label>`,
+      fd => {
+        const nome = String(fd.get('nome') || '').trim(); if (!nome) return toast('Inserisci il nome');
+        const row = { ...p, nome, colore: fd.get('colore') || p.colore, attiva: true };
+        write([{ action: 'upsert', sheet: 'Persone', row }]); inSel = row.id; closeSheet(); toast(isNew ? nome + ' aggiunto' : 'Salvato');
+        if (isNew) setTimeout(() => formRicorrente(row), 450);
+      },
+      isNew ? null : () => { if (!confirm('Eliminare ' + p.nome + '? Le entrate registrate restano.')) return; write([{ action: 'delete', sheet: 'Persone', id: p.id }]); inSel = 'all'; closeSheet(); });
+  }
+
+  function formEntrata(e, pre) {
+    const isNew = !e;
+    const pp = personeAttive();
+    e = e || { id: uid(), data: today(), importo: '', personaId: inSel !== 'all' ? inSel : (pp[0] || {}).id, tipo: 'Stipendio', descrizione: '', note: '', ricorrenteId: '' };
+    if (pre) e = { ...e, ...pre };
+    openSheet(isNew ? 'Nuova entrata' : 'Modifica entrata', `
+      ${whoPicker(pp, e.personaId)}
+      <div class="tipi in-tipi">${Object.keys(TIPI_IN).map(t => `<label class="tp"><input type="radio" name="tipo" value="${t}" ${t === e.tipo ? 'checked' : ''}><span><svg viewBox="0 0 24 24">${TIPI_IN[t]}</svg>${TIPO_LBL[t] || t}</span></label>`).join('')}</div>
+      <div class="f-row">
+        <label class="f"><span>Importo (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(e.importo))}" required data-focus></label>
+        <label class="f"><span>Data</span><input name="data" type="date" class="amount-sel" value="${esc(e.data)}" required></label>
+      </div>
+      <label class="f"><span>Descrizione</span><input name="descrizione" placeholder="Es. Stipendio ottobre, Rimborso 730…" value="${esc(e.descrizione)}"></label>
+      <label class="f"><span>Note</span><textarea name="note" rows="2">${esc(e.note)}</textarea></label>
+      ${isNew ? `<button type="button" class="btn block ghost" data-inact="rec">↻ Oppure imposta un'entrata ricorrente mensile</button>` : ''}`,
+      fd => {
+        const importo = num(fd.get('importo')); if (importo <= 0) return toast('Inserisci l\'importo');
+        const row = { ...e, importo, data: fd.get('data'), tipo: fd.get('tipo') || 'Altro', personaId: fd.get('personaId') || '', descrizione: String(fd.get('descrizione') || '').trim(), note: fd.get('note').trim(), creato: e.creato || new Date().toISOString() };
+        write([{ action: 'upsert', sheet: 'Entrate', row }]); closeSheet(); toast(isNew ? 'Entrata registrata' : 'Entrata aggiornata');
+      },
+      isNew ? null : () => { if (!confirm('Eliminare questa entrata?')) return; write([{ action: 'delete', sheet: 'Entrate', id: e.id }]); closeSheet(); toast('Eliminata'); });
+  }
+
+  function formRicorrente(p, r) {
+    const isNew = !r;
+    const pp = personeAttive();
+    r = r || { id: uid(), personaId: p ? p.id : (inSel !== 'all' ? inSel : (pp[0] || {}).id), tipo: 'Stipendio', descrizione: 'Stipendio', importo: '', giorno: 27, prossima: '', attiva: true };
+    const t = today();
+    openSheet(isNew ? 'Entrata ricorrente' + (p ? ' · ' + p.nome : '') : 'Modifica ricorrente', `
+      <p class="muted small" style="margin:0 0 12px">Ogni mese, nel giorno indicato, l'entrata viene registrata da sola. Se un mese l'importo cambia, lo modifichi dall'elenco.</p>
+      ${whoPicker(pp, r.personaId)}
+      <div class="f-row">
+        <label class="f"><span>Tipo</span><select name="tipo">${Object.keys(TIPI_IN).map(k => `<option value="${k}"${k === r.tipo ? ' selected' : ''}>${TIPO_LBL[k] || k}</option>`).join('')}</select></label>
+        <label class="f"><span>Descrizione</span><input name="descrizione" value="${esc(r.descrizione)}" placeholder="Es. Stipendio"></label>
+      </div>
+      <div class="f-row">
+        <label class="f"><span>Importo netto (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(r.importo))}" required data-focus></label>
+        <label class="f"><span>Giorno di accredito</span><select name="giorno" class="amount-sel">${opt(Array.from({ length: 31 }, (_, i) => String(i + 1)), String(r.giorno || 27))}</select></label>
+      </div>
+      ${isNew ? `<label class="sw"><input type="checkbox" name="questo"><span class="sw-ui"></span><span class="sw-t"><b>Registra anche questo mese</b><small>Se l'accredito di questo mese è già arrivato.</small></span></label>`
+        : `<label class="sw"><input type="checkbox" name="attiva" ${r.attiva === '' || isOn(r.attiva) ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>Attiva</b><small>Disattiva se l'entrata finisce.</small></span></label>`}`,
+      fd => {
+        const importo = num(fd.get('importo')); if (importo <= 0) return toast('Inserisci l\'importo');
+        const giorno = Number(fd.get('giorno')) || 27;
+        const row = { ...r, personaId: fd.get('personaId') || r.personaId, tipo: fd.get('tipo'), descrizione: String(fd.get('descrizione') || '').trim() || fd.get('tipo'), importo, giorno, attiva: isNew ? true : fd.get('attiva') === 'on' };
+        const ops = [];
+        if (isNew) {
+          const now = new Date(), thisDate = dayIn(now.getFullYear(), now.getMonth(), giorno);
+          if (fd.get('questo') === 'on') {
+            ops.push({ action: 'upsert', sheet: 'Entrate', row: { id: 'in-' + row.id + '-' + thisDate, data: thisDate <= t ? thisDate : t, importo, personaId: row.personaId, tipo: row.tipo, descrizione: row.descrizione, note: '', ricorrenteId: row.id, creato: new Date().toISOString() } });
+            row.prossima = nextMonthDay(thisDate, giorno);
+          } else row.prossima = thisDate > t ? thisDate : nextMonthDay(thisDate, giorno);
+        } else if (Number(r.giorno) !== giorno) row.prossima = nextPay(giorno, t);
+        ops.push({ action: 'upsert', sheet: 'EntrateFisse', row });
+        write(ops); closeSheet(); toast(isNew ? 'Entrata ricorrente attivata' : 'Aggiornata');
+      },
+      isNew ? null : () => { if (!confirm('Eliminare questa entrata ricorrente? Le entrate già registrate restano.')) return; write([{ action: 'delete', sheet: 'EntrateFisse', id: r.id }]); closeSheet(); });
+  }
+
+  /* ---------- Obiettivi di risparmio ---------- */
+  const GOAL_ICO = {
+    Vacanza: '<path d="M2 20h20M5 20l7-14 7 14M12 6V3"/>', Casa: '<path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5"/>', Auto: '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/>',
+    Emergenze: '<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M12 9v4M12 16h.01"/>', Matrimonio: '<circle cx="9" cy="14" r="5"/><circle cx="15" cy="14" r="5"/><path d="M10 4h4l-2 3z"/>',
+    Studio: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/>', Tecnologia: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>', Altro: '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>'
+  };
+  const goalHist = g => { try { return JSON.parse(g.storico || '[]'); } catch { return []; } };
+  function renderGoals() {
+    const gs = db.obiettivi.filter(g => g.attivo === '' || g.attivo == null || isOn(g.attivo));
+    const totV = gs.reduce((a, g) => a + (Number(g.versato) || 0), 0), totT = gs.reduce((a, g) => a + (Number(g.target) || 0), 0);
+    $('#goals-sum').textContent = gs.length ? `${eur0(totV)} di ${eur0(totT)}` : '';
+    $('#goals').innerHTML = gs.map((g, i) => {
+      const v = Number(g.versato) || 0, t = Number(g.target) || 1, pct = Math.min(100, v / t * 100), done = v >= t;
+      let hint;
+      if (done) hint = '<span class="ok-t">Raggiunto!</span>';
+      else if (g.scadenza) {
+        const m = Math.max(1, Math.round((parseD(g.scadenza) - parseD(today())) / (30.44 * 864e5)));
+        hint = `${eur0((t - v) / m)}/mese per ${m} ${m === 1 ? 'mese' : 'mesi'}`;
+      } else hint = `mancano ${eur0(t - v)}`;
+      return `<div class="goal${done ? ' done' : ''}" style="animation-delay:${i * 60}ms">
+        <div class="g-ring"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" class="gr-bg"/><circle cx="32" cy="32" r="27" class="gr-fg" style="stroke-dashoffset:${(170 - 170 * pct / 100).toFixed(1)}"/></svg><span class="g-ic"><svg viewBox="0 0 24 24">${GOAL_ICO[g.icona] || GOAL_ICO.Altro}</svg></span></div>
+        <div class="g-main" data-goal="${esc(g.id)}"><b>${esc(g.nome)}</b><span class="g-amt">${eur0(v)} <span class="muted">di ${eur0(t)}</span></span><small class="muted">${Math.round(pct)}% · ${hint}</small></div>
+        <button class="btn sm" data-goalv="${esc(g.id)}">+ Versa</button></div>`;
+    }).join('') || '<p class="muted small" style="margin:0">Crea un obiettivo (vacanza, fondo emergenze, auto…) e segui quanto hai messo da parte.</p>';
+  }
+  function formGoal(g) {
+    const isNew = !g;
+    g = g || { id: uid(), nome: '', icona: 'Vacanza', target: '', versato: '', scadenza: '', storico: '[]', attivo: true };
+    const h = goalHist(g);
+    openSheet(isNew ? 'Nuovo obiettivo' : g.nome, `
+      <div class="tipi goal-ico">${Object.keys(GOAL_ICO).map(k => `<label class="tp"><input type="radio" name="icona" value="${k}" ${k === g.icona ? 'checked' : ''}><span><svg viewBox="0 0 24 24">${GOAL_ICO[k]}</svg>${k}</span></label>`).join('')}</div>
+      <label class="f"><span>Nome</span><input name="nome" placeholder="Es. Vacanza in Grecia" value="${esc(g.nome)}" required data-focus></label>
+      <div class="f-row">
+        <label class="f"><span>Obiettivo (€)</span><input name="target" class="amount-input" inputmode="decimal" placeholder="0" value="${esc(fmtAmt(g.target))}" required></label>
+        <label class="f"><span>Entro il <i class="opt">facoltativo</i></span><input name="scadenza" type="date" class="amount-sel" value="${esc(g.scadenza)}"></label>
+      </div>
+      ${isNew ? `<label class="f"><span>Già messo da parte (€)</span><input name="versato" inputmode="decimal" placeholder="0,00"></label>` : ''}
+      ${h.length ? `<div class="hist"><h3 style="margin-bottom:6px">Movimenti · ${eur(Number(g.versato) || 0)}</h3>${h.slice().reverse().slice(0, 12).map(x => `<div class="item"><div class="main"><div class="t">${esc(shortDate(x[0]))}</div></div><div class="amt ${x[1] < 0 ? 'neg-t' : 'pos-t'}">${x[1] < 0 ? '−' : '+'}${eur(Math.abs(x[1]))}</div></div>`).join('')}</div>` : ''}`,
+      fd => {
+        const target = num(fd.get('target')); const nome = String(fd.get('nome') || '').trim();
+        if (!nome || target <= 0) return toast('Inserisci nome e obiettivo');
+        const row = { ...g, nome, icona: fd.get('icona'), target, scadenza: fd.get('scadenza') || '', attivo: true, creato: g.creato || today() };
+        if (isNew) { const v0 = num(fd.get('versato') || 0); row.versato = v0; row.storico = JSON.stringify(v0 ? [[today(), v0]] : []); }
+        write([{ action: 'upsert', sheet: 'Obiettivi', row }]); closeSheet(); toast(isNew ? 'Obiettivo creato' : 'Salvato');
+      },
+      isNew ? null : () => { if (!confirm('Eliminare questo obiettivo?')) return; write([{ action: 'delete', sheet: 'Obiettivi', id: g.id }]); closeSheet(); });
+  }
+  function formVersa(g) {
+    const v = Number(g.versato) || 0, t = Number(g.target) || 0;
+    openSheet(g.nome, `
+      <div class="seg vers"><label><input type="radio" name="dir" value="1" checked><span>Metti da parte</span></label><label><input type="radio" name="dir" value="-1"><span>Preleva</span></label></div>
+      <label class="f"><span>Importo (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" required data-focus></label>
+      <div class="quick">${[50, 100, 200, 500].map(x => `<button type="button" class="chip vtip" data-quick="${x}">${x} €</button>`).join('')}${t > v ? `<button type="button" class="chip vtip" data-quick="${(t - v).toFixed(2)}">Completa ${eur0(t - v)}</button>` : ''}</div>`,
+      fd => {
+        const imp = num(fd.get('importo')) * Number(fd.get('dir') || 1); if (!imp) return toast('Inserisci l\'importo');
+        const nv = Math.max(0, Math.round((v + imp) * 100) / 100);
+        const h = goalHist(g); h.push([today(), imp]);
+        write([{ action: 'upsert', sheet: 'Obiettivi', row: { ...g, versato: nv, storico: JSON.stringify(h.slice(-60)) } }]);
+        closeSheet();
+        if (v < t && nv >= t) { confetti(); toast('Obiettivo "' + g.nome + '" raggiunto!'); } else toast(imp > 0 ? 'Messi da parte ' + eur(imp) : 'Prelevati ' + eur(-imp));
+      }, null, 'Conferma');
+    $$('#sheet-body [data-quick]').forEach(b => (b.onclick = () => { $('#sheet-body [name=importo]').value = String(b.dataset.quick).replace('.', ','); }));
+  }
+  function confetti() {
+    if (reduced()) return;
+    const c = document.createElement('div'); c.className = 'confetti';
+    const cols = ['#17795a', '#3fae84', '#f59e0b', '#2563eb', '#ec4899'];
+    c.innerHTML = Array.from({ length: 70 }, (_, i) => `<i style="left:${(Math.random() * 100).toFixed(1)}%;background:${cols[i % 5]};animation-delay:${(Math.random() * 0.4).toFixed(2)}s;animation-duration:${(1.6 + Math.random() * 1.2).toFixed(2)}s"></i>`).join('');
+    document.body.appendChild(c); setTimeout(() => c.remove(), 3500);
+  }
+
+  /* ---------- Home: saldo e previsione fine mese ---------- */
+  function renderSaldoKpi() {
+    const inM = sum(db.entrate.filter(e => ym(e.data) === homeMonth));
+    const outM = sum(db.spese.filter(s => ym(s.data) === homeMonth));
+    const el = $('#h-saldo');
+    if (!db.entrate.length && !db.entrateFisse.length) { el.textContent = '—'; el._v = null; el.classList.remove('neg-t'); $('#h-saldo-sub').innerHTML = '<span class="link">Aggiungi le entrate →</span>'; return; }
+    countTo(el, inM - outM, v => (v >= 0 ? '+' : '−') + eur(Math.abs(v)));
+    el.classList.toggle('neg-t', inM - outM < 0);
+    $('#h-saldo-sub').textContent = `entrate ${eur0(inM)}${inM ? ' · risparmio ' + Math.round((inM - outM) / inM * 100) + '%' : ''}`;
+  }
+
+  function forecastData() {
+    const t = today(), d0 = new Date(), mk = ymOf(d0);
+    const days = new Date(d0.getFullYear(), d0.getMonth() + 1, 0).getDate(), left = days - d0.getDate();
+    const from = mk + '-01', to = mk + '-' + pad(days);
+    const inReg = sum(db.entrate.filter(e => ym(e.data) === mk));
+    const inExp = ricorrentiOf('all').filter(r => r.prossima && r.prossima > t && r.prossima <= to).map(r => ({ title: r.descrizione || r.tipo, importo: Number(r.importo) || 0, date: r.prossima }));
+    const outReg = sum(db.spese.filter(s => ym(s.data) === mk));
+    const planned = calEvents(from, to).filter(e => e.st !== 'paid' && !(e.st === 'auto' && e.date <= t));
+    // spese variabili: media giornaliera degli ultimi 3 mesi (escluse bollette, spese fisse e affitto)
+    const p0 = ymd(new Date(d0.getFullYear(), d0.getMonth() - 3, 1)), p1 = ymd(new Date(d0.getFullYear(), d0.getMonth(), 0));
+    const pastVar = sum(db.spese.filter(s => !s.bollettaId && s.data >= p0 && s.data <= p1));
+    const pastDays = Math.max(1, (parseD(p1) - parseD(p0)) / 864e5 + 1);
+    const varEst = Math.round(pastVar / pastDays * left);
+    const plannedTot = planned.reduce((a, e) => a + e.importo, 0), inExpTot = inExp.reduce((a, e) => a + e.importo, 0);
+    return { inReg, inExp, inExpTot, outReg, planned, plannedTot, varEst, left, result: inReg + inExpTot - outReg - plannedTot - varEst };
+  }
+
+  function renderForecast() {
+    const card = $('#h-fc'); if (!card) return;
+    const isCur = homeMonth === ymOf(new Date());
+    card.hidden = !isCur;
+    if (!isCur) return;
+    const f = forecastData();
+    const noIn = !db.entrate.length && !db.entrateFisse.length;
+    const pos = f.result >= 0;
+    const rows = [
+      ['Entrate ricevute', f.inReg, 'pos'], ['Entrate in arrivo', f.inExpTot, 'pos', f.inExp.length],
+      ['Spese già fatte', -f.outReg, 'neg'], ['Pagamenti in arrivo', -f.plannedTot, 'neg', f.planned.length], ['Spese variabili (stima)', -f.varEst, 'neg']
+    ];
+    const mx = Math.max(1, ...rows.map(r => Math.abs(r[1])));
+    $('#fc-body').innerHTML = `
+      <div class="fc-top"><div><span class="muted small">Chiuderai il mese con circa</span><div class="fc-big ${pos ? 'pos-t' : 'neg-t'}" id="fc-big">0</div></div>
+        <span class="chip ${pos ? 'paid' : 'late'}">${pos ? 'In positivo' : 'In negativo'}</span></div>
+      ${noIn ? '<p class="small muted" style="margin:6px 0 4px">Aggiungi le entrate (es. lo stipendio) nella sezione <a class="link" href="#entrate">Entrate</a> per una previsione completa.</p>' : ''}
+      <div class="fc-rows">${rows.map(([l, v, k, n], i) => `<div class="fc-row" style="animation-delay:${i * 60}ms"><span class="fc-l">${esc(l)}${n ? ` <i>${n}</i>` : ''}</span>
+        <span class="fc-bar"><i class="${k}" style="width:${(Math.abs(v) / mx * 100).toFixed(1)}%"></i></span><b class="${v < 0 ? 'neg-t' : v > 0 ? 'pos-t' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${eur0(Math.abs(v))}</b></div>`).join('')}</div>
+      ${f.planned.length ? `<details class="fc-det"><summary>Pagamenti in arrivo questo mese</summary><div class="list">${f.planned.slice(0, 12).map(e => `<div class="item" style="cursor:default">${e.icon}<div class="main"><div class="t">${esc(e.title)}</div><div class="s">${esc(shortDate(e.date))}${e.est ? ' · stima' : ''}</div></div><div class="amt">${eur(e.importo)}</div></div>`).join('')}</div></details>` : ''}`;
+    countTo($('#fc-big'), f.result, v => (v >= 0 ? '+' : '−') + eur0(Math.abs(v)));
+  }
+
   /* ================= LIMITE DI SPESA MENSILE ================= */
   const budgetCfg = () => db.config.budget || {};
   function budgetTotal(mk) {
@@ -860,7 +1185,7 @@
     $('#bud-btn-t').textContent = lim ? 'Limite ' + eur0(lim) : 'Imposta limite';
     // grafico cumulativo
     const W = Math.max(280, el.clientWidth || 600), H = isDesk() ? 220 : 180, pt = 16, pb = 22, pl = 0, pr = 52;
-    const maxV = Math.max(lim * 1.18, tot * 1.12, (lim && tot > lim ? 0 : Math.min(proj, Math.max(lim, tot) * 1.6) * 1.02), 1);
+    const maxV = Math.max(lim * 1.18, tot * 1.12, (lim && tot > lim ? 0 : lim ? Math.min(proj, Math.max(lim, tot) * 1.6) * 1.02 : proj * 1.05), 1);
     const nice = niceMax(maxV);
     const X = d => pl + (d - 1) / Math.max(1, days - 1) * (W - pl - pr);
     const Y = v => H - pb - v / nice * (H - pb - pt);
@@ -925,8 +1250,8 @@
   const loadJS = src => new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error('Impossibile caricare ' + src)); document.head.appendChild(sc); });
   async function libPdf() { await loadJS('lib-pdf.min.js'); window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib-pdf.worker.min.js'; return window.pdfjsLib; }
   async function libPdfLib() { await loadJS('lib-pdf-lib.min.js'); return window.PDFLib; }
-  const ST_LBL = { ok: 'Coincide', prob: 'Da verificare', miss: 'Non registrata', in: 'Entrata' };
-  const ST_COL = { ok: [0.09, 0.63, 0.38], prob: [0.96, 0.62, 0.04], miss: [0.86, 0.15, 0.15] };
+  const ST_LBL = { ok: 'Coincide', prob: 'Da verificare', miss: 'Non registrata', in: 'Entrata da registrare', inok: 'Entrata registrata' };
+  const ST_COL = { ok: [0.09, 0.63, 0.38], prob: [0.96, 0.62, 0.04], miss: [0.86, 0.15, 0.15], inok: [0.15, 0.39, 0.92] };
   const dDiff = (a, b) => Math.abs((parseD(a) - parseD(b)) / 864e5);
   const words = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(w => w.length > 2 && !/^(pagamento|pos|carta|presso|del|per|con|sdd|addebito|bonifico|favore|disposizione|operazione|roma|italia|srl|spa)$/.test(w));
 
@@ -1016,6 +1341,11 @@
     pairs.sort((x, y) => y.sc - x.sc);
     const usedM = new Set(), usedS = new Set();
     stmt.movs.forEach(m => { m.st = m.segno === 'entrata' ? 'in' : 'miss'; m.match = null; });
+    const usedE = new Set();
+    stmt.movs.filter(m => m.segno === 'entrata').forEach(m => {
+      const e2 = db.entrate.filter(x => !usedE.has(x.id) && Math.abs((Number(x.importo) || 0) - m.importo) < 0.01 && dDiff(x.data, m.data) <= 7).sort((a, b) => dDiff(a.data, m.data) - dDiff(b.data, m.data))[0];
+      if (e2) { usedE.add(e2.id); m.st = 'inok'; m.matchIn = e2.id; }
+    });
     pairs.forEach(p => {
       if (usedM.has(p.m.id) || usedS.has(p.s.id)) return;
       usedM.add(p.m.id); usedS.add(p.s.id);
@@ -1028,8 +1358,8 @@
   }
 
   function stmtCounts() {
-    const c = { ok: 0, prob: 0, miss: 0, in: 0, tot: 0, missAmt: 0, outAmt: 0, okAmt: 0 };
-    stmt.movs.forEach(m => { c[m.st]++; if (m.st !== 'in') { c.tot++; c.outAmt += m.importo; } if (m.st === 'miss') c.missAmt += m.importo; if (m.st === 'ok' || m.st === 'prob') c.okAmt += m.importo; });
+    const c = { ok: 0, prob: 0, miss: 0, in: 0, inok: 0, tot: 0, missAmt: 0, outAmt: 0, okAmt: 0 };
+    stmt.movs.forEach(m => { c[m.st]++; if (m.st !== 'in' && m.st !== 'inok') { c.tot++; c.outAmt += m.importo; } if (m.st === 'miss') c.missAmt += m.importo; if (m.st === 'ok' || m.st === 'prob') c.okAmt += m.importo; });
     return c;
   }
 
@@ -1070,14 +1400,14 @@
       </div>
       <div class="st-actions">
         ${stmt.pages && stmt.pages.length ? `<button class="btn primary btn-ic" data-stmt="download"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Scarica file evidenziato</button>` : ''}
-        ${stmt.fileUrl ? `<a class="btn btn-ic${stmt.pages && stmt.pages.length ? '' : ' primary'}" href="${esc(stmt.fileUrl)}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/></svg>Apri su Drive</a>` : ''}
+        ${stmt.fileUrl && stmt.savedId && !(stmt.pages && stmt.pages.length) ? `<button class="btn btn-ic primary" data-stmt="getfile:${esc(stmt.savedId)}"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Scarica file evidenziato</button>` : ''}
         <button class="btn btn-ic" data-stmt="save"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg>${stmt.savedId ? 'Aggiorna salvataggio' : 'Salva analisi'}</button>
         ${c.miss ? `<button class="btn btn-ic" data-stmt="addall"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Aggiungi ${c.miss} mancanti</button>` : ''}
         <button class="btn ghost" data-stmt="reset">Nuova analisi</button>
       </div>`;
 
     // filtri
-    const F = [['all', 'Tutti', stmt.movs.length], ['ok', 'Coincidono', c.ok], ['prob', 'Da verificare', c.prob], ['miss', 'Non registrate', c.miss], ['app', 'Solo in app', stmt.onlyApp.length], ['in', 'Entrate', c.in]];
+    const F = [['all', 'Tutti', stmt.movs.length], ['ok', 'Coincidono', c.ok], ['prob', 'Da verificare', c.prob], ['miss', 'Non registrate', c.miss], ['app', 'Solo in app', stmt.onlyApp.length], ['in', 'Entrate da registrare', c.in], ['inok', 'Entrate registrate', c.inok]];
     const escs = [...new Set(stmt.movs.map(escName))].sort((x, y) => x.localeCompare(y, 'it'));
     const catsS = [...new Set(stmt.movs.map(m => m.categoria).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'it'));
     $('#st-filters').innerHTML = `
@@ -1111,8 +1441,8 @@
       $('#st-pages').appendChild(wrap);
     });
     else $('#st-pages').innerHTML = `<div class="empty-state small-es"><div class="es-ic"><svg viewBox="0 0 24 24">${ICO_DOC.replace(/<\/?svg[^>]*>/g, '')}</svg></div>
-      <p class="muted small">${stmt.fileUrl ? 'Il file evidenziato è salvato su Google Drive.' : 'Anteprima non disponibile per le analisi salvate.'}</p>
-      ${stmt.fileUrl ? `<a class="btn sm" href="${esc(stmt.fileUrl)}" target="_blank" rel="noopener">Apri su Drive</a>` : ''}</div>`;
+      <p class="muted small">${stmt.fileUrl ? 'Il file evidenziato è salvato nel tuo Google Drive.' : 'Anteprima non disponibile per le analisi salvate.'}</p>
+      ${stmt.fileUrl && stmt.savedId ? `<button class="btn sm" data-stmt="getfile:${esc(stmt.savedId)}">Scarica il file</button>` : ''}</div>`;
   }
 
   function renderStmtRows() {
@@ -1143,10 +1473,10 @@
         rows = l.map(m => {
           const s2 = m.match && sp(m.match);
           return `<div class="st-row st-${m.st}"><div class="st-d">${dl(m.data)}</div>
-            <div class="st-m">${iconHTML(escName(m), escName(m))}<div><b>${esc(m.descrizione)}</b><small>${s2 ? `In app: ${esc(s2.descrizione)} · ${esc(shortDate(s2.data))}${Math.abs(s2.importo - m.importo) > 0.004 ? ' · ' + eur(s2.importo) : ''}` : m.st === 'in' ? 'Accredito' : esc(m.categoria || '')}${m.page != null ? ' · pag. ' + (m.page + 1) : ''}</small></div></div>
-            <span class="chip ${m.st === 'ok' ? 'paid' : m.st === 'prob' ? 'soon' : m.st === 'miss' ? 'late' : ''}">${ST_LBL[m.st]}</span>
+            <div class="st-m">${iconHTML(escName(m), escName(m))}<div><b>${esc(m.descrizione)}</b><small>${s2 ? `In app: ${esc(s2.descrizione)} · ${esc(shortDate(s2.data))}${Math.abs(s2.importo - m.importo) > 0.004 ? ' · ' + eur(s2.importo) : ''}` : m.st === 'inok' ? (() => { const e2 = db.entrate.find(x => x.id === m.matchIn); const p = e2 && personaById(e2.personaId); return 'In app: ' + esc(e2 ? e2.tipo + (p ? ' · ' + p.nome : '') : 'entrata'); })() : m.st === 'in' ? 'Accredito non registrato' : esc(m.categoria || '')}${m.page != null ? ' · pag. ' + (m.page + 1) : ''}</small></div></div>
+            <span class="chip ${m.st === 'ok' || m.st === 'inok' ? 'paid' : m.st === 'prob' ? 'soon' : m.st === 'miss' ? 'late' : ''}">${ST_LBL[m.st]}</span>
             <div class="amt">${m.segno === 'entrata' ? '+' : '−'}${eur(m.importo)}</div>
-            <div class="st-act">${m.st === 'miss' ? `<button class="btn sm" data-stmt="add:${m.id}">Aggiungi</button>` : m.st === 'prob' ? `<button class="btn sm" data-stmt="ok:${m.id}">Conferma</button><button class="icon-btn" data-stmt="un:${m.id}" title="Non coincide">✕</button>` : m.st === 'ok' ? `<button class="icon-btn" data-stmt="un:${m.id}" title="Scollega">✕</button>` : ''}</div></div>`;
+            <div class="st-act">${m.st === 'miss' ? `<button class="btn sm" data-stmt="add:${m.id}">Aggiungi</button>` : m.st === 'prob' ? `<button class="btn sm" data-stmt="ok:${m.id}">Conferma</button><button class="icon-btn" data-stmt="un:${m.id}" title="Non coincide">✕</button>` : m.st === 'ok' ? `<button class="icon-btn" data-stmt="un:${m.id}" title="Scollega">✕</button>` : m.st === 'in' ? `<button class="btn sm" data-stmt="addin:${m.id}">Registra</button>` : ''}</div></div>`;
         }).join('');
       }
     }
@@ -1258,6 +1588,18 @@
     }
   }
 
+  // scarica il file evidenziato salvato su Drive passando dallo script (funziona con qualsiasi account Google aperto nel browser)
+  async function downloadSavedFile(id) {
+    busy('Scarico il file…');
+    try {
+      const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+      const j = await r.json(); if (!j.ok) throw new Error(j.error);
+      const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      busy(); saveBlob(new Blob([arr], { type: j.data.mime }), j.data.name);
+    } catch (e) { busy(); toast(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : 'Impossibile scaricare: ' + e.message); }
+  }
+
   async function openSavedStatement(id) {
     busy('Apro l\'analisi…');
     try {
@@ -1281,6 +1623,7 @@
     if (act.startsWith('v:')) { stView = act.slice(2); renderStmt(); return; }
     if (act.startsWith('es:')) { stF.es = act.slice(3); stView = 'list'; renderStmt(); return; }
     if (act.startsWith('open:')) return openSavedStatement(act.slice(5));
+    if (act.startsWith('getfile:')) return downloadSavedFile(act.slice(8));
     if (act.startsWith('del:')) {
       const id = act.slice(4);
       if (!confirm('Eliminare questa analisi salvata? Il file su Google Drive resta.')) return;
@@ -1291,6 +1634,12 @@
     const mid = act.split(':')[1];
     const m = stmt && stmt.movs.find(x => x.id === mid);
     const toSpesa = mm => ({ id: uid(), data: mm.data, importo: mm.importo, categoria: pickCat(mm.categoria), descrizione: mm.esercente || mm.descrizione, metodo: 'Carta', note: 'Da estratto conto: ' + mm.descrizione, bollettaId: '', creato: new Date().toISOString(), sito: '', verificato: today() });
+    if (act.startsWith('addin:') && m) {
+      const p = db.persone[0];
+      const tipo = /stipend|emolument|retribuz|salari|cedolino/i.test(m.descrizione) ? 'Stipendio' : /rimbors/i.test(m.descrizione) ? 'Rimborso' : 'Altro';
+      const en = { id: uid(), data: m.data, importo: m.importo, personaId: p ? p.id : '', tipo, descrizione: m.esercente || m.descrizione, note: 'Da estratto conto', ricorrenteId: '', creato: new Date().toISOString() };
+      write([{ action: 'upsert', sheet: 'Entrate', row: en }]); m.st = 'inok'; m.matchIn = en.id; renderStmt(); toast('Entrata registrata' + (p ? ' per ' + p.nome : '')); return;
+    }
     if (act.startsWith('add:') && m) { const sp = toSpesa(m); write([{ action: 'upsert', sheet: 'Spese', row: sp }]); m.st = 'ok'; m.match = sp.id; renderStmt(); toast('Spesa aggiunta'); return; }
     if (act.startsWith('ok:') && m) { m.st = 'ok'; renderStmt(); return; }
     if (act.startsWith('un:') && m) { m.st = 'miss'; m.match = null; reconcileOnlyApp(); renderStmt(); return; }
@@ -1315,7 +1664,7 @@
       return `<div class="item st-h${stmt && stmt.savedId === x.id ? ' cur' : ''}" data-stmt="open:${esc(x.id)}">
         <div class="mini-ring" style="--p:${p}"><span>${p}%</span></div>
         <div class="main"><div class="t">${esc(x.banca || x.nome)}</div><div class="s">${x.periodoDa ? esc(shortDate(x.periodoDa)) + ' – ' + esc(shortDate(x.periodoA || x.periodoDa)) : esc(x.nome)} · ${x.ok} ok · ${x.miss} non registrate</div></div>
-        <div class="right row">${x.fileUrl ? `<a class="icon-btn" href="${esc(x.fileUrl)}" target="_blank" rel="noopener" title="Apri su Drive" onclick="event.stopPropagation()">↗</a>` : ''}<button class="icon-btn" data-stmt="del:${esc(x.id)}" title="Elimina">✕</button></div></div>`;
+        <div class="right row">${x.fileUrl ? `<button class="icon-btn" data-stmt="getfile:${esc(x.id)}" title="Scarica il file">↓</button>` : ''}<button class="icon-btn" data-stmt="del:${esc(x.id)}" title="Elimina">✕</button></div></div>`;
     }).join('')}</div>` : '<p class="muted small" style="margin:0">Nessuna analisi salvata. Dopo un\'analisi premi "Salva analisi".</p>';
   }
 
@@ -2229,7 +2578,7 @@
       const ms = db.spese.filter(s => ym(s.data) === k);
       const cat = {};
       ms.forEach(s => (cat[s.categoria] = Math.round(((cat[s.categoria] || 0) + Number(s.importo || 0)) * 100) / 100));
-      return { mese: k, totale: Math.round(sum(ms) * 100) / 100, numero: ms.length, perCategoria: cat };
+      return { mese: k, totale: Math.round(sum(ms) * 100) / 100, entrate: Math.round(sum(db.entrate.filter(x => ym(x.data) === k)) * 100) / 100, numero: ms.length, perCategoria: cat };
     });
     const speseMese = db.spese.filter(s => ym(s.data) === month).slice(0, 200).map(s => ({ d: s.data, e: Number(s.importo), c: s.categoria, n: s.descrizione, p: s.metodo }));
     const bollette = activeBills().map(b => ({ nome: b.nome, previsto: Number(b.importo), freq: b.frequenza, scadenza: b.scadenza,
@@ -2445,7 +2794,7 @@
     ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
     let lastTouch = 0;
     document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 300 && !e.target.closest('input,select,textarea')) e.preventDefault(); lastTouch = n; }, { passive: false });
-    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : formSpesa());
+    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : view === 'entrate' ? (db.persone.length ? formEntrata() : formPersona()) : formSpesa());
     $('#add-bill').onclick = () => formBill();
     $('#st-file').addEventListener('change', e => { const fl = [...e.target.files]; e.target.value = ''; if (fl.length) analyzeStatement(fl); });
     const dz = $('#st-drop');
@@ -2473,6 +2822,27 @@
         if (k === 'auto') { const [vid, voce] = ref.split(':'); const v = db.veicoli.find(x => x.id === vid); if (v) formAutoSpesa(v, null, { voceAuto: voce }); }
         return;
       }
+      const ins = e.target.closest('[data-insel]');
+      if (ins) { inSel = ins.dataset.insel; inAll = false; renderEntrate(); stagger($('#in-body')); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      const ina = e.target.closest('[data-inact]');
+      if (ina) {
+        const a = ina.dataset.inact;
+        if (a === 'newp') formPersona();
+        if (a === 'editp') formPersona(personaById(inSel));
+        if (a === 'add') formEntrata();
+        if (a === 'rec') formRicorrente(inSel !== 'all' ? personaById(inSel) : null);
+        if (a === 'all') { inAll = true; renderEntrate(); }
+        if (a === 'goal') formGoal();
+        return;
+      }
+      const inid = e.target.closest('[data-inid]');
+      if (inid) { const x = db.entrate.find(y => y.id === inid.dataset.inid); if (x) formEntrata(x); return; }
+      const inrec = e.target.closest('[data-inrec]');
+      if (inrec) { const x = db.entrateFisse.find(y => y.id === inrec.dataset.inrec); if (x) formRicorrente(personaById(x.personaId), x); return; }
+      const gv = e.target.closest('[data-goalv]');
+      if (gv) { const g = db.obiettivi.find(y => y.id === gv.dataset.goalv); if (g) formVersa(g); return; }
+      const gg = e.target.closest('[data-goal]');
+      if (gg) { const g = db.obiettivi.find(y => y.id === gg.dataset.goal); if (g) formGoal(g); return; }
       const sa = e.target.closest('[data-stmt]');
       if (sa) { stmtAction(sa.dataset.stmt, sa); return; }
       const vsel = e.target.closest('[data-veh]');
@@ -2631,7 +3001,7 @@
         if (!j.ok) throw new Error(j.error);
         if (url !== v) { queue = []; }
         url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
+        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');

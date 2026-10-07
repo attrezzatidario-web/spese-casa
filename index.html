@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -49,6 +49,7 @@
       <div class="brand"><img src="logo.svg" alt="" width="34" height="34"><div><strong>Spese Casa</strong><span id="brand-sub">Gestione domestica</span></div></div>
       <a href="#home" data-view="home"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5"/></svg><span>Home</span></a>
       <a href="#spese" data-view="spese"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Spese</span></a>
+      <a href="#entrate" data-view="entrate"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><span>Entrate</span></a>
       <a href="#fisse" data-view="fisse"><svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg><span class="lbl-d">Spese fisse</span><span class="lbl-m">Fisse</span><i id="badge-fx" class="badge" hidden></i></a>
       <a href="#auto" data-view="auto"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/></svg><span>Auto</span><i id="badge-auto" class="badge" hidden></i></a>
       <a href="#estratto" data-view="estratto" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg><span>Estratto conto</span></a>
@@ -90,10 +91,10 @@
             <div id="h-rent" class="big">—</div>
             <span id="h-rent-sub" class="muted small"></span>
           </div>
-          <div class="card kpi">
-            <div class="kpi-h"><span class="label">Media mensile</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M4 19V10M10 19V5M16 19v-7M22 19H2"/></svg></span></div>
-            <div id="h-avg-big" class="big">€ 0</div>
-            <span class="muted small">ultimi 12 mesi</span>
+          <div class="card kpi link-card" data-go="entrate">
+            <div class="kpi-h"><span class="label">Saldo del mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M7 17l10-10M9 7h8v8"/></svg></span></div>
+            <div id="h-saldo" class="big">—</div>
+            <span id="h-saldo-sub" class="muted small"></span>
           </div>
         </div>
         <div class="home-grid">
@@ -113,6 +114,10 @@
             </div>
           </div>
           <div class="col-side">
+            <div class="card c-fc" id="h-fc" hidden>
+              <div class="card-h"><h3>Previsione fine mese</h3><a href="#entrate" class="link">Entrate</a></div>
+              <div id="fc-body"></div>
+            </div>
             <div class="card c-due">
               <div class="card-h"><h3>Prossime scadenze</h3><a href="#bollette" class="link">Tutte</a></div>
               <div id="h-due" class="list"></div>
@@ -138,6 +143,43 @@
         </div>
         <div class="sum-row"><span id="f-count" class="muted"></span><strong id="f-total"></strong></div>
         <div id="spese-list"></div>
+      </section>
+
+      <!-- ENTRATE -->
+      <section id="v-entrate" class="view" hidden>
+        <div id="in-empty" class="card empty-state" hidden>
+          <div class="es-ic"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+          <h3>Registra le entrate della famiglia</h3>
+          <p class="muted small">Aggiungi le persone (tu, tua moglie…) e per ognuna stipendi ed entrate. L'app calcola saldo, risparmio e previsione di fine mese.</p>
+          <button class="btn primary" data-inact="newp">Aggiungi persona</button>
+        </div>
+        <div id="in-body" class="auto-body" hidden>
+          <div id="in-tabs" class="veh-tabs"></div>
+          <div class="card veh-hero in-hero" id="in-hero"></div>
+          <div class="kpis">
+            <div class="card kpi"><div class="kpi-h"><span class="label">Entrate del mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span></div><div id="in-month" class="big pos-t">0,00 €</div><span class="muted small">mese corrente</span></div>
+            <div class="card kpi"><div class="kpi-h"><span class="label">Entrate dell'anno</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span></div><div id="in-year" class="big">0,00 €</div><span class="muted small">dal 1° gennaio</span></div>
+            <div class="card kpi"><div class="kpi-h"><span class="label" id="in-k3-l">Risparmio del mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></span></div><div id="in-k3" class="big">—</div><span id="in-k3-sub" class="muted small"></span></div>
+            <div class="card kpi kpi-act"><span class="label">Registra</span>
+              <button class="btn primary btn-ic" data-inact="add"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Entrata</button>
+              <button class="btn btn-ic" data-inact="rec"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Ricorrente</button></div>
+          </div>
+          <div class="auto-grid">
+            <div class="col-main">
+              <div class="card"><div class="card-h"><h3>Entrate e spese</h3><span class="muted small">ultimi 12 mesi</span></div><div id="in-chart"></div></div>
+              <div class="card"><div class="card-h"><h3>Movimenti</h3></div><div id="in-list"></div></div>
+            </div>
+            <div class="col-side">
+              <div class="card"><div class="card-h"><h3>Entrate ricorrenti</h3><button class="btn sm" data-inact="rec">+ Aggiungi</button></div><div id="in-rec"></div></div>
+              <div class="card" id="in-contrib-card"><div class="card-h"><h3>Contributo per persona</h3></div><div id="in-contrib"></div></div>
+              <div class="card"><div class="card-h"><h3>Per tipo</h3><span class="muted small">quest'anno</span></div><div id="in-tipi" class="bars"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card goals-card">
+          <div class="card-h"><h3>Obiettivi di risparmio</h3><div class="row-btns nowrap"><span class="muted small" id="goals-sum"></span><button class="btn sm primary" data-inact="goal">+ Obiettivo</button></div></div>
+          <div id="goals" class="goals"></div>
+        </div>
       </section>
 
       <!-- SPESE FISSE -->
@@ -347,6 +389,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
