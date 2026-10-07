@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Spese Casa</title>
+  <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Spese Casa">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=18">
+</head>
+<body>
+  <div id="splash" class="splash" aria-hidden="true">
+    <svg viewBox="0 0 512 512" class="sp-logo">
+      <rect class="sp-bg" width="512" height="512" rx="116"/>
+      <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+        <path class="sp-d sp-1" pathLength="1" d="M112 246 L256 124 L400 246" stroke-width="34"/>
+        <path class="sp-d sp-2" pathLength="1" d="M156 214 V372 a26 26 0 0 0 26 26 H330 a26 26 0 0 0 26 -26 V214" stroke-width="34"/>
+        <path class="sp-d sp-3" pathLength="1" d="M290 272 A52 52 0 1 0 290 348" stroke-width="22"/>
+        <path class="sp-d sp-4" pathLength="1" d="M190 298 H258 M190 322 H250" stroke-width="16"/>
+      </g>
+    </svg>
+    <div class="sp-name">Spese Casa</div>
+  </div>
+
+  <!-- Schermata collegamento -->
+  <section id="setup" class="setup" hidden>
+    <div class="setup-card">
+      <img src="logo.svg" alt="Spese Casa" width="64" height="64">
+      <h1>Spese Casa</h1>
+      <p class="muted">Incolla l'URL dell'App web di Google Apps Script per salvare i dati sul tuo Foglio Google.</p>
+      <input id="setup-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+      <button id="setup-go" class="btn primary block">Collega</button>
+      <p id="setup-err" class="err" hidden></p>
+      <button id="setup-local" class="btn ghost block">Usa solo su questo dispositivo</button>
+    </div>
+  </section>
+
+  <div id="app" class="app" hidden>
+    <nav class="nav">
+      <div class="brand"><img src="logo.svg" alt="" width="34" height="34"><div><strong>Spese Casa</strong><span id="brand-sub">Gestione domestica</span></div></div>
+      <a href="#home" data-view="home"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5"/></svg><span>Home</span></a>
+      <a href="#spese" data-view="spese"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Spese</span></a>
+      <a href="#entrate" data-view="entrate"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><span>Entrate</span></a>
+      <a href="#fisse" data-view="fisse"><svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg><span class="lbl-d">Spese fisse</span><span class="lbl-m">Fisse</span><i id="badge-fx" class="badge" hidden></i></a>
+      <a href="#auto" data-view="auto"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/></svg><span>Auto</span><i id="badge-auto" class="badge" hidden></i></a>
+      <a href="#estratto" data-view="estratto" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg><span>Estratto conto</span></a>
+      <a href="#affitto" data-view="affitto" class="nav-desk"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg><span>Affitto</span><i id="badge-rent" class="badge" hidden></i></a>
+      <a href="#bollette" data-view="bollette"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Bollette</span><i id="badge" class="badge" hidden></i></a>
+      <a href="#impostazioni" data-view="impostazioni"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Altro</span><i id="badge-more" class="badge only-mob-b" hidden></i></a>
+      <div class="nav-foot"><span id="sync-side" class="sync"></span></div>
+    </nav>
+
+    <main>
+      <header class="top">
+        <div class="top-l"><img class="top-logo" src="logo.svg" alt="Spese Casa" width="32" height="32"><div><h2 id="title">Home</h2><span id="subtitle" class="subtitle"></span></div></div>
+        <div class="top-r">
+          <span id="sync" class="sync" title="Stato sincronizzazione"></span>
+          <button id="add-top" class="btn primary only-desk btn-ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span id="add-top-lbl">Nuova spesa</span></button>
+        </div>
+      </header>
+
+      <!-- HOME -->
+      <section id="v-home" class="view">
+        <div class="month-switch">
+          <button class="icon-btn" data-month="-1" aria-label="Mese precedente">‹</button>
+          <strong class="month-label"></strong>
+          <button class="icon-btn" data-month="1" aria-label="Mese successivo">›</button>
+        </div>
+        <div class="kpis">
+          <div class="card kpi">
+            <div class="kpi-h"><span class="label">Speso nel mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M3 7h15a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"/><path d="M3 7l12-3v3M16 13.5h2"/></svg></span></div>
+            <div id="h-total" class="big">€ 0</div>
+            <span id="h-delta" class="muted small"></span>
+          </div>
+          <div class="card kpi">
+            <div class="kpi-h"><span class="label">Da pagare · 30 gg</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span></div>
+            <div id="h-bills" class="big">€ 0</div>
+            <span id="h-bills-sub" class="muted small"></span>
+          </div>
+          <div class="card kpi link-card" data-go="affitto">
+            <div class="kpi-h"><span class="label">Affitto del mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg></span></div>
+            <div id="h-rent" class="big">—</div>
+            <span id="h-rent-sub" class="muted small"></span>
+          </div>
+          <div class="card kpi link-card" data-go="entrate">
+            <div class="kpi-h"><span class="label">Saldo del mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M7 17l10-10M9 7h8v8"/></svg></span></div>
+            <div id="h-saldo" class="big">—</div>
+            <span id="h-saldo-sub" class="muted small"></span>
+          </div>
+        </div>
+        <div class="home-grid">
+          <div class="col-main">
+            <div class="card c-budget">
+              <div class="card-h"><h3>Andamento del mese</h3><button class="btn sm bud-btn" id="bud-set"><i></i><span id="bud-btn-t">Imposta limite</span></button></div>
+              <div id="bud-status" class="bud-status"></div>
+              <div id="bud-chart" class="bud-chart"></div>
+            </div>
+            <div class="card c-chart">
+              <div class="card-h"><h3>Ultimi 12 mesi</h3><span id="h-avg" class="muted small"></span></div>
+              <div id="h-chart" class="chart"></div>
+            </div>
+            <div class="card c-last">
+              <div class="card-h"><h3>Ultime spese</h3><a href="#spese" class="link">Tutte</a></div>
+              <div id="h-last" class="list"></div>
+            </div>
+          </div>
+          <div class="col-side">
+            <div class="card c-fc" id="h-fc" hidden>
+              <div class="card-h"><h3>Previsione fine mese</h3><a href="#entrate" class="link">Entrate</a></div>
+              <div id="fc-body"></div>
+            </div>
+            <div class="card c-due">
+              <div class="card-h"><h3>Prossime scadenze</h3><a href="#bollette" class="link">Tutte</a></div>
+              <div id="h-due" class="list"></div>
+            </div>
+            <div class="card ai-card c-ai" id="h-ai" hidden>
+              <div class="card-h"><h3 class="ai-title"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Consigli IA</h3><button class="btn sm" id="h-ai-btn">Analizza</button></div>
+              <div id="h-ai-body"></div>
+            </div>
+            <div class="card c-cat">
+              <div class="card-h"><h3>Per categoria</h3></div>
+              <div id="h-cat" class="bars"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SPESE -->
+      <section id="v-spese" class="view" hidden>
+        <div class="filters">
+          <input id="f-q" type="search" placeholder="Cerca…">
+          <select id="f-month"></select>
+          <select id="f-cat"><option value="">Tutte le categorie</option></select>
+        </div>
+        <div class="sum-row"><span id="f-count" class="muted"></span><strong id="f-total"></strong></div>
+        <div id="spese-list"></div>
+      </section>
+
+      <!-- ENTRATE -->
+      <section id="v-entrate" class="view" hidden>
+        <div id="in-empty" class="card empty-state" hidden>
+          <div class="es-ic"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+          <h3>Registra le entrate della famiglia</h3>
+          <p class="muted small">Aggiungi le persone (tu, tua moglie…) e per ognuna stipendi ed entrate. L'app calcola saldo, risparmio e previsione di fine mese.</p>
+          <button class="btn primary" data-inact="newp">Aggiungi persona</button>
+        </div>
+        <div id="in-body" class="auto-body" hidden>
+          <div id="in-tabs" class="veh-tabs"></div>
+          <div class="card veh-hero in-hero" id="in-hero"></div>
+          <div class="kpis">
+            <div class="card kpi"><div class="kpi-h"><span class="label">Entrate del mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span></div><div id="in-month" class="big pos-t">0,00 €</div><span class="muted small">mese corrente</span></div>
+            <div class="card kpi"><div class="kpi-h"><span class="label">Entrate dell'anno</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span></div><div id="in-year" class="big">0,00 €</div><span class="muted small">dal 1° gennaio</span></div>
+            <div class="card kpi"><div class="kpi-h"><span class="label" id="in-k3-l">Risparmio del mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></span></div><div id="in-k3" class="big">—</div><span id="in-k3-sub" class="muted small"></span></div>
+            <div class="card kpi kpi-act"><span class="label">Registra</span>
+              <button class="btn primary btn-ic" data-inact="add"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Entrata</button>
+              <button class="btn btn-ic" data-inact="rec"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Ricorrente</button></div>
+          </div>
+          <div class="auto-grid">
+            <div class="col-main">
+              <div class="card"><div class="card-h"><h3>Entrate e spese</h3><span class="muted small">ultimi 12 mesi</span></div><div id="in-chart"></div></div>
+              <div class="card"><div class="card-h"><h3>Movimenti</h3></div><div id="in-list"></div></div>
+            </div>
+            <div class="col-side">
+              <div class="card"><div class="card-h"><h3>Entrate ricorrenti</h3><button class="btn sm" data-inact="rec">+ Aggiungi</button></div><div id="in-rec"></div></div>
+              <div class="card" id="in-contrib-card"><div class="card-h"><h3>Contributo per persona</h3></div><div id="in-contrib"></div></div>
+              <div class="card"><div class="card-h"><h3>Per tipo</h3><span class="muted small">quest'anno</span></div><div id="in-tipi" class="bars"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card goals-card">
+          <div class="card-h"><h3>Obiettivi di risparmio</h3><div class="row-btns nowrap"><span class="muted small" id="goals-sum"></span><button class="btn sm primary" data-inact="goal">+ Obiettivo</button></div></div>
+          <div id="goals" class="goals"></div>
+        </div>
+      </section>
+
+      <!-- SPESE FISSE -->
+      <section id="v-fisse" class="view" hidden>
+        <div class="kpis">
+          <div class="card kpi"><div class="kpi-h"><span class="label">Al mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg></span></div><div id="fx-month" class="big">0,00 €</div><span class="muted small">spese fisse equivalenti</span></div>
+          <div class="card kpi"><div class="kpi-h"><span class="label">All'anno</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span></div><div id="fx-year" class="big">0,00 €</div><span class="muted small">proiezione 12 mesi</span></div>
+          <div class="card kpi"><div class="kpi-h"><span class="label">Prossimo pagamento</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span></div><div id="fx-next" class="big">—</div><span id="fx-next-sub" class="muted small"></span></div>
+          <div class="card kpi"><div class="kpi-h"><span class="label">Attive</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg></span></div><div id="fx-count" class="big">0</div><span id="fx-count-sub" class="muted small"></span></div>
+        </div>
+        <div class="seg" role="tablist"><button data-fxtab="cal" class="on">Calendario</button><button data-fxtab="list">Elenco</button></div>
+        <div id="fx-grid" class="fx-grid" data-tab="cal">
+          <div class="card fx-cal">
+            <div class="cal-h">
+              <div class="cal-nav"><button class="icon-btn" data-calm="-1" aria-label="Mese precedente">‹</button><h3 id="cal-title"></h3><button class="icon-btn" data-calm="1" aria-label="Mese successivo">›</button></div>
+              <button class="btn sm" data-calm="0">Oggi</button>
+            </div>
+            <div id="cal-tot" class="cal-tot"></div>
+            <div class="cal-wd"><span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span></div>
+            <div id="cal-grid" class="cal-grid"></div>
+            <div class="cal-legend"><span><i class="dot paid"></i>Pagato</span><span><i class="dot soon"></i>In scadenza</span><span><i class="dot late"></i>Scaduto</span><span><i class="dot plan"></i>Previsto</span></div>
+            <div id="cal-agenda" class="cal-agenda"></div>
+          </div>
+          <div class="card fx-listcard">
+            <div class="card-h"><h3>Le tue spese fisse</h3><div class="row-btns nowrap"><button id="fx-notify" class="btn sm">Notifiche</button><button id="fx-add" class="btn sm primary">+ Nuova</button></div></div>
+            <div id="fx-list"></div>
+            <div id="fx-off"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AUTO -->
+      <section id="v-auto" class="view" hidden>
+        <div id="auto-empty" class="card empty-state" hidden>
+          <div class="es-ic"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/></svg></div>
+          <h3>Aggiungi la tua auto</h3>
+          <p class="muted small">Carburante, consumi, manutenzione, assicurazione, bollo e revisione: tutto in un posto, con i promemoria.</p>
+          <button class="btn primary" data-autoact="newveh">Aggiungi veicolo</button>
+        </div>
+        <div id="auto-body" class="auto-body" hidden>
+          <div id="veh-tabs" class="veh-tabs"></div>
+          <div class="card veh-hero" id="veh-hero"></div>
+          <div class="kpis">
+            <div class="card kpi"><div class="kpi-h"><span class="label">Speso quest'anno</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/></svg></span></div><div id="au-year" class="big">0,00 €</div><span class="muted small">tutte le voci</span></div>
+            <div class="card kpi"><div class="kpi-h"><span class="label">Carburante del mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10"/><path d="M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/></svg></span></div><div id="au-fuel" class="big">0,00 €</div><span class="muted small">prezzo medio <b id="au-price">—</b></span></div>
+            <div class="card kpi"><div class="kpi-h"><span class="label">Consumo medio</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/></svg></span></div><div id="au-kml" class="big">—</div><span id="au-kml-sub" class="muted small"></span></div>
+            <div class="card kpi kpi-act"><span class="label">Registra</span>
+              <button class="btn primary btn-ic" data-autoact="fuel"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Rifornimento</button>
+              <button class="btn btn-ic" data-autoact="spesa"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Altra spesa</button></div>
+          </div>
+          <div class="auto-grid">
+            <div class="col-main">
+              <div class="card"><div class="card-h"><h3>Spesa mensile</h3><span class="muted small">ultimi 12 mesi</span></div><div id="au-chart" class="mbars"></div></div>
+              <div class="card"><div class="card-h"><h3>Movimenti</h3></div><div id="au-list"></div></div>
+            </div>
+            <div class="col-side">
+              <div class="card"><div class="card-h"><h3>Scadenze</h3></div><div id="au-scad" class="scad-list"></div></div>
+              <div class="card"><div class="card-h"><h3>Per voce</h3><span class="muted small">quest'anno</span></div><div id="au-voci" class="bars"></div></div>
+              <div class="card"><div class="card-h"><h3>Spese fisse dell'auto</h3></div><div id="au-fisse"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ESTRATTO CONTO -->
+      <section id="v-estratto" class="view" hidden>
+        <input id="st-file" type="file" accept="application/pdf,image/*" multiple hidden>
+        <div id="st-upload" class="card st-upload">
+          <div id="st-drop" class="st-drop" data-stmt="pick">
+            <div class="es-ic"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M12 18v-6M9 14l3-3 3 3"/></svg></div>
+            <h3>Carica l'estratto conto</h3>
+            <p class="muted small">PDF della banca oppure foto/screenshot delle pagine. L'IA legge tutti i movimenti, li confronta con le spese registrate e ti restituisce lo stesso file con le righe evidenziate.</p>
+            <button class="btn primary btn-ic" type="button"><svg viewBox="0 0 24 24"><path d="M12 19V7M7 12l5-5 5 5"/></svg>Scegli file</button>
+            <div class="st-legend"><span><i class="dot paid"></i>Coincide</span><span><i class="dot soon"></i>Da verificare</span><span><i class="dot late"></i>Non registrata</span></div>
+          </div>
+          <p class="muted small st-priv">Il file viene letto da Google Gemini (piano gratuito) e non viene salvato. Puoi coprire IBAN e dati personali prima di caricarlo.</p>
+        </div>
+        <div id="st-result" class="st-result" hidden>
+          <div class="card st-head" id="st-head"></div>
+          <div class="st-grid">
+            <div class="card">
+              <div id="st-filters" class="st-filters"></div>
+              <div id="st-rows" class="st-rows"></div>
+            </div>
+            <div class="card st-prev"><div class="card-h"><h3>Anteprima evidenziata</h3></div><div id="st-pages" class="st-pages"></div></div>
+          </div>
+        </div>
+        <div class="card"><div class="card-h"><h3>Verifiche salvate</h3></div><div id="st-hist"></div></div>
+      </section>
+
+      <!-- AFFITTO -->
+      <section id="v-affitto" class="view" hidden>
+        <div id="rent-empty" class="card empty-state" hidden>
+          <div class="es-ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg></div>
+          <h3>Configura l'affitto</h3>
+          <p class="muted small">Inserisci canone e giorno di scadenza: l'app tiene traccia dei pagamenti mese per mese e ti avvisa.</p>
+          <button class="btn primary" data-rent="edit">Configura</button>
+        </div>
+        <div id="rent-main" class="rent-grid" hidden>
+          <div class="col-main">
+            <div class="card rent-hero">
+              <div class="rent-hero-top">
+                <div>
+                  <span class="label" id="r-month"></span>
+                  <div class="big" id="r-amount"></div>
+                  <div id="r-status"></div>
+                </div>
+                <button class="btn primary" id="r-pay" data-rent="pay">Registra pagamento</button>
+              </div>
+              <div class="rent-info" id="r-info"></div>
+            </div>
+            <div class="card">
+              <div class="card-h">
+                <h3>Pagamenti</h3>
+                <div class="year-switch"><button class="icon-btn" data-year="-1" aria-label="Anno precedente">‹</button><strong id="r-year"></strong><button class="icon-btn" data-year="1" aria-label="Anno successivo">›</button></div>
+              </div>
+              <div id="r-months" class="months"></div>
+              <div class="sum-row rent-sum"><span id="r-count" class="muted small"></span><strong id="r-total"></strong></div>
+            </div>
+          </div>
+          <div class="col-side">
+            <div class="card">
+              <div class="card-h"><h3>Notifiche</h3><button class="btn sm" data-rent="notify">Configura</button></div>
+              <div id="r-notify"></div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>Contratto</h3><button class="btn sm" data-rent="edit">Modifica</button></div>
+              <div id="r-contract" class="kv"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOLLETTE -->
+      <section id="v-bollette" class="view" hidden>
+        <div class="sum-row">
+          <span class="muted small only-mob">Ricorrenti e scadenze</span>
+          <div class="row-btns nowrap"><button id="bill-photo" class="btn ai-inline" hidden><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Da foto</button><button id="add-bill" class="btn">+ Nuova</button></div>
+        </div>
+        <div id="bills-list" class="bills-grid"></div>
+        <div id="bills-off" class="off-wrap"></div>
+      </section>
+
+      <!-- IMPOSTAZIONI -->
+      <section id="v-impostazioni" class="view settings-grid" hidden>
+        <div class="more-tiles">
+          <a href="#affitto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg></span><b>Affitto</b><small>Canone e pagamenti</small><i id="tile-rent-badge" class="badge" hidden></i></a>
+          <a href="#estratto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg></span><b>Estratto conto</b><small>Verifica con l'IA</small></a>
+        </div>
+        <div class="card">
+          <h3>Collegamento</h3>
+          <p id="conn-info" class="muted small"></p>
+          <div class="row-btns">
+            <button id="btn-sync" class="btn">Sincronizza ora</button>
+            <button id="btn-conn" class="btn ghost">Cambia collegamento</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Intelligenza artificiale</h3>
+          <div id="ai-set"></div>
+        </div>
+        <div class="card">
+          <h3>Negozi e loghi</h3>
+          <p class="muted small" style="margin:0 0 10px">Se un negozio non mostra il logo, aggiungilo con il link del suo sito.</p>
+          <div class="shop-form">
+            <input id="shop-name" placeholder="Nome (es. Jysk)">
+            <input id="shop-url" placeholder="Sito (es. jysk.it)" inputmode="url" autocapitalize="off">
+            <select id="shop-cat"></select>
+            <button id="shop-add" class="btn primary">Aggiungi</button>
+          </div>
+          <div id="shop-list" class="list"></div>
+        </div>
+        <div class="card">
+          <h3>Categorie</h3>
+          <div class="inline-add">
+            <input id="new-cat" placeholder="Nuova categoria">
+            <button id="add-cat" class="btn">Aggiungi</button>
+          </div>
+          <div id="cat-list" class="chips"></div>
+        </div>
+        <div class="card">
+          <h3>Esporta</h3>
+          <p class="muted small">Scarica tutte le spese in formato CSV (apribile con Excel).</p>
+          <button id="btn-csv" class="btn">Scarica CSV</button>
+        </div>
+      </section>
+    </main>
+
+    <button id="fab" class="fab" aria-label="Nuova spesa"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+  </div>
+
+  <!-- Pannello modale -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-bg" data-close></div>
+    <form id="sheet-form" class="sheet-panel" autocomplete="off">
+      <div class="sheet-h">
+        <h3 id="sheet-title"></h3>
+        <button type="button" class="icon-btn" data-close aria-label="Chiudi">✕</button>
+      </div>
+      <div id="sheet-body"></div>
+      <div class="sheet-f">
+        <button type="button" id="sheet-del" class="btn danger-ghost" hidden>Elimina</button>
+        <button type="submit" class="btn primary" id="sheet-ok">Salva</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js?v=18"></script>
+</body>
+</html>
