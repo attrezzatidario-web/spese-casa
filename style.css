@@ -1189,3 +1189,36 @@ svg.anim .bud-proj, svg.anim .bud-pd { animation: fadein .6s 1.3s both; }
 .fc-det summary::after { content: " ›"; display: inline-block; transition: transform .2s; }
 .fc-det[open] summary::after { transform: rotate(90deg); }
 #h-saldo.neg-t { color: #dc2626; }
+
+/* =========================================================
+   ALLEGATI, CALENDARIO ENTRATE, ALLINEAMENTI
+   ========================================================= */
+.att-wrap { margin-bottom: 12px; }
+.att { display: flex; align-items: center; gap: 10px; width: 100%; border-radius: 12px; padding: 10px 12px; font: inherit; color: inherit; }
+.att svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.att.add { border: 1.5px dashed var(--line); background: var(--surface); cursor: pointer; color: var(--accent); font-weight: 600; transition: border-color .15s, background .15s; text-align: left; }
+.att.add:hover { border-color: var(--accent); background: var(--accent-soft); }
+.att.add small { color: var(--muted); font-weight: 500; margin-left: 4px; }
+.att.on { background: var(--accent-soft); color: var(--accent); }
+.att-m { flex: 1; display: grid; min-width: 0; }
+.att-m b { color: var(--ink); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.att-m small { color: var(--muted); font-size: 12px; }
+.att .btn { flex: none; display: inline-flex; align-items: center; gap: 5px; }
+.att .btn svg { width: 15px; height: 15px; }
+.att .icon-btn { width: 30px; height: 30px; font-size: 13px; flex: none; }
+i.clip { font-style: normal; display: inline-flex; vertical-align: -2px; color: var(--muted); }
+i.clip svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.av.xxs { width: 16px; height: 16px; font-size: 7px; }
+.cd.has-in { background: var(--accent-soft); }
+@media (min-width: 900px) {
+  .cd.has-in { background: var(--surface); }
+  .in-cal .cd { min-height: 96px; }
+  .ev.in-ev { background: color-mix(in srgb, var(--c) 12%, var(--surface)); color: color-mix(in srgb, var(--c) 80%, #000); }
+  .ev.in-ev.st-plan { background: var(--bg); color: var(--ink-2); border: 1px dashed var(--line); }
+}
+/* allineamenti generali */
+.card-h { align-items: center; min-height: 32px; }
+.row-btns { align-items: center; }
+.goals-card .card-h { margin-bottom: 14px; }
+.goal { padding: 14px 16px; }
+.goal .btn { align-self: center; }

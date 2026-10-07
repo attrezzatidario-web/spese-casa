@@ -809,6 +809,114 @@
 
 
 
+
+  /* ================= ALLEGATI (PDF / foto) ================= */
+  const ICO_CLIP = '<svg viewBox="0 0 24 24"><path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7L14 4.5a3.5 3.5 0 0 1 5 5L10.5 18a2 2 0 0 1-3-3L15 7.5"/></svg>';
+  // sceglie un PDF o un'immagine; le foto vengono ridotte
+  function pickDoc() {
+    return new Promise((resolve, reject) => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'application/pdf,image/*';
+      inp.onchange = async () => {
+        const file = inp.files && inp.files[0];
+        if (!file) return reject(new Error('annullato'));
+        try {
+          if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+            if (file.size > 12 * 1024 * 1024) throw new Error('PDF troppo grande (max 12 MB)');
+            const b64 = await blobB64(file);
+            return resolve({ b64, mime: 'application/pdf', name: file.name });
+          }
+          const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Immagine non leggibile')); im.src = URL.createObjectURL(file); });
+          const k = Math.min(1, 2000 / Math.max(img.width, img.height));
+          const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          resolve({ b64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mime: 'image/jpeg', name: file.name.replace(/\.[^.]+$/, '') + '.jpg' });
+        } catch (e) { reject(e); }
+      };
+      inp.click();
+    });
+  }
+  async function uploadDoc(doc, cartella, name) {
+    if (isLocal()) throw new Error('Gli allegati richiedono il collegamento al Foglio Google');
+    const r = await api('upload', { b64: doc.b64, mime: doc.mime, name: name || doc.name, cartella });
+    return r.id;
+  }
+  async function openDoc(id) {
+    busy('Apro il documento…');
+    try {
+      const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+      const j = await r.json(); if (!j.ok) throw new Error(j.error);
+      const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      busy(); saveBlob(new Blob([arr], { type: j.data.mime }), j.data.name);
+    } catch (e) { busy(); toast(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : 'Impossibile aprire: ' + e.message); }
+  }
+  // riquadro allegato dentro un form: gestisce file nuovo (in attesa) o già salvato
+  function attachBox(opts) {
+    const st = { pending: opts.pending || null, id: opts.id || '', removed: false };
+    const box = $('#att-box');
+    const draw = () => {
+      if (st.pending) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(st.pending.name)}</b><small>Verrà salvato su Google Drive</small></div>
+        ${opts.onRead && aiReady() ? `<button type="button" class="btn sm ai-inline" id="att-ai">${ICO.spark}Leggi con IA</button>` : ''}<button type="button" class="icon-btn" id="att-x" aria-label="Rimuovi">✕</button></div>`;
+      else if (st.id && !st.removed) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(opts.label)} allegata</b><small>Salvata su Google Drive</small></div>
+        <button type="button" class="btn sm" id="att-open">Apri</button><button type="button" class="icon-btn" id="att-x" aria-label="Rimuovi">✕</button></div>`;
+      else box.innerHTML = `<button type="button" class="att add" id="att-add">${ICO_CLIP}<span>Allega ${esc(opts.label.toLowerCase())} <small>PDF o foto</small></span></button>`;
+      const a = $('#att-add'), x = $('#att-x'), o = $('#att-open'), ai = $('#att-ai');
+      if (a) a.onclick = async () => { try { st.pending = await pickDoc(); draw(); if (opts.onRead && aiReady() && opts.autoRead) opts.onRead(st.pending); } catch (e) { if (e.message !== 'annullato') toast(e.message); } };
+      if (x) x.onclick = () => { if (st.pending) st.pending = null; else st.removed = true; draw(); };
+      if (o) o.onclick = () => openDoc(st.id);
+      if (ai) ai.onclick = () => opts.onRead(st.pending);
+    };
+    draw();
+    // da chiamare al salvataggio: restituisce l'id finale dell'allegato
+    st.commit = async (name) => {
+      if (st.pending) { busy('Salvo l\'allegato…'); try { const id = await uploadDoc(st.pending, opts.cartella, name); busy(); return id; } catch (e) { busy(); toast(e.message); return st.id && !st.removed ? st.id : ''; } }
+      return st.removed ? '' : st.id;
+    };
+    return st;
+  }
+
+  /* ---------- Calendario entrate ---------- */
+  let inCalMonth = ymOf(new Date()), inCalSel = today();
+  function inEvents(from, to) {
+    const ev = [];
+    db.entrate.filter(e => e.data >= from && e.data <= to).forEach(e => { const p = personaById(e.personaId); ev.push({ date: e.data, title: e.descrizione || e.tipo, importo: Number(e.importo) || 0, p, tipo: e.tipo, st: 'in', ref: e.id, att: !!e.allegato }); });
+    ricorrentiOf('all').forEach(r => {
+      let d = r.prossima, g = 0;
+      while (d && d <= to && g++ < 14) { if (d >= from && d > today()) ev.push({ date: d, title: r.descrizione || r.tipo, importo: Number(r.importo) || 0, p: personaById(r.personaId), tipo: r.tipo, st: 'plan', rec: r.id }); d = nextMonthDay(d, Number(r.giorno) || 27); }
+    });
+    return ev.sort((a, b) => a.date.localeCompare(b.date));
+  }
+  function renderInCal() {
+    const grid = $('#inc-grid'); if (!grid) return;
+    const [y, m] = inCalMonth.split('-').map(Number);
+    const first = new Date(y, m - 1, 1), last = new Date(y, m, 0);
+    const from = ymd(first), to = ymd(last);
+    const ev = inEvents(from, to);
+    $('#inc-title').textContent = monthName(inCalMonth);
+    const got = ev.filter(e => e.st === 'in').reduce((a, e) => a + e.importo, 0), exp = ev.filter(e => e.st === 'plan').reduce((a, e) => a + e.importo, 0);
+    $('#inc-tot').innerHTML = `<span><i class="dot paid"></i>Ricevute <b>${eur(got)}</b></span>${exp ? `<span><i class="dot plan"></i>In arrivo <b>${eur(exp)}</b></span>` : ''}`;
+    const lead = (first.getDay() + 6) % 7, desk = isDesk(), t = today();
+    if (inCalSel.slice(0, 7) !== inCalMonth) inCalSel = inCalMonth === ym(t) ? t : from;
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push('<div class="cd out"></div>');
+    for (let d = 1; d <= last.getDate(); d++) {
+      const ds = `${inCalMonth}-${pad(d)}`, de = ev.filter(e => e.date === ds);
+      const body = desk
+        ? de.slice(0, 3).map(e => `<div class="ev in-ev ${e.st === 'plan' ? 'st-plan' : ''}" style="--c:${pColor(e.p)}">${avatar(e.p, 'xxs')}<span class="evt">${esc(e.title)}</span><b>${esc(eur0(e.importo))}</b></div>`).join('') + (de.length > 3 ? `<div class="ev-more">+${de.length - 3}</div>` : '')
+        : `<div class="dots">${de.slice(0, 4).map(e => `<i class="dot ${e.st === 'plan' ? 'plan' : ''}" style="${e.st === 'plan' ? '' : 'background:' + pColor(e.p)}"></i>`).join('')}</div>${de.length ? `<div class="ctot pos-t">+${esc(fmtNum(de.reduce((a, e) => a + e.importo, 0), 0))}</div>` : ''}`;
+      cells.push(`<button type="button" class="cd${ds === t ? ' today' : ''}${ds === inCalSel ? ' sel' : ''}${de.some(e => e.st === 'in') ? ' has-in' : ''}" data-inday="${ds}" style="animation-delay:${Math.min((lead + d) * 12, 400)}ms"><span class="cn">${d}</span>${body}</button>`);
+    }
+    grid.innerHTML = cells.join('');
+    const de = ev.filter(e => e.date === inCalSel);
+    const label = parseD(inCalSel).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+    $('#inc-agenda').innerHTML = `<div class="ag-h"><b>${esc(label.charAt(0).toUpperCase() + label.slice(1))}</b><span class="small pos-t">${de.length ? '+' + eur(de.reduce((a, e) => a + e.importo, 0)) : ''}</span></div>
+      ${de.length ? `<div class="list">${de.map(e => `<div class="item ag" ${e.st === 'in' ? `data-inid="${esc(e.ref)}"` : `data-inrec="${esc(e.rec)}"`}>${tipoInIcon(e.tipo, e.p)}
+        <div class="main"><div class="t">${esc(e.title)}${e.att ? ` <i class="clip">${ICO_CLIP}</i>` : ''}</div><div class="s">${e.p ? esc(e.p.nome) + ' · ' : ''}<span class="chip ${e.st === 'in' ? 'paid' : ''}">${e.st === 'in' ? 'Ricevuta' : 'In arrivo'}</span></div></div>
+        <div class="amt pos-t">+${eur(e.importo)}</div></div>`).join('')}</div>`
+      : `<div class="empty">Nessuna entrata · <button type="button" class="link-btn" data-inact="addday">Aggiungi in questo giorno</button></div>`}`;
+  }
+
   /* ================= ENTRATE ================= */
   const P_COLORS = ['#17795a', '#2563eb', '#c026d3', '#ea580c', '#0891b2', '#ca8a04'];
   const TIPI_IN = {
@@ -856,10 +964,10 @@
     $('#in-body').hidden = !pp.length;
     renderGoals();
     if (!pp.length) return;
-    if (inSel !== 'all' && !pp.some(p => p.id === inSel)) inSel = 'all';
-    const p = inSel === 'all' ? null : personaById(inSel);
-    $('#in-tabs').innerHTML = `<button class="veh-tab${inSel === 'all' ? ' on' : ''}" data-insel="all"><span class="av-stack">${pp.slice(0, 3).map(x => avatar(x, 'xs')).join('')}</span><span>Famiglia</span></button>`
-      + pp.map(x => `<button class="veh-tab${x.id === inSel ? ' on' : ''}" data-insel="${esc(x.id)}">${avatar(x, 'xs')}<span>${esc(x.nome)}</span></button>`).join('')
+    if (!pp.some(p => p.id === inSel)) inSel = pp[0].id;
+    const p = personaById(inSel);
+    renderInCal();
+    $('#in-tabs').innerHTML = pp.map(x => `<button class="veh-tab${x.id === inSel ? ' on' : ''}" data-insel="${esc(x.id)}">${avatar(x, 'xs')}<span>${esc(x.nome)}</span></button>`).join('')
       + `<button class="veh-tab add" data-inact="newp">+ Persona</button>`;
 
     const mk = ymOf(new Date()), y = String(new Date().getFullYear());
@@ -924,7 +1032,7 @@
 
     const lim = inAll ? 400 : 10;
     $('#in-list').innerHTML = list.length ? `<div class="list">${list.slice(0, lim).map(e => { const pr = personaById(e.personaId); return `<div class="item" data-inid="${esc(e.id)}">${tipoInIcon(e.tipo, pr)}
-      <div class="main"><div class="t">${esc(e.descrizione || e.tipo)}</div><div class="s">${esc(shortDate(e.data))} · ${esc(TIPO_LBL[e.tipo] || e.tipo)}${pr && inSel === 'all' ? ' · ' + esc(pr.nome) : ''}${e.ricorrenteId ? ' · auto' : ''}</div></div>
+      <div class="main"><div class="t">${esc(e.descrizione || e.tipo)}${e.allegato ? ` <i class="clip">${ICO_CLIP}</i>` : ''}</div><div class="s">${esc(shortDate(e.data))} · ${esc(TIPO_LBL[e.tipo] || e.tipo)}${pr && inSel === 'all' ? ' · ' + esc(pr.nome) : ''}${e.ricorrenteId ? ' · auto' : ''}</div></div>
       <div class="amt pos-t">+${eur(e.importo)}</div></div>`; }).join('')}</div>${list.length > lim ? `<button class="btn block more-btn" data-inact="all">Mostra tutte (${list.length})</button>` : ''}`
       : '<div class="empty">Nessuna entrata registrata</div>';
   }
@@ -961,14 +1069,32 @@
         <label class="f"><span>Data</span><input name="data" type="date" class="amount-sel" value="${esc(e.data)}" required></label>
       </div>
       <label class="f"><span>Descrizione</span><input name="descrizione" placeholder="Es. Stipendio ottobre, Rimborso 730…" value="${esc(e.descrizione)}"></label>
+      <div id="att-box" class="att-wrap"></div>
       <label class="f"><span>Note</span><textarea name="note" rows="2">${esc(e.note)}</textarea></label>
       ${isNew ? `<button type="button" class="btn block ghost" data-inact="rec">↻ Oppure imposta un'entrata ricorrente mensile</button>` : ''}`,
-      fd => {
+      async fd => {
         const importo = num(fd.get('importo')); if (importo <= 0) return toast('Inserisci l\'importo');
-        const row = { ...e, importo, data: fd.get('data'), tipo: fd.get('tipo') || 'Altro', personaId: fd.get('personaId') || '', descrizione: String(fd.get('descrizione') || '').trim(), note: fd.get('note').trim(), creato: e.creato || new Date().toISOString() };
+        const pn = (personaById(fd.get('personaId')) || {}).nome || '';
+        const allegato = await att.commit(`Busta paga ${pn} ${ym(fd.get('data'))}`.trim() + (att.pending && att.pending.mime === 'application/pdf' ? '.pdf' : '.jpg'));
+        const row = { ...e, importo, data: fd.get('data'), tipo: fd.get('tipo') || 'Altro', personaId: fd.get('personaId') || '', descrizione: String(fd.get('descrizione') || '').trim(), note: fd.get('note').trim(), creato: e.creato || new Date().toISOString(), allegato };
         write([{ action: 'upsert', sheet: 'Entrate', row }]); closeSheet(); toast(isNew ? 'Entrata registrata' : 'Entrata aggiornata');
       },
       isNew ? null : () => { if (!confirm('Eliminare questa entrata?')) return; write([{ action: 'delete', sheet: 'Entrate', id: e.id }]); closeSheet(); toast('Eliminata'); });
+    const att = attachBox({ id: e.allegato || '', label: 'Busta paga', cartella: 'Buste paga', autoRead: isNew,
+      onRead: async doc => {
+        busy('Leggo la busta paga…');
+        try {
+          const r = await aiCall('payslip', { image: doc.b64, mime: doc.mime }); busy();
+          if (r.valido === false) return toast('Non sembra una busta paga');
+          const F = n => $('#sheet-body [name=' + n + ']');
+          if (r.netto) F('importo').value = fmtAmt(r.netto);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(r.data || '')) F('data').value = r.data;
+          const tp = $(`#sheet-body [name=tipo][value="${r.tipo}"]`); if (tp) tp.checked = true;
+          if (/^\d{4}-\d{2}$/.test(r.mese || '')) F('descrizione').value = (r.tipo === 'Tredicesima' ? 'Tredicesima ' : 'Stipendio ') + monthName(r.mese) + (r.datore ? ' · ' + r.datore : '');
+          if (r.note) F('note').value = r.note + (r.lordo ? ` (lordo ${eur(r.lordo)})` : '');
+          toast('Dati letti dalla busta paga: controlla e salva');
+        } catch (er) { busy(); toast(er.message); }
+      } });
   }
 
   function formRicorrente(p, r) {
@@ -987,6 +1113,7 @@
         <label class="f"><span>Importo netto (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(r.importo))}" required data-focus></label>
         <label class="f"><span>Giorno di accredito</span><select name="giorno" class="amount-sel">${opt(Array.from({ length: 31 }, (_, i) => String(i + 1)), String(r.giorno || 27))}</select></label>
       </div>
+      <label class="f"><span>Registra anche i mesi passati dal <i class="opt">facoltativo</i></span><input name="dal" type="month" max="${ymOf(new Date())}" value=""><div class="hint muted">Crea in un colpo solo le entrate già ricevute dal mese scelto fino a oggi.</div></label>
       ${isNew ? `<label class="sw"><input type="checkbox" name="questo"><span class="sw-ui"></span><span class="sw-t"><b>Registra anche questo mese</b><small>Se l'accredito di questo mese è già arrivato.</small></span></label>`
         : `<label class="sw"><input type="checkbox" name="attiva" ${r.attiva === '' || isOn(r.attiva) ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>Attiva</b><small>Disattiva se l'entrata finisce.</small></span></label>`}`,
       fd => {
@@ -1001,7 +1128,21 @@
             row.prossima = nextMonthDay(thisDate, giorno);
           } else row.prossima = thisDate > t ? thisDate : nextMonthDay(thisDate, giorno);
         } else if (Number(r.giorno) !== giorno) row.prossima = nextPay(giorno, t);
+        // mesi passati
+        const dal = fd.get('dal');
+        let nb = 0;
+        if (dal && /^\d{4}-\d{2}$/.test(dal)) {
+          let [yy, mm] = dal.split('-').map(Number);
+          for (let g = 0; g < 60; g++) {
+            const dd = dayIn(yy, mm - 1, giorno);
+            if (dd > t || (row.prossima && dd >= row.prossima)) break;
+            const id = 'in-' + row.id + '-' + dd;
+            if (!db.entrate.some(x => x.id === id) && !ops.some(o => o.row && o.row.id === id)) { ops.push({ action: 'upsert', sheet: 'Entrate', row: { id, data: dd, importo, personaId: row.personaId, tipo: row.tipo, descrizione: row.descrizione, note: '', ricorrenteId: row.id, creato: new Date().toISOString() } }); nb++; }
+            mm++; if (mm > 12) { mm = 1; yy++; }
+          }
+        }
         ops.push({ action: 'upsert', sheet: 'EntrateFisse', row });
+        if (nb) setTimeout(() => toast(`Registrate anche ${nb} entrate dei mesi passati`), 2600);
         write(ops); closeSheet(); toast(isNew ? 'Entrata ricorrente attivata' : 'Aggiornata');
       },
       isNew ? null : () => { if (!confirm('Eliminare questa entrata ricorrente? Le entrate già registrate restano.')) return; write([{ action: 'delete', sheet: 'EntrateFisse', id: r.id }]); closeSheet(); });
@@ -2339,7 +2480,7 @@
         const fs = fattStatus(f), nv = parseVoci(f).length;
         return `<div class="item" data-fatt="${esc(f.id)}">
           <div class="ic doc-ic">${ICO_DOC}</div>
-          <div class="main"><div class="t">${esc(fattLabel(f))}</div>
+          <div class="main"><div class="t">${esc(fattLabel(f))}${f.allegato ? ` <i class="clip">${ICO_CLIP}</i>` : ''}</div>
             <div class="s">${[Number(f.consumo) > 0 ? esc(fmtNum(f.consumo, 0) + ' ' + (f.unita || '')) : '', nv ? nv + ' voci' : '', f.numero ? 'n. ' + esc(f.numero) : ''].filter(Boolean).join(' · ') || '&nbsp;'}</div></div>
           <div class="right"><div class="amt">${eur(f.importo)}</div>
             ${f.spesaId ? `<span class="chip paid">Pagata</span>` : `<button type="button" class="btn sm" data-fpay="${esc(f.id)}">Paga</button>`}</div></div>`;
@@ -2368,7 +2509,7 @@
     box.innerHTML = n ? `<span>Somma voci <b>${eur(tot)}</b></span>${target && Math.abs(diff) >= 0.01 ? `<span class="${Math.abs(diff) > 1 ? 'warn-t' : 'muted'}">Differenza ${eur(diff)}</span>` : target ? '<span class="ok-t">Quadra con il totale</span>' : ''}` : '';
   }
 
-  function formFattura(b, f, pre, newBill) {
+  function formFattura(b, f, pre, newBill, pendingDoc) {
     const isNew = !f;
     f = f || { id: uid(), bollettaId: b.id, numero: '', emissione: '', periodoDa: '', periodoA: '', consumo: '', unita: UNITA_CAT[b.categoria] || '', importo: '', scadenza: b.scadenza || today(), voci: '[]', spesaId: '', note: '' };
     if (pre) f = { ...f, ...pre };
@@ -2397,17 +2538,19 @@
         ${tip.length ? `<div class="vtips">${tip.map(t => `<button type="button" class="chip vtip" data-vadd="${esc(t)}">+ ${esc(t)}</button>`).join('')}</div>` : ''}
         <div id="voci-sum" class="voci-sum"></div>
       </div>
+      <div id="att-box" class="att-wrap"></div>
       <label class="f"><span>Note</span><textarea name="note" rows="2" placeholder="Codice cliente, POD/PDR, offerta…">${esc(f.note)}</textarea></label>
       ${unpaid ? `<label class="sw"><input type="checkbox" name="upd" ${defUpd ? 'checked' : ''}><span class="sw-ui"></span>
         <span class="sw-t"><b>Aggiorna la bolletta</b><small>Usa importo e scadenza di questa fattura per i promemoria.</small></span></label>` : `<p class="muted small"><span class="chip paid">Pagata</span> collegata al pagamento registrato.</p>`}`,
-      fd => {
+      async fd => {
         const importo = num(fd.get('importo'));
         if (importo <= 0) return toast('Inserisci il totale');
+        const allegato = await att.commit(`Bolletta ${b.nome} ${fd.get('periodoA') || fd.get('scadenza') || today()}`.replace(/[\/:*?"<>|]/g, '-') + (att.pending && att.pending.mime === 'application/pdf' ? '.pdf' : '.jpg'));
         const vd = fd.getAll('vd'), vi = fd.getAll('vi');
         const vv = vd.map((d, i) => ({ descrizione: String(d).trim(), importo: num(vi[i]) })).filter(v => v.descrizione || v.importo);
         const c = String(fd.get('consumo') || '').trim();
         const row = { ...f, importo, scadenza: fd.get('scadenza') || '', numero: fd.get('numero').trim(), periodoDa: fd.get('periodoDa') || '', periodoA: fd.get('periodoA') || '',
-          consumo: c ? num(c) : '', unita: fd.get('unita'), voci: JSON.stringify(vv), note: fd.get('note').trim() };
+          consumo: c ? num(c) : '', unita: fd.get('unita'), voci: JSON.stringify(vv), note: fd.get('note').trim(), allegato };
         delete row._ai;
         const ops = [];
         let bill = b;
@@ -2425,6 +2568,19 @@
         write([{ action: 'delete', sheet: 'Fatture', id: f.id }]); toast('Fattura eliminata'); billDetail(b);
       });
     $('#sheet-form').classList.add('wide');
+    const fillFromAI = r => {
+      const F = n => $('#sheet-body [name=' + n + ']');
+      if (r.importo) F('importo').value = fmtAmt(r.importo);
+      ['scadenza', 'periodoDa', 'periodoA'].forEach(k => { if (/^\d{4}-\d{2}-\d{2}$/.test(r[k] || '')) F(k).value = r[k]; });
+      if (r.numero) F('numero').value = r.numero;
+      if (Number(r.consumo) > 0) F('consumo').value = String(r.consumo).replace('.', ',');
+      if (r.unita && UNITA.includes(r.unita)) F('unita').value = r.unita;
+      if (r.note && !F('note').value) F('note').value = r.note;
+      if ((r.voci || []).length) { $('#voci').innerHTML = ''; r.voci.forEach(v => addVoce(v.descrizione, v.importo)); }
+      updVoci();
+    };
+    const att = attachBox({ id: f.allegato || '', pending: pendingDoc || null, label: 'Bolletta', cartella: 'Bollette',
+      onRead: async doc => { busy('Leggo la bolletta…'); try { const r = await aiCall('bill', { image: doc.b64, mime: doc.mime }); busy(); if (r.valido === false) return toast('Non sembra una bolletta'); fillFromAI(r); toast('Dati letti dalla bolletta'); } catch (e) { busy(); toast(e.message); } } });
     voci.forEach(v => addVoce(v.descrizione, v.importo));
     $('#sheet-body [name=importo]').addEventListener('input', updVoci);
     updVoci();
@@ -2547,10 +2703,10 @@
 
   async function aiBill(forBill) {
     let img;
-    try { img = await pickImage(); } catch { return; }
+    try { img = await pickDoc(); } catch (e) { if (e.message !== 'annullato') toast(e.message); return; }
     busy('Leggo la bolletta…');
     try {
-      const r = await aiCall('bill', img);
+      const r = await aiCall('bill', { image: img.b64, mime: img.mime });
       busy();
       if (!r.valido) return toast('Non sembra una bolletta, riprova');
       const pre = { _ai: true, importo: r.importo, scadenza: validDate(r.scadenza), frequenza: FREQ[r.frequenza] !== undefined ? r.frequenza : 'mensile', categoria: pickCat(r.categoria) };
@@ -2564,8 +2720,8 @@
       const target = forBill || ex;
       const fpre = { _ai: true, importo: r.importo, scadenza: pre.scadenza, numero: r.numero || '', emissione: r.emissione || '', periodoDa: r.periodoDa || '', periodoA: r.periodoA || '',
         consumo: Number(r.consumo) > 0 ? r.consumo : '', unita: r.unita || '', voci: JSON.stringify((r.voci || []).filter(v => v.descrizione)), note: r.note || '' };
-      if (target) formFattura(target, null, fpre);
-      else formFattura({ id: uid(), nome: r.nome, categoria: pre.categoria, importo: pre.importo, frequenza: pre.frequenza, scadenza: pre.scadenza, attiva: true, note: r.note || '' }, null, fpre, true);
+      if (target) formFattura(target, null, fpre, false, img);
+      else formFattura({ id: uid(), nome: r.nome, categoria: pre.categoria, importo: pre.importo, frequenza: pre.frequenza, scadenza: pre.scadenza, attiva: true, note: r.note || '' }, null, fpre, true, img);
     } catch (e) { busy(); toast(e.message); }
   }
 
@@ -2824,6 +2980,15 @@
       }
       const ins = e.target.closest('[data-insel]');
       if (ins) { inSel = ins.dataset.insel; inAll = false; renderEntrate(); stagger($('#in-body')); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      const ind = e.target.closest('[data-inday]');
+      if (ind) { inCalSel = ind.dataset.inday; renderInCal(); return; }
+      const incm = e.target.closest('[data-incm]');
+      if (incm) {
+        const v = incm.dataset.incm;
+        if (v === '0') { inCalMonth = ymOf(new Date()); inCalSel = today(); }
+        else { const [y, m] = inCalMonth.split('-').map(Number); inCalMonth = ymOf(new Date(y, m - 1 + Number(v), 1)); }
+        const g = $('#inc-grid'); g.classList.remove('slide-l', 'slide-r'); void g.offsetWidth; renderInCal(); g.classList.add(Number(v) < 0 ? 'slide-r' : 'slide-l'); return;
+      }
       const ina = e.target.closest('[data-inact]');
       if (ina) {
         const a = ina.dataset.inact;
@@ -2833,6 +2998,7 @@
         if (a === 'rec') formRicorrente(inSel !== 'all' ? personaById(inSel) : null);
         if (a === 'all') { inAll = true; renderEntrate(); }
         if (a === 'goal') formGoal();
+        if (a === 'addday') formEntrata(null, { data: inCalSel });
         return;
       }
       const inid = e.target.closest('[data-inid]');

@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -166,12 +166,22 @@
           </div>
           <div class="auto-grid">
             <div class="col-main">
-              <div class="card"><div class="card-h"><h3>Entrate e spese</h3><span class="muted small">ultimi 12 mesi</span></div><div id="in-chart"></div></div>
+              <div class="card in-cal">
+                <div class="cal-h">
+                  <div class="cal-nav"><button class="icon-btn" data-incm="-1" aria-label="Mese precedente">‹</button><h3 id="inc-title"></h3><button class="icon-btn" data-incm="1" aria-label="Mese successivo">›</button></div>
+                  <button class="btn sm" data-incm="0">Oggi</button>
+                </div>
+                <div id="inc-tot" class="cal-tot"></div>
+                <div class="cal-wd"><span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span></div>
+                <div id="inc-grid" class="cal-grid"></div>
+                <div id="inc-agenda" class="cal-agenda"></div>
+              </div>
+              <div class="card"><div class="card-h"><h3>Entrate per mese</h3><span class="muted small">ultimi 12 mesi</span></div><div id="in-chart"></div></div>
               <div class="card"><div class="card-h"><h3>Movimenti</h3></div><div id="in-list"></div></div>
             </div>
             <div class="col-side">
               <div class="card"><div class="card-h"><h3>Entrate ricorrenti</h3><button class="btn sm" data-inact="rec">+ Aggiungi</button></div><div id="in-rec"></div></div>
-              <div class="card" id="in-contrib-card"><div class="card-h"><h3>Contributo per persona</h3></div><div id="in-contrib"></div></div>
+              <div class="card" id="in-contrib-card" hidden><div class="card-h"><h3>Contributo per persona</h3></div><div id="in-contrib"></div></div>
               <div class="card"><div class="card-h"><h3>Per tipo</h3><span class="muted small">quest'anno</span></div><div id="in-tipi" class="bars"></div></div>
             </div>
           </div>
@@ -389,6 +399,6 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>
