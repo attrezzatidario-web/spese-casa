@@ -596,6 +596,7 @@
     renderAISettings();
     renderLockSettings();
     renderTg();
+    renderNotifyCard();
     renderBackup();
     renderShortcuts();
     $('#shop-list').innerHTML = customShops().map((n, i) => `<div class="item shop">
@@ -802,7 +803,17 @@
     if (DEMO) return toast('Nella demo le notifiche non sono attive');
     if (isLocal()) return toast('Le notifiche richiedono il collegamento al Foglio Google');
     const hours = Array.from({ length: 15 }, (_, i) => String(i + 7));
+    const mt = { attivo: false, ora: 7, minuti: 30, telegram: true, email: false, ...(n.mattino || {}) };
     openSheet('Notifiche', `
+      <div class="nt-mattino">
+        <label class="sw"><input type="checkbox" name="m_attivo" ${mt.attivo ? 'checked' : ''}><span class="sw-ui"></span>
+          <span class="sw-t"><b>☀️ Buongiorno con l'IA</b><small>Ogni mattina un resoconto: spese di ieri, andamento del mese, cosa scade oggi e nei prossimi giorni, cose da fare e un consiglio.</small></span></label>
+        <div class="f-row">
+          <label class="f"><span>Orario</span><input type="time" name="m_ora" value="${pad(Number(mt.ora) || 0)}:${pad(Number(mt.minuti) || 0)}"></label>
+          <div class="f"><span class="f-l">Dove</span><div class="who-pick">${db.tg && db.tg.attivo ? `<label class="wp"><input type="checkbox" name="m_tg" ${mt.telegram !== false ? 'checked' : ''}><span>Telegram</span></label>` : ''}<label class="wp"><input type="checkbox" name="m_email" ${mt.email || !(db.tg && db.tg.attivo) ? 'checked' : ''}><span>Email</span></label></div></div>
+        </div>
+        <p class="muted small" style="margin:-4px 0 4px">Google lo invia entro qualche minuto dall'orario scelto.</p>
+      </div>
       <label class="sw"><input type="checkbox" name="calendario" ${n.calendario ? 'checked' : ''}><span class="sw-ui"></span>
         <span class="sw-t"><b>Calendario Google</b><small>Crea eventi ricorrenti con promemoria per affitto e spese fisse: arrivano come notifica sul telefono.</small></span></label>
       <label class="sw"><input type="checkbox" name="email" ${n.email ? 'checked' : ''}><span class="sw-ui"></span>
@@ -825,8 +836,11 @@
       </div>
       <p class="muted small" style="margin:0 0 8px">Le email arrivano all'indirizzo Gmail del tuo account Google.</p>`,
       async fd => {
-        const v = { calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', telegram: db.tg && db.tg.attivo ? fd.get('telegram') === 'on' : true, settimanale: db.tg && db.tg.attivo ? fd.get('settimanale') === 'on' : true, giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
+        const [mh, mm] = String(fd.get('m_ora') || '07:30').split(':').map(Number);
+        const mattino = { attivo: fd.get('m_attivo') === 'on', ora: mh || 0, minuti: mm || 0, telegram: fd.get('m_tg') === 'on', email: fd.get('m_email') === 'on' };
+        const v = { mattino, calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', telegram: db.tg && db.tg.attivo ? fd.get('telegram') === 'on' : true, settimanale: db.tg && db.tg.attivo ? fd.get('settimanale') === 'on' : true, giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
         if (v.calendario && !rentCfg() && !fisseActive().length && !vehActive().length) return toast('Aggiungi prima l\'affitto o una spesa fissa');
+        if (mattino.attivo && !mattino.telegram && !mattino.email) return toast('Scegli dove ricevere il buongiorno');
         setConfig('notifiche', v);
         setConfig('appUrl', location.href.split('#')[0]);
         closeSheet(); busy('Attivo le notifiche…');
@@ -834,7 +848,8 @@
           await syncNow();
           const r = await api('reminders');
           busy();
-          toast(r.calendario || r.email ? 'Notifiche attivate' + (r.indirizzo ? ' · ' + r.indirizzo : '') : 'Notifiche disattivate');
+          ntStatus = null;
+          toast(r.calendario || r.email || r.telegram || r.mattino ? 'Notifiche attivate' + (r.indirizzo ? ' · ' + r.indirizzo : '') : 'Notifiche disattivate');
         } catch (e) {
           busy();
           toast(/autorizz|permission|permess/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message);
@@ -3591,6 +3606,41 @@
   }
 
   /* ================= TELEGRAM, BACKUP, SCORCIATOIE (Impostazioni) ================= */
+  let ntStatus = null, ntLoading = false;
+  async function renderNotifyCard(force) {
+    const box = $('#nt-set'); if (!box) return;
+    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Nella demo le notifiche non sono attive.' : 'Le notifiche richiedono il collegamento al Foglio Google.'}</p>`; return; }
+    const st = ntStatus;
+    const row = (on, t, sub) => `<div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${t}</b><small>${sub}</small></div></div>`;
+    box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Promemoria di affitto, bollette, spese fisse, auto, manutenzioni e cose da fare, più il buongiorno del mattino.</p>
+      ${st ? `<div class="nt-status">
+        ${row(st.mattino, 'Buongiorno con l\'IA', st.mattino ? `ogni mattina alle ${pad(st.mattinoOra || 0)}:${pad(st.mattinoMin || 0)}` : 'non attivo')}
+        ${row(st.controllo, 'Controllo scadenze', st.controllo ? `ogni giorno alle ${st.ora}:00` : 'non attivo: premi Configura e Salva')}
+        ${row(st.telegram, 'Telegram', st.telegram ? `@${esc(st.bot)} · ${st.chats} collegat${st.chats === 1 ? 'o' : 'i'}` : 'non collegato (Altro → Telegram)')}
+        ${row(st.emailOn, 'Email', st.emailOn ? esc(st.email) : 'disattivata')}
+      </div>` : `<p class="muted small">${ntLoading ? 'Controllo lo stato…' : ''}</p>`}
+      <div class="row-btns"><button class="btn" data-rent="notify">Configura</button><button class="btn primary" id="nt-test">Invia notifica di prova</button></div>`;
+    if ((!st || force) && !ntLoading) {
+      ntLoading = true;
+      try { ntStatus = await api('notify', { op: 'status' }); } catch (e) { ntStatus = null; }
+      ntLoading = false;
+      if (view === 'impostazioni') renderNotifyCard();
+    }
+  }
+  async function notifyTest() {
+    busy('Invio le notifiche di prova…');
+    try {
+      await syncNow();
+      const r = await api('notify', { op: 'test' }); busy();
+      const ok = v => v === 'ok';
+      openSheet('Notifica di prova', `<div class="nt-status">
+        <div class="nt-row"><i class="dot ${ok(r.telegram) ? 'paid' : 'late'}"></i><div><b>Telegram</b><small>${ok(r.telegram) ? 'Inviata: controlla il bot' : esc(r.telegram)}</small></div></div>
+        <div class="nt-row"><i class="dot ${ok(r.email) ? 'paid' : 'late'}"></i><div><b>Email</b><small>${ok(r.email) ? 'Inviata a ' + esc(r.email_indirizzo) + ' (guarda anche in Spam)' : esc(r.email)}</small></div></div>
+        <div class="nt-row"><i class="dot ${ok(r.buongiorno) ? 'paid' : 'soon'}"></i><div><b>Buongiorno di oggi</b><small>${ok(r.buongiorno) ? 'Inviato: così vedi come arriva ogni mattina' : 'Attiva Telegram o email nel Buongiorno'}</small></div></div>
+        ${r.riattivato ? '<p class="small pos-t" style="margin:8px 0 0">Il controllo giornaliero mancava: l\'ho riattivato.</p>' : ''}</div>`, () => closeSheet(), null, 'Ok');
+      renderNotifyCard(true);
+    } catch (e) { busy(); toast(/autorizz|permission|permess|MailApp|ScriptApp/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message); }
+  }
   function renderTg() {
     const box = $('#tg-set'); if (!box) return;
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
@@ -4361,6 +4411,7 @@
       if (e.target.closest('#tg-test')) { tgApi('test').then(() => toast('Messaggio inviato')).catch(() => {}); return; }
       if (e.target.closest('#tg-off')) { if (confirm('Disattivare il bot Telegram?')) tgApi('off').then(r => { db.tg = r; save(); renderTg(); toast('Bot disattivato'); }).catch(() => {}); return; }
       if (e.target.closest('#bk-now')) { bkApi('now'); return; }
+      if (e.target.closest('#nt-test')) { notifyTest(); return; }
       if (e.target.closest('#tg-weekly')) { tgApi('weekly').then(() => toast('Riepilogo inviato su Telegram')).catch(() => {}); return; }
       const pj = e.target.closest('[data-prj]');
       if (pj) { prjSel = prjSel === pj.dataset.prj ? '' : pj.dataset.prj; renderPrj(); if (prjSel && !isDesk()) setTimeout(() => { const d = $('.prj-det'); d && d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); return; }
