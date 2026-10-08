@@ -3603,6 +3603,10 @@
       <div class="list">${who.map(p => { const on = chats.some(c => (c.personaId || '') === (p.id || '')); return `<div class="item" style="cursor:default">${p.id ? avatar(p) : '<span class="av">?</span>'}<div class="main"><div class="t">${esc(p.nome)}</div><div class="s">${on ? 'Collegato' : 'Non collegato'}</div></div>
         ${on ? `<button class="btn sm ghost" data-tgunlink="${esc(p.id || '')}">Scollega</button>` : `<button class="btn sm primary" data-tglink="${esc(p.id || '')}">Collega</button>`}</div>`; }).join('')}</div>
       <div id="tg-code"></div>
+      <div class="tg-relay">${tg.istantaneo
+        ? `<p class="small" style="margin:0"><span class="chip paid">Istantaneo</span> Risposte immediate tramite il ponte Cloudflare. <button class="link-btn" id="tg-relay-off">Rimuovi</button></p>`
+        : `<p class="small" style="margin:0 0 8px"><span class="chip soon">Entro 1 minuto</span> Per risposte istantanee incolla l'indirizzo del tuo ponte Cloudflare:</p>
+           <div class="inline-add"><input id="tg-relay" placeholder="https://spese-casa-bot.tuonome.workers.dev" inputmode="url" autocapitalize="off"><button class="btn primary" id="tg-relay-go">Collega</button></div>`}</div>
       <div class="row-btns" style="margin-top:10px"><button class="btn sm" id="tg-test">Messaggio di prova</button><button class="btn sm ghost" id="tg-off">Disattiva bot</button></div>`;
   }
   async function tgApi(op, extra) {
@@ -4213,6 +4217,8 @@
       if (tl) { const p = personaById(tl.dataset.tglink); tgApi('code', { personaId: tl.dataset.tglink, nome: p ? p.nome : '' }).then(r => { const link = `https://t.me/${r.bot}?start=${r.code}`;
         $('#tg-code').innerHTML = `<div class="tg-code"><p class="small" style="margin:0 0 8px">Apri il link dal telefono di <b>${esc(p ? p.nome : 'chi vuoi collegare')}</b> e premi <b>Avvia</b>:</p><a class="btn primary block" href="${esc(link)}" target="_blank" rel="noopener">Apri @${esc(r.bot)} su Telegram</a><p class="muted small" style="margin:8px 0 0">Oppure scrivi al bot: <b>/collega ${esc(r.code)}</b> · valido 30 minuti</p><button class="btn sm ghost" id="tg-refresh" style="margin-top:6px">Ho fatto, aggiorna</button></div>`; }).catch(() => {}); return; }
       if (e.target.closest('#tg-refresh')) { pull(true); return; }
+      if (e.target.closest('#tg-relay-go')) { const r = $('#tg-relay').value.trim(); if (!r) return toast('Incolla l\'indirizzo del ponte'); tgApi('relay', { relay: r, url }).then(x => { db.tg = x; save(); renderTg(); toast('Bot istantaneo attivo'); }).catch(() => {}); return; }
+      if (e.target.closest('#tg-relay-off')) { tgApi('relay', { relay: '', url }).then(x => { db.tg = x; save(); renderTg(); }).catch(() => {}); return; }
       const tu = e.target.closest('[data-tgunlink]');
       if (tu) { tgApi('unlink', { personaId: tu.dataset.tgunlink }).then(r => { db.tg = r; save(); renderTg(); }).catch(() => {}); return; }
       if (e.target.closest('#tg-test')) { tgApi('test').then(() => toast('Messaggio inviato')).catch(() => {}); return; }
