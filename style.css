@@ -1385,3 +1385,12 @@ body[data-view="lista"] .fab { display: none; }
 .lock-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .lock-reset { margin-top: 18px; font-size: 13px; color: var(--muted); }
 body.is-locked #app, body.is-locked .sheet { visibility: hidden; }
+
+/* --- Modalità demo --- */
+.demo-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #fef3c7; color: #78350f; font-size: 13px; padding: 8px 14px; border-radius: 12px; margin: 0 0 12px; }
+.demo-bar b { font-weight: 700; }
+.demo-exit { color: #78350f; font-weight: 700; text-decoration: underline; flex: none; }
+@media (prefers-color-scheme: dark) { .demo-bar { background: #3a2f12; color: #fcd34d; } .demo-exit { color: #fcd34d; } }
+@media (max-width: 899px) { .demo-bar { margin: 10px 0 0; font-size: 12.5px; } }
+@media (min-width: 900px) { .demo-bar { margin: 18px 0 0; } }
+@media (max-width: 639px) { .db-x { display: none; } }

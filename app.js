@@ -3,9 +3,12 @@
   'use strict';
 
   /* ================= Storage ================= */
+  // ?demo nell'indirizzo = modalità demo, con uno spazio di memoria separato dai dati veri
+  const DEMO = /[?&]demo\b/.test(location.search);
+  const LK = k => (DEMO ? 'demo_' : '') + k;
   const LS = {
-    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+    get(k, d) { try { const v = localStorage.getItem(LK(k)); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(LK(k), JSON.stringify(v)); } catch {} }
   };
 
   const METODI = ['Carta', 'Bancomat', 'Contanti', 'Bonifico', 'Addebito in conto', 'Altro'];
@@ -25,7 +28,7 @@
   let syncing = false;
   let online = navigator.onLine;
 
-  const isLocal = () => url === 'local';
+  const isLocal = () => url === 'local' || url === 'demo';
   const save = () => { LS.set('sc_data', db); LS.set('sc_queue', queue); };
 
   /* ================= Utils ================= */
@@ -214,6 +217,7 @@
     if (queue.length) throw new Error('Salvataggio non riuscito, controlla la connessione');
   }
   async function api(action, extra) {
+    if (DEMO) throw new Error('Nella demo questa funzione non è disponibile');
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...extra }) });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || 'Errore');
@@ -267,6 +271,7 @@
     const el = $('#sync'); if (!el) return;
     el.className = 'sync';
     if (txt) { el.textContent = txt; return; }
+    if (DEMO) { el.textContent = 'Demo'; return; }
     if (isLocal()) { el.textContent = 'Solo dispositivo'; el.classList.add('offline'); return; }
     if (syncing) { el.textContent = 'Salvo…'; el.classList.add('pending'); return; }
     if (queue.length) { el.textContent = `${queue.length} da inviare`; el.classList.add('pending'); return; }
@@ -568,7 +573,8 @@
 
   /* ================= IMPOSTAZIONI ================= */
   function renderSettings() {
-    $('#conn-info').textContent = isLocal()
+    $('#btn-conn').hidden = DEMO;
+    $('#conn-info').textContent = DEMO ? 'Stai guardando la demo con dati di esempio. Le modifiche restano solo finché non chiudi o ricarichi la pagina.' : isLocal()
       ? 'Modalità solo dispositivo: i dati restano su questo browser e non sono condivisi.'
       : `Collegato al Foglio Google. ${db.spese.length} spese, ${db.bollette.length} bollette.`;
     $('#btn-sync').hidden = isLocal();
@@ -775,6 +781,7 @@
 
   function formNotify() {
     const n = { email: false, calendario: false, bollette: true, giorniPrima: 3, ora: 9, ...(db.config.notifiche || {}) };
+    if (DEMO) return toast('Nella demo le notifiche non sono attive');
     if (isLocal()) return toast('Le notifiche richiedono il collegamento al Foglio Google');
     const hours = Array.from({ length: 15 }, (_, i) => String(i + 7));
     openSheet('Notifiche', `
@@ -846,6 +853,7 @@
     });
   }
   async function uploadDoc(doc, cartella, name) {
+    if (DEMO) { const id = 'demo:' + uid(); const bin = atob(doc.b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); demoFiles[id] = { blob: new Blob([arr], { type: doc.mime }), name: name || doc.name, mime: doc.mime }; return id; }
     if (isLocal()) throw new Error('Gli allegati richiedono il collegamento al Foglio Google');
     const r = await api('upload', { b64: doc.b64, mime: doc.mime, name: name || doc.name, cartella });
     return r.id;
@@ -1431,6 +1439,7 @@
   }
 
   async function analyzeStatement(files) {
+    if (DEMO) return toast('Nella demo l\'analisi dell\'estratto conto non è disponibile');
     if (!aiReady()) return toast('Attiva prima l\'IA in Altro → Intelligenza artificiale');
     let doc;
     try { busy('Apro il file…'); doc = await readStatementFile(files); }
@@ -2593,7 +2602,7 @@
     mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
     spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>'
   };
-  const aiReady = () => !isLocal() && !!db.ai;
+  const aiReady = () => DEMO || (!isLocal() && !!db.ai);
 
   function busy(txt) {
     let el = $('#busy');
@@ -2604,6 +2613,7 @@
   }
 
   async function aiCall(task, extra) {
+    if (DEMO) return demoAI(task, extra || {});
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'ai', task, categorie: cats(), oggi: today(), ...extra }) });
     const j = await r.json();
@@ -2778,6 +2788,7 @@
 
   function renderAISettings() {
     const box = $('#ai-set');
+    if (DEMO) { box.innerHTML = '<p class="small" style="margin:0"><span class="chip paid">Attiva</span> Nella demo l\'IA risponde con esempi.</p>'; return; }
     if (isLocal()) { box.innerHTML = '<p class="muted small" style="margin:0">Disponibile solo con il collegamento al Foglio Google.</p>'; return; }
     box.innerHTML = db.ai
       ? `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati.</p>
@@ -2862,6 +2873,7 @@
   }
   async function renderLockSettings() {
     const box = $('#lock-set'); if (!box) return;
+    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
     const c = lockCfg();
     if (!c && !(await bioAvailable())) {
       box.innerHTML = '<p class="muted small" style="margin:0">Questo dispositivo non supporta lo sblocco con Face ID o impronta. Su iPhone apri l\'app dall\'icona nella schermata Home.</p>';
@@ -3080,13 +3092,14 @@
     closeSheet(); closeViewer(); toast('Documento eliminato');
   }
   async function newDoc() {
-    if (isLocal()) return toast('I documenti richiedono il collegamento al Foglio Google');
+    if (isLocal() && !DEMO) return toast('I documenti richiedono il collegamento al Foglio Google');
     let file; try { file = await pickDoc(); } catch (e) { if (e.message !== 'annullato') toast(e.message); return; }
     formDoc(null, file);
   }
 
   /* ---------- Visualizzatore (PDF e foto, con cache offline) ---------- */
   async function getDocFile(id) {
+    if (DEMO) { if (!demoFiles[id]) demoFiles[id] = { blob: await demoDocBlob(id), name: ((demoMeta[id] || {}).title || 'documento') + '.png', mime: 'image/png' }; return demoFiles[id]; }
     const key = new URL('__doc/' + encodeURIComponent(id), location.href).href;
     try { const c = await caches.open('sc-docs'); const hit = await c.match(key); if (hit) { const blob = await hit.blob(); return { blob, name: decodeURIComponent(hit.headers.get('x-name') || 'documento'), mime: blob.type }; } } catch {}
     const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
@@ -3330,6 +3343,170 @@
       const out = await doc.save();
       busy(); saveBlob(new Blob([out], { type: 'application/pdf' }), `730-${dtYear}-riepilogo${dtWho !== 'all' && personaById(dtWho) ? '-' + personaById(dtWho).nome.toLowerCase() : ''}.pdf`);
     } catch (e) { busy(); toast('Errore nel creare il PDF: ' + e.message); }
+  }
+
+
+  /* ================= MODALITÀ DEMO (dati di esempio, nulla viene salvato) ================= */
+  const demoFiles = {}, demoMeta = {};
+  function demoData() {
+    let seed = 11;
+    const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const pick = a => a[Math.floor(R() * a.length)];
+    const r2 = x => Math.round(x * 100) / 100;
+    const now = new Date(), T = ymd(now);
+    const D = (mAgo, day) => { const y = now.getFullYear(), m = now.getMonth() - mAgo; return ymd(new Date(y, m, Math.min(day, new Date(y, m + 1, 0).getDate()))); };
+    const nextOn = day => { const t = D(0, day); return t > T ? t : D(-1, day); };
+    const spese = [];
+    const add = o => { const s = { id: o.id || uid(), metodo: 'Carta', note: '', bollettaId: '', creato: o.data + 'T12:00:00', sito: '', ...o }; if (s.data <= T) spese.push(s); return s; };
+    const doc = (title, lines, total, extra) => { const id = 'demo:' + uid(); demoMeta[id] = { title, lines, total, ...(extra || {}) }; return id; };
+    const persone = [{ id: 'p1', nome: 'Marco', colore: '#17795a', attiva: true }, { id: 'p2', nome: 'Giulia', colore: '#c026d3', attiva: true }];
+    const STORES = [['Conad', 'conad.it'], ['Lidl', 'lidl.it'], ['Esselunga', 'esselunga.it'], ['Coop', 'e-coop.it'], ['Eurospin', 'eurospin.it']];
+    let km = 38200;
+    for (let m = 11; m >= 0; m--) {
+      for (let k = 0; k < 8; k++) {
+        const [n, site] = pick(STORES), imp = r2(18 + R() * 85), data = D(m, 1 + Math.floor(R() * 28));
+        add({ data, importo: imp, categoria: 'Spesa alimentare', descrizione: n, sito: site, metodo: pick(['Carta', 'Bancomat', 'Carta']),
+          allegato: m < 2 && k < 2 ? doc('Scontrino ' + n, [['Frutta e verdura', r2(imp * .3)], ['Latticini', r2(imp * .25)], ['Dispensa', r2(imp * .3)], ['Pulizia casa', r2(imp * .15)]], imp, { date: data }) : '' });
+      }
+      for (let k = 0; k < 2; k++) {
+        const l = r2(32 + R() * 10), p = r2(1.68 + R() * .12); km += 600 + Math.round(R() * 200);
+        add({ data: D(m, 6 + k * 14), importo: r2(l * p), categoria: 'Auto e trasporti', descrizione: pick(['Eni', 'Q8', 'Esso']), veicolo: 'v1', voceAuto: 'Carburante', litri: l, km });
+      }
+      add({ id: `rent-${m}`, data: D(m, 3), importo: 650, categoria: 'Affitto / Mutuo', descrizione: 'Affitto', metodo: 'Bonifico', bollettaId: 'affitto:' + D(m, 3).slice(0, 7) });
+      [['fx1', 'Netflix', 13.99, 15, 'Abbonamenti', 'netflix.com'], ['fx2', 'Spotify', 11.99, 2, 'Abbonamenti', 'spotify.com'], ['fx3', 'Rata auto Findomestic', 249, 20, 'Rate e finanziamenti', 'findomestic.it']]
+        .forEach(([id, nome, imp, day, cat, sito]) => add({ id: `fx-${id}-${D(m, day)}`, data: D(m, day), importo: imp, categoria: cat, descrizione: nome, metodo: 'Addebito in conto', note: 'Addebito automatico', bollettaId: 'fissa:' + id, sito }));
+      add({ data: D(m, 5), importo: 29.9, categoria: 'Abbonamenti', descrizione: 'Palestra McFit', bollettaId: 'fissa:fx4' });
+      add({ data: D(m, 12), importo: 29.9, categoria: 'Internet e telefono', descrizione: 'Fibra TIM', metodo: 'Addebito in conto', bollettaId: 'b4' });
+      if (m % 2 === 1) {
+        add({ data: D(m, 16), importo: r2(70 + R() * 50 + (m > 5 ? 0 : 25)), categoria: 'Luce', descrizione: 'Luce Enel', metodo: 'Addebito in conto', bollettaId: 'b1' });
+        add({ data: D(m, 22), importo: r2(40 + R() * (m >= 3 && m <= 7 ? 30 : 110)), categoria: 'Gas', descrizione: 'Gas Plenitude', metodo: 'Addebito in conto', bollettaId: 'b2' });
+      }
+      if (m % 3 === 2) add({ data: D(m, 18), importo: r2(55 + R() * 20), categoria: 'Acqua', descrizione: 'Acqua Acea', metodo: 'Bonifico', bollettaId: 'b3' });
+      // extra variabili
+      if (R() < .8) add({ data: D(m, 1 + Math.floor(R() * 28)), importo: r2(15 + R() * 70), categoria: 'Altro', descrizione: 'Amazon', sito: 'amazon.it' });
+      if (R() < .5) add({ data: D(m, 1 + Math.floor(R() * 28)), importo: r2(25 + R() * 45), categoria: 'Altro', descrizione: pick(['Pizzeria Da Mario', 'Ristorante Il Borgo', 'Sushi Zen']), metodo: pick(['Carta', 'Contanti']) });
+      if (R() < .35) add({ data: D(m, 1 + Math.floor(R() * 28)), importo: r2(20 + R() * 120), categoria: 'Manutenzione', descrizione: pick(['Leroy Merlin', 'Bricocenter', 'Tecnomat']) });
+      if (R() < .25) add({ data: D(m, 1 + Math.floor(R() * 28)), importo: r2(30 + R() * 150), categoria: 'Arredamento', descrizione: pick(['Ikea', 'Jysk']) });
+      if (R() < .6) {
+        const who = pick(['p1', 'p2']), imp = r2(12 + R() * 40), data = D(m, 1 + Math.floor(R() * 28));
+        add({ data, importo: imp, categoria: 'Salute', descrizione: 'Farmacia Comunale', metodo: 'Bancomat', detrazione: 'sanitarie', personaId: who, allegato: R() < .6 ? doc('Scontrino parlante farmacia', [['Farmaci (codice fiscale indicato)', imp]], imp, { date: data }) : '' });
+      }
+    }
+    // spese detraibili più grandi
+    const dent = D(5, 9); add({ data: dent, importo: 180, categoria: 'Salute', descrizione: 'Studio dentistico Bianchi', detrazione: 'sanitarie', personaId: 'p2', allegato: doc('Fattura studio dentistico', [['Igiene dentale', 80], ['Visita di controllo', 100]], 180, { date: dent }) });
+    add({ data: D(7, 14), importo: 95, categoria: 'Salute', descrizione: 'Visita oculistica', detrazione: 'sanitarie', personaId: 'p1', metodo: 'Carta' });
+    add({ data: D(4, 21), importo: 140, categoria: 'Animali', descrizione: 'Clinica veterinaria', detrazione: 'veterinarie', personaId: 'p1' });
+    add({ data: D(3, 11), importo: 42.5, categoria: 'Salute', descrizione: 'Ottica Visione', metodo: 'Carta' });
+    // bollette
+    const bollette = [
+      { id: 'b1', nome: 'Luce Enel', categoria: 'Luce', importo: 96.4, frequenza: 'bimestrale', scadenza: nextOn(16), attiva: true, note: 'POD IT001E00000000' },
+      { id: 'b2', nome: 'Gas Plenitude', categoria: 'Gas', importo: 74.2, frequenza: 'bimestrale', scadenza: nextOn(22), attiva: true, note: 'PDR 00000000000000' },
+      { id: 'b3', nome: 'Acqua Acea', categoria: 'Acqua', importo: 61.8, frequenza: 'trimestrale', scadenza: D(-1, 18), attiva: true, note: '' },
+      { id: 'b4', nome: 'Fibra TIM', categoria: 'Internet e telefono', importo: 29.9, frequenza: 'mensile', scadenza: nextOn(12), attiva: true, note: '' },
+      { id: 'b5', nome: 'TARI Comune', categoria: 'Tasse e tributi', importo: 214, frequenza: 'annuale', scadenza: D(-2, 16), attiva: true, note: '' }];
+    const lastLuce = spese.filter(s => s.bollettaId === 'b1').sort((a, b) => b.data.localeCompare(a.data));
+    const voci = tot => JSON.stringify([{ descrizione: 'Spesa per la materia energia', importo: r2(tot * .58) }, { descrizione: 'Spesa per il trasporto e la gestione del contatore', importo: r2(tot * .2) }, { descrizione: 'Spesa per oneri di sistema', importo: r2(tot * .07) }, { descrizione: 'Imposte', importo: r2(tot * .05) }, { descrizione: 'IVA', importo: r2(tot * .1) }]);
+    const fatture = lastLuce.slice(0, 3).map((s, i) => ({ id: 'ft' + i, bollettaId: 'b1', numero: 'E' + (48210 - i * 7), emissione: addMonths(s.data, 0).slice(0, 8) + '01', periodoDa: addMonths(s.data, -3).slice(0, 8) + '01', periodoA: ymd(new Date(parseD(addMonths(s.data, -1)).getFullYear(), parseD(addMonths(s.data, -1)).getMonth() + 1, 0)), consumo: Math.round(s.importo * 3.9), unita: 'kWh', importo: s.importo, scadenza: s.data, voci: voci(s.importo), spesaId: s.id, note: '', allegato: i < 2 ? doc('Bolletta Luce n. E' + (48210 - i * 7), JSON.parse(voci(s.importo)).map(v => [v.descrizione, v.importo]), s.importo, { date: s.data }) : '' }));
+    // spese fisse
+    const fisse = [
+      { id: 'fx1', nome: 'Netflix', tipo: 'Abbonamento', categoria: 'Abbonamenti', importo: 13.99, frequenza: 'mensile', prossima: nextOn(15), fine: '', rate: '', metodo: 'Carta', sito: 'netflix.com', auto: true, notifica: true, attiva: true, note: '' },
+      { id: 'fx2', nome: 'Spotify', tipo: 'Abbonamento', categoria: 'Abbonamenti', importo: 11.99, frequenza: 'mensile', prossima: nextOn(2), fine: '', rate: '', metodo: 'Carta', sito: 'spotify.com', auto: true, notifica: true, attiva: true, note: '' },
+      { id: 'fx3', nome: 'Rata auto Findomestic', tipo: 'Rata', categoria: 'Rate e finanziamenti', importo: 249, frequenza: 'mensile', prossima: nextOn(20), fine: '', rate: 48, metodo: 'Addebito in conto', sito: 'findomestic.it', auto: true, notifica: true, attiva: true, note: '' },
+      { id: 'fx4', nome: 'Palestra McFit', tipo: 'Abbonamento', categoria: 'Abbonamenti', importo: 29.9, frequenza: 'mensile', prossima: nextOn(5), fine: '', rate: '', metodo: 'Carta', sito: 'mcfit.com', auto: false, notifica: true, attiva: true, note: '' },
+      { id: 'fx5', nome: 'Assicurazione casa Unipol', tipo: 'Assicurazione', categoria: 'Assicurazioni', importo: 186, frequenza: 'annuale', prossima: D(-2, 1), fine: '', rate: '', metodo: 'Bonifico', sito: 'unipol.it', auto: false, notifica: true, attiva: true, note: '' }];
+    // auto
+    const veicoli = [{ id: 'v1', nome: 'Fiat Panda', targa: 'AB123CD', alimentazione: 'Benzina', anno: 2020, kmIniziali: 38000, scadAssicurazione: D(-1, 8), impAssicurazione: 420, scadBollo: D(-3, 30), impBollo: 172, scadRevisione: D(-6, 15), scadTagliando: D(-4, 10), kmTagliando: km + 3000, note: '', attiva: true }];
+    add({ data: D(5, 17), importo: 240, categoria: 'Auto e trasporti', descrizione: 'Officina Rossi', veicolo: 'v1', voceAuto: 'Tagliando', km: km - 4000 });
+    // entrate
+    const entrate = [];
+    for (let m = 11; m >= 0; m--) {
+      [['r1', 'p1', 1780, 27, 'Stipendio Marco'], ['r2', 'p2', 1390, 1, 'Stipendio Giulia']].forEach(([rid, pid, imp, day, desc]) => {
+        const data = D(m, day); if (data > T) return;
+        entrate.push({ id: `in-${rid}-${data}`, data, importo: imp, personaId: pid, tipo: 'Stipendio', descrizione: desc, note: 'Accredito automatico', ricorrenteId: rid, creato: data,
+          allegato: m < 3 && pid === 'p1' ? doc('Busta paga ' + monthName(data.slice(0, 7)), [['Retribuzione lorda', 2480], ['Contributi INPS', -228], ['IRPEF netta', -472]], imp, { date: data, payslip: true }) : '' });
+      });
+    }
+    entrate.push({ id: 'in-x1', data: D(5, 15), importo: 1650, personaId: 'p1', tipo: 'Tredicesima', descrizione: 'Quattordicesima', note: '', ricorrenteId: '', creato: '' });
+    entrate.push({ id: 'in-x2', data: D(2, 20), importo: 320, personaId: 'p2', tipo: 'Rimborso', descrizione: 'Rimborso 730', note: '', ricorrenteId: '', creato: '' });
+    const entrateFisse = [{ id: 'r1', personaId: 'p1', tipo: 'Stipendio', descrizione: 'Stipendio Marco', importo: 1780, giorno: 27, prossima: nextOn(27), attiva: true },
+      { id: 'r2', personaId: 'p2', tipo: 'Stipendio', descrizione: 'Stipendio Giulia', importo: 1390, giorno: 1, prossima: nextOn(1), attiva: true }];
+    const obiettivi = [
+      { id: 'g1', nome: 'Vacanza in Grecia', icona: 'Vacanza', target: 2500, versato: 1650, scadenza: D(-8, 1), storico: '[]', attivo: true, creato: '' },
+      { id: 'g2', nome: 'Fondo emergenze', icona: 'Emergenze', target: 5000, versato: 2100, scadenza: '', storico: '[]', attivo: true, creato: '' },
+      { id: 'g3', nome: 'Divano nuovo', icona: 'Casa', target: 1200, versato: 900, scadenza: D(-3, 1), storico: '[]', attivo: true, creato: '' }];
+    const lista = [['Latte', '2', 'Latticini e uova'], ['Pane', '', 'Pane e forno'], ['Pomodori', '1 kg', 'Frutta e verdura'], ['Pasta', '3', 'Dispensa'], ['Detersivo lavatrice', '', 'Casa e pulizia'], ['Yogurt', '4', 'Latticini e uova'], ['Banane', '', 'Frutta e verdura']]
+      .map(([nome, qta, reparto], i) => ({ id: 'l' + i, nome, qta, reparto, fatto: false, creato: String(i), fattoIl: '' }))
+      .concat([{ id: 'l8', nome: 'Caffè', qta: '', reparto: 'Dispensa', fatto: true, creato: '8', fattoIl: T }, { id: 'l9', nome: 'Carta igienica', qta: '', reparto: 'Casa e pulizia', fatto: true, creato: '9', fattoIl: T }]);
+    const documenti = [
+      { id: 'd1', nome: 'Garanzia lavatrice', tipo: 'Garanzie', data: D(14, 10), scadenza: D(-10, 10), fileId: doc('Garanzia lavatrice', [['Lavatrice 9 kg classe A', 549], ['Garanzia legale', 0]], 549, { date: D(14, 10) }), mime: 'image/png', note: 'Unieuro · 2 anni', creato: '' },
+      { id: 'd2', nome: 'Contratto di affitto', tipo: 'Contratti', data: D(11, 1), scadenza: D(-37, 1), fileId: doc('Contratto di locazione 4+4', [['Canone mensile', 650], ['Deposito cauzionale', 1300]], 0, { date: D(11, 1) }), mime: 'image/png', note: '', creato: '' },
+      { id: 'd3', nome: 'Polizza casa Unipol', tipo: 'Casa', data: D(10, 1), scadenza: D(-2, 1), fileId: doc('Polizza abitazione', [['Incendio e furto', 120], ['Responsabilità civile', 66]], 186, { date: D(10, 1) }), mime: 'image/png', note: '', creato: '' }];
+    const cats = [...new Set([...DEFAULT_CATS, 'Abbonamenti', 'Rate e finanziamenti'])];
+    const config = {
+      affitto: { attivo: true, canone: 650, giorno: 3, proprietario: 'Paolo Verdi', iban: 'IT00 X000 0000 0000 0000 0000 000', metodo: 'Bonifico', inizio: D(11, 1).slice(0, 7), causale: 'Affitto {mese}', note: '' },
+      budget: { limite: 1700, email: false, escludiAffitto: true },
+      budgetCat: { limiti: { 'Spesa alimentare': 520, 'Auto e trasporti': 200, 'Abbonamenti': 60 }, email: false }
+    };
+    return { spese, bollette, fatture, fisse, veicoli, estratti: [], persone, entrate, entrateFisse, obiettivi, lista, documenti, categorie: cats, config, ai: true };
+  }
+
+  // documento di esempio disegnato al volo (immagine)
+  function demoDocBlob(id) {
+    const m = demoMeta[id] || { title: 'Documento', lines: [], total: 0 };
+    const c = document.createElement('canvas'); c.width = 820; c.height = 1100;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#e8f3ee'; g.fillRect(0, 0, c.width, 120);
+    g.fillStyle = '#17795a'; g.font = '700 34px Inter, Arial, sans-serif'; g.fillText(m.title, 50, 75);
+    g.fillStyle = '#666'; g.font = '20px Inter, Arial, sans-serif'; g.fillText('Data: ' + (m.date ? parseD(m.date).toLocaleDateString('it-IT') : ''), 50, 175);
+    g.strokeStyle = '#ddd'; g.beginPath(); g.moveTo(50, 205); g.lineTo(770, 205); g.stroke();
+    let y = 260; g.font = '22px Inter, Arial, sans-serif';
+    (m.lines || []).forEach(([t, v]) => { g.fillStyle = '#222'; g.fillText(t, 50, y); if (v) { const s = fmtNum(v, 2) + ' €'; g.fillText(s, 770 - g.measureText(s).width, y); } y += 46; });
+    if (m.total) { g.beginPath(); g.moveTo(50, y - 16); g.lineTo(770, y - 16); g.stroke(); g.font = '700 28px Inter, Arial, sans-serif'; g.fillStyle = '#111'; const label = m.payslip ? 'NETTO IN BUSTA' : 'TOTALE'; g.fillText(label, 50, y + 30); const s = fmtNum(m.total, 2) + ' €'; g.fillText(s, 770 - g.measureText(s).width, y + 30); }
+    g.save(); g.translate(410, 760); g.rotate(-0.42); g.fillStyle = 'rgba(23,121,90,.10)'; g.font = '800 70px Inter, Arial, sans-serif'; const w = 'DOCUMENTO DI ESEMPIO'; g.fillText(w, -g.measureText(w).width / 2, 0); g.restore();
+    g.fillStyle = '#999'; g.font = '18px Inter, Arial, sans-serif'; g.fillText('Spese Casa · modalità demo', 50, 1060);
+    return new Promise(res => c.toBlob(b => res(b), 'image/png'));
+  }
+
+  // risposte di esempio dell'IA
+  async function demoAI(task, extra) {
+    await sleep(900 + Math.random() * 500);
+    const T = today(), y = ymd(new Date(Date.now() - 864e5));
+    if (task === 'receipt') return { valido: true, negozio: 'Conad', importo: 47.85, data: T, categoria: 'Spesa alimentare', metodo: 'Bancomat', sito: 'conad.it', note: 'latte, pane, pasta, frutta, detersivo', litri: 0, prezzoLitro: 0, detrazione: '', acquistati: (extra.lista || []).slice(0, 4) };
+    if (task === 'text') {
+      const parts = String(extra.testo || '').split(/\s+e\s+|;|,(?!\d)/i).map(x => x.trim()).filter(x => /\d/.test(x));
+      return { spese: parts.map(p => {
+        const n = num((p.match(/\d+(?:[.,]\d+)?/) || ['0'])[0]);
+        const words = p.replace(/\d+(?:[.,]\d+)?/g, '').replace(/\b(euro|€|ieri|oggi|in|con|di|ho|speso|pagato|contanti|carta|bancomat|al|alla|dal)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+        const desc = words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Spesa';
+        const mm = findMerchant(desc);
+        return { importo: n, descrizione: desc, data: /ieri/i.test(extra.testo) ? y : T, categoria: mm && db.categorie.includes(mm.cat) ? mm.cat : (/benzin|diesel|gasolio/i.test(p) ? 'Auto e trasporti' : /farmac/i.test(p) ? 'Salute' : 'Altro'), metodo: /contant/i.test(p) ? 'Contanti' : 'Carta', sito: '' };
+      }) };
+    }
+    if (task === 'bill') return { valido: true, nome: 'Luce Enel', importo: 104.3, scadenza: addMonths(T, 0).slice(0, 8) + '28', numero: 'E48231', emissione: T, periodoDa: addMonths(T, -2).slice(0, 8) + '01', periodoA: ymd(new Date(new Date().getFullYear(), new Date().getMonth(), 0)), consumo: 412, unita: 'kWh', voci: [{ descrizione: 'Spesa per la materia energia', importo: 60.5 }, { descrizione: 'Spesa per il trasporto e la gestione del contatore', importo: 20.9 }, { descrizione: 'Spesa per oneri di sistema', importo: 7.3 }, { descrizione: 'Imposte', importo: 5.1 }, { descrizione: 'IVA', importo: 10.5 }], frequenza: 'bimestrale', categoria: 'Luce', note: 'POD IT001E00000000' };
+    if (task === 'payslip') { const pm = ymOf(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)); return { valido: true, netto: 1812.6, lordo: 2520, mese: pm, data: pm + '-27', tipo: 'Stipendio', datore: 'Azienda Esempio', note: 'Straordinari 6h' }; }
+    if (task === 'detraz') return { voci: (extra.spese || []).map(s => ({ i: s.i, tipo: DT_RE.test(s.n + ' ' + (s.note || '')) || s.c === 'Salute' ? 'sanitarie' : 'no' })) };
+    if (task === 'insights') {
+      const pm = (extra.dati && extra.dati.perMese) || [], cur = pm[pm.length - 1] || {}, prev = pm[pm.length - 2] || {};
+      const c = cur.perCategoria || {}, p = prev.perCategoria || {};
+      const al = c['Spesa alimentare'] || 0, alp = p['Spesa alimentare'] || 0;
+      return { sintesi: (cur.totale || 0) > (prev.totale || 0) ? 'Mese più caro del precedente: tieni d\'occhio le spese variabili.' : 'Mese sotto controllo, in linea con i precedenti.', punti: [
+        { tipo: al > alp ? 'attenzione' : 'positivo', testo: `Spesa alimentare a ${eur0(al)} contro ${eur0(alp)} del mese scorso.` },
+        { tipo: 'info', testo: `Gli abbonamenti costano circa ${eur0((c['Abbonamenti'] || 56))} al mese: valuta se li usi tutti.` },
+        { tipo: 'positivo', testo: 'Le bollette sono in linea con la media degli ultimi 6 mesi.' },
+        { tipo: 'info', testo: 'Consiglio: fai la spesa grossa una volta a settimana con la lista, riduci gli acquisti d\'impulso.' }] };
+    }
+    throw new Error('Nella demo questa funzione non è disponibile');
+  }
+
+  function demoStart() {
+    url = 'demo'; queue = [];
+    db = demoData(); save();
+    document.body.classList.add('is-demo');
+    const bar = document.createElement('div');
+    bar.className = 'demo-bar';
+    bar.innerHTML = `<span><b>Demo</b> · dati di esempio<span class="db-x">, le modifiche non vengono salvate</span></span><a href="${esc(location.pathname)}" class="demo-exit">Esci</a>`;
+    $('main').prepend(bar);
   }
 
   /* ================= Sheet (form) ================= */
@@ -3763,6 +3940,7 @@
       }
       $('#setup-go').textContent = 'Collega';
     };
+    $('#setup-demo').onclick = () => { location.href = location.pathname + '?demo'; };
     $('#setup-local').onclick = () => {
       url = 'local'; LS.set('sc_url', url); queue = [];
       if (!db.categorie.length) db.categorie = DEFAULT_CATS.slice();
@@ -3772,7 +3950,8 @@
 
   /* ================= Init ================= */
   bind(); setupBind(); lockBind(); viewerBind();
-  if (url && lockCfg()) { showLock(); setTimeout(() => { if (locked) unlock(); }, 450); }
+  if (DEMO) demoStart();
+  if (url && lockCfg() && !DEMO) { showLock(); setTimeout(() => { if (locked) unlock(); }, 450); }
   if (url) startApp(); else showSetup();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
