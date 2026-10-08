@@ -19,7 +19,7 @@
   let url = LS.get('sc_url', '');
   let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
   if (!db.estratti) db.estratti = [];
-  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni'].forEach(k => { if (!db[k]) db[k] = []; });
+  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni', 'progetti', 'faccende'].forEach(k => { if (!db[k]) db[k] = []; });
   if (!db.fisse) db.fisse = [];
   if (!db.veicoli) db.veicoli = [];
   if (!db.config) db.config = {};
@@ -180,7 +180,7 @@
   }
 
   /* ================= Data layer ================= */
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni' };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni', Progetti: 'progetti', Faccende: 'faccende' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -250,7 +250,7 @@
       const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
+      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], progetti: j.data.progetti || [], faccende: j.data.faccende || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
@@ -297,16 +297,16 @@
   }
 
   /* ================= Router ================= */
-  const TITLES = { home: 'Home', spese: 'Spese', entrate: 'Entrate', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', lista: 'Lista della spesa', documenti: 'Documenti', detrazioni: 'Riepilogo 730', manutenzioni: 'Manutenzioni', anno: 'Il tuo anno', impostazioni: 'Impostazioni' };
-  const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', lista: 'Condivisa con la famiglia', documenti: 'Tutti i tuoi file', detrazioni: 'Spese detraibili e rimborso stimato', manutenzioni: 'Caldaia, filtri e controlli periodici', anno: 'Il riepilogo in numeri', impostazioni: 'Collegamento, IA e categorie' };
+  const TITLES = { home: 'Home', spese: 'Spese', entrate: 'Entrate', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', lista: 'Lista della spesa', documenti: 'Documenti', detrazioni: 'Riepilogo 730', manutenzioni: 'Manutenzioni', anno: 'Il tuo anno', progetti: 'Progetti', faccende: 'Cose da fare', impostazioni: 'Impostazioni' };
+  const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', lista: 'Condivisa con la famiglia', documenti: 'Tutti i tuoi file', detrazioni: 'Spese detraibili e rimborso stimato', manutenzioni: 'Caldaia, filtri e controlli periodici', anno: 'Il riepilogo in numeri', progetti: 'Viaggi, lavori ed eventi con budget', faccende: 'Lavori e commissioni di casa', impostazioni: 'Collegamento, IA e categorie' };
   function route() {
     view = (location.hash || '#home').slice(1);
     if (!TITLES[view]) view = 'home';
     document.body.dataset.view = view;
     $$('.view').forEach(v => (v.hidden = v.id !== 'v-' + view));
-    $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto', 'lista', 'documenti', 'detrazioni', 'manutenzioni', 'anno'].includes(view) && !isDesk())));
+    $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto', 'lista', 'documenti', 'detrazioni', 'manutenzioni', 'anno', 'progetti', 'faccende'].includes(view) && !isDesk())));
     $('#title').textContent = TITLES[view];
-    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : view === 'entrate' ? 'Nuova entrata' : view === 'documenti' ? 'Carica documento' : view === 'manutenzioni' ? 'Nuova manutenzione' : view === 'lista' ? 'Aggiungi prodotto' : 'Nuova spesa';
+    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : view === 'entrate' ? 'Nuova entrata' : view === 'documenti' ? 'Carica documento' : view === 'manutenzioni' ? 'Nuova manutenzione' : view === 'progetti' ? 'Nuovo progetto' : view === 'faccende' ? 'Aggiungi' : view === 'lista' ? 'Aggiungi prodotto' : 'Nuova spesa';
     const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     animate = true;
@@ -333,6 +333,8 @@
     if (view === 'detrazioni') renderDetr();
     if (view === 'manutenzioni') renderMnt();
     if (view === 'anno') renderAnno();
+    if (view === 'progetti') renderPrj();
+    if (view === 'faccende') renderFc();
     setSync();
   }
 
@@ -413,14 +415,15 @@
     const fxs = fisseActive().filter(f => f.prossima && daysTo(f.prossima) <= 30).map(f => ({ kind: 'fx', due: f.prossima, importo: f.importo, f }));
     const aus = autoScadenze().filter(x => daysTo(x.date) <= 30).map(x => ({ kind: 'auto', due: x.date, importo: x.importo, x }));
     const mns = mntActive().filter(m => m.prossima && daysTo(m.prossima) <= 30).map(m => ({ kind: 'mnt', due: m.prossima, importo: Number(m.costo) || 0, m }));
-    const all = [...ab, ...rents, ...fxs, ...aus, ...mns].sort((a, b) => a.due.localeCompare(b.due));
+    const fcs = fcOpen().filter(x => x.scadenza && daysTo(x.scadenza) <= 7).map(x => ({ kind: 'fc', due: x.scadenza, importo: 0, f: x }));
+    const all = [...ab, ...rents, ...fxs, ...aus, ...mns, ...fcs].sort((a, b) => a.due.localeCompare(b.due));
     const due30 = all.filter(x => daysTo(x.due) <= 30);
     const late = all.filter(x => daysTo(x.due) < 0);
     countTo($('#h-bills'), sum(due30));
     $('#h-bills-sub').innerHTML = late.length
       ? `<span class="chip late">${late.length} scadut${late.length === 1 ? 'o' : 'i'}</span> · ${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`
       : `${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`;
-    $('#h-due').innerHTML = all.slice(0, 6).map(x => x.kind === 'rent' ? rentDueItem(x.r) : x.kind === 'fx' ? fxItem(x.f, true) : x.kind === 'auto' ? autoDueItem(x.x) : x.kind === 'mnt' ? mntDueItem(x.m) : dueItem(x.b)).join('') || `<div class="empty">Nessuna scadenza. <a class="link" href="#bollette">Aggiungi una bolletta</a></div>`;
+    $('#h-due').innerHTML = all.slice(0, 6).map(x => x.kind === 'rent' ? rentDueItem(x.r) : x.kind === 'fx' ? fxItem(x.f, true) : x.kind === 'auto' ? autoDueItem(x.x) : x.kind === 'mnt' ? mntDueItem(x.m) : x.kind === 'fc' ? fcDueItem(x.f) : dueItem(x.b)).join('') || `<div class="empty">Nessuna scadenza. <a class="link" href="#bollette">Aggiungi una bolletta</a></div>`;
 
     // affitto del mese
     const rc = rentCfg();
@@ -593,6 +596,7 @@
     renderAISettings();
     renderLockSettings();
     renderTg();
+    renderNotifyCard();
     renderBackup();
     renderShortcuts();
     $('#shop-list').innerHTML = customShops().map((n, i) => `<div class="item shop">
@@ -799,7 +803,17 @@
     if (DEMO) return toast('Nella demo le notifiche non sono attive');
     if (isLocal()) return toast('Le notifiche richiedono il collegamento al Foglio Google');
     const hours = Array.from({ length: 15 }, (_, i) => String(i + 7));
+    const mt = { attivo: false, ora: 7, minuti: 30, telegram: true, email: false, ...(n.mattino || {}) };
     openSheet('Notifiche', `
+      <div class="nt-mattino">
+        <label class="sw"><input type="checkbox" name="m_attivo" ${mt.attivo ? 'checked' : ''}><span class="sw-ui"></span>
+          <span class="sw-t"><b>☀️ Buongiorno con l'IA</b><small>Ogni mattina un resoconto: spese di ieri, andamento del mese, cosa scade oggi e nei prossimi giorni, cose da fare e un consiglio.</small></span></label>
+        <div class="f-row">
+          <label class="f"><span>Orario</span><input type="time" name="m_ora" value="${pad(Number(mt.ora) || 0)}:${pad(Number(mt.minuti) || 0)}"></label>
+          <div class="f"><span class="f-l">Dove</span><div class="who-pick">${db.tg && db.tg.attivo ? `<label class="wp"><input type="checkbox" name="m_tg" ${mt.telegram !== false ? 'checked' : ''}><span>Telegram</span></label>` : ''}<label class="wp"><input type="checkbox" name="m_email" ${mt.email || !(db.tg && db.tg.attivo) ? 'checked' : ''}><span>Email</span></label></div></div>
+        </div>
+        <p class="muted small" style="margin:-4px 0 4px">Google lo invia entro qualche minuto dall'orario scelto.</p>
+      </div>
       <label class="sw"><input type="checkbox" name="calendario" ${n.calendario ? 'checked' : ''}><span class="sw-ui"></span>
         <span class="sw-t"><b>Calendario Google</b><small>Crea eventi ricorrenti con promemoria per affitto e spese fisse: arrivano come notifica sul telefono.</small></span></label>
       <label class="sw"><input type="checkbox" name="email" ${n.email ? 'checked' : ''}><span class="sw-ui"></span>
@@ -813,15 +827,20 @@
       <label class="sw"><input type="checkbox" name="manutenzioni" ${n.manutenzioni !== false ? 'checked' : ''}><span class="sw-ui"></span>
         <span class="sw-t"><b>Includi le manutenzioni</b><small>Caldaia, filtri e controlli periodici di casa.</small></span></label>
       ${db.tg && db.tg.attivo ? `<label class="sw"><input type="checkbox" name="telegram" ${n.telegram !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Telegram</b><small>Promemoria e avvisi anche sul bot Telegram.</small></span></label>` : ''}
+        <span class="sw-t"><b>Telegram</b><small>Promemoria e avvisi anche sul bot Telegram.</small></span></label>
+      <label class="sw"><input type="checkbox" name="settimanale" ${n.settimanale !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Riepilogo della settimana</b><small>Ogni domenica sera su Telegram: speso, budget, pagamenti dei prossimi 7 giorni e cose da fare.</small></span></label>` : ''}
       <div class="f-row" style="margin-top:6px">
         <label class="f"><span>Avvisami</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
         <label class="f"><span>Orario</span><select name="ora">${hours.map(hh => `<option value="${hh}"${String(n.ora) === hh ? ' selected' : ''}>${hh}:00</option>`).join('')}</select></label>
       </div>
       <p class="muted small" style="margin:0 0 8px">Le email arrivano all'indirizzo Gmail del tuo account Google.</p>`,
       async fd => {
-        const v = { calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', telegram: db.tg && db.tg.attivo ? fd.get('telegram') === 'on' : true, giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
+        const [mh, mm] = String(fd.get('m_ora') || '07:30').split(':').map(Number);
+        const mattino = { attivo: fd.get('m_attivo') === 'on', ora: mh || 0, minuti: mm || 0, telegram: fd.get('m_tg') === 'on', email: fd.get('m_email') === 'on' };
+        const v = { mattino, calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', telegram: db.tg && db.tg.attivo ? fd.get('telegram') === 'on' : true, settimanale: db.tg && db.tg.attivo ? fd.get('settimanale') === 'on' : true, giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
         if (v.calendario && !rentCfg() && !fisseActive().length && !vehActive().length) return toast('Aggiungi prima l\'affitto o una spesa fissa');
+        if (mattino.attivo && !mattino.telegram && !mattino.email) return toast('Scegli dove ricevere il buongiorno');
         setConfig('notifiche', v);
         setConfig('appUrl', location.href.split('#')[0]);
         closeSheet(); busy('Attivo le notifiche…');
@@ -829,7 +848,8 @@
           await syncNow();
           const r = await api('reminders');
           busy();
-          toast(r.calendario || r.email ? 'Notifiche attivate' + (r.indirizzo ? ' · ' + r.indirizzo : '') : 'Notifiche disattivate');
+          ntStatus = null;
+          toast(r.calendario || r.email || r.telegram || r.mattino ? 'Notifiche attivate' + (r.indirizzo ? ' · ' + r.indirizzo : '') : 'Notifiche disattivate');
         } catch (e) {
           busy();
           toast(/autorizz|permission|permess/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message);
@@ -3586,6 +3606,41 @@
   }
 
   /* ================= TELEGRAM, BACKUP, SCORCIATOIE (Impostazioni) ================= */
+  let ntStatus = null, ntLoading = false;
+  async function renderNotifyCard(force) {
+    const box = $('#nt-set'); if (!box) return;
+    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Nella demo le notifiche non sono attive.' : 'Le notifiche richiedono il collegamento al Foglio Google.'}</p>`; return; }
+    const st = ntStatus;
+    const row = (on, t, sub) => `<div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${t}</b><small>${sub}</small></div></div>`;
+    box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Promemoria di affitto, bollette, spese fisse, auto, manutenzioni e cose da fare, più il buongiorno del mattino.</p>
+      ${st ? `<div class="nt-status">
+        ${row(st.mattino, 'Buongiorno con l\'IA', st.mattino ? `ogni mattina alle ${pad(st.mattinoOra || 0)}:${pad(st.mattinoMin || 0)}` : 'non attivo')}
+        ${row(st.controllo, 'Controllo scadenze', st.controllo ? `ogni giorno alle ${st.ora}:00` : 'non attivo: premi Configura e Salva')}
+        ${row(st.telegram, 'Telegram', st.telegram ? `@${esc(st.bot)} · ${st.chats} collegat${st.chats === 1 ? 'o' : 'i'}` : 'non collegato (Altro → Telegram)')}
+        ${row(st.emailOn, 'Email', st.emailOn ? esc(st.email) : 'disattivata')}
+      </div>` : `<p class="muted small">${ntLoading ? 'Controllo lo stato…' : ''}</p>`}
+      <div class="row-btns"><button class="btn" data-rent="notify">Configura</button><button class="btn primary" id="nt-test">Invia notifica di prova</button></div>`;
+    if ((!st || force) && !ntLoading) {
+      ntLoading = true;
+      try { ntStatus = await api('notify', { op: 'status' }); } catch (e) { ntStatus = null; }
+      ntLoading = false;
+      if (view === 'impostazioni') renderNotifyCard();
+    }
+  }
+  async function notifyTest() {
+    busy('Invio le notifiche di prova…');
+    try {
+      await syncNow();
+      const r = await api('notify', { op: 'test' }); busy();
+      const ok = v => v === 'ok';
+      openSheet('Notifica di prova', `<div class="nt-status">
+        <div class="nt-row"><i class="dot ${ok(r.telegram) ? 'paid' : 'late'}"></i><div><b>Telegram</b><small>${ok(r.telegram) ? 'Inviata: controlla il bot' : esc(r.telegram)}</small></div></div>
+        <div class="nt-row"><i class="dot ${ok(r.email) ? 'paid' : 'late'}"></i><div><b>Email</b><small>${ok(r.email) ? 'Inviata a ' + esc(r.email_indirizzo) + ' (guarda anche in Spam)' : esc(r.email)}</small></div></div>
+        <div class="nt-row"><i class="dot ${ok(r.buongiorno) ? 'paid' : 'soon'}"></i><div><b>Buongiorno di oggi</b><small>${ok(r.buongiorno) ? 'Inviato: così vedi come arriva ogni mattina' : 'Attiva Telegram o email nel Buongiorno'}</small></div></div>
+        ${r.riattivato ? '<p class="small pos-t" style="margin:8px 0 0">Il controllo giornaliero mancava: l\'ho riattivato.</p>' : ''}</div>`, () => closeSheet(), null, 'Ok');
+      renderNotifyCard(true);
+    } catch (e) { busy(); toast(/autorizz|permission|permess|MailApp|ScriptApp/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message); }
+  }
   function renderTg() {
     const box = $('#tg-set'); if (!box) return;
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
@@ -3607,7 +3662,8 @@
         ? `<p class="small" style="margin:0"><span class="chip paid">Istantaneo</span> Risposte immediate tramite il ponte Cloudflare. <button class="link-btn" id="tg-relay-off">Rimuovi</button></p>`
         : `<p class="small" style="margin:0 0 8px"><span class="chip soon">Entro 1 minuto</span> Per risposte istantanee incolla l'indirizzo del tuo ponte Cloudflare:</p>
            <div class="inline-add"><input id="tg-relay" placeholder="https://spese-casa-bot.tuonome.workers.dev" inputmode="url" autocapitalize="off"><button class="btn primary" id="tg-relay-go">Collega</button></div>`}</div>
-      <div class="row-btns" style="margin-top:10px"><button class="btn sm" id="tg-test">Messaggio di prova</button><button class="btn sm ghost" id="tg-off">Disattiva bot</button></div>`;
+      <p class="muted small" style="margin:12px 0 0">Al bot puoi anche fare domande (<i>“quanto ho speso da Conad quest'anno?”</i>), scrivere <i>“da fare chiamare idraulico”</i> e usare <i>#progetto</i> nelle spese. Ogni domenica sera ricevi il riepilogo della settimana.</p>
+      <div class="row-btns" style="margin-top:10px"><button class="btn sm" id="tg-weekly">Invia riepilogo ora</button><button class="btn sm" id="tg-test">Messaggio di prova</button><button class="btn sm ghost" id="tg-off">Disattiva bot</button></div>`;
   }
   async function tgApi(op, extra) {
     busy(op === 'setup' ? 'Collego il bot…' : 'Un attimo…');
@@ -3666,6 +3722,119 @@
     if (add === 'documento') { location.hash = '#documenti'; return; }
     formSpesa();
     if (add === 'foto') { const b = $('#sheet-body [data-ai=receipt]'); if (b) { b.classList.add('pulse'); toast('Tocca “Foto scontrino”'); } }
+  }
+
+
+  /* ================= PROGETTI ED EVENTI ================= */
+  const PRJ_ICO = {
+    viaggio: '<path d="M2 16l20-8-4 12-6-4-4 4v-6"/>', casa: '<path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5"/>', regalo: '<path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-2-4-6-3-5 0M12 7c2-4 6-3 5 0"/>',
+    festa: '<path d="M4 20l5-14 9 9zM14 4l1 2M19 9l2 1M17 3l-1 3M21 5l-3 1"/>', auto: '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/>', altro: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>'
+  };
+  const prjIco = k => `<svg viewBox="0 0 24 24">${PRJ_ICO[k] || PRJ_ICO.altro}</svg>`;
+  const prjActive = () => db.progetti.filter(p => p.attivo === '' || p.attivo == null || isOn(p.attivo));
+  const prjSpese = p => db.spese.filter(s => s.progetto === p.id);
+  let prjSel = '';
+  function renderPrj() {
+    const all = db.progetti.slice().sort((a, b) => (isOn(b.attivo) || b.attivo === '') - (isOn(a.attivo) || a.attivo === '') || String(b.creato || '').localeCompare(String(a.creato || '')));
+    if (!all.length) {
+      $('#prj-body').innerHTML = `<div class="card empty-state"><div class="es-ic">${prjIco('viaggio')}</div><h3>Raggruppa le spese di un evento</h3>
+        <p class="muted small">Vacanze, lavori in casa, regali di Natale, una festa: dai un budget al progetto e collega le spese. Vedi subito quanto hai speso e quanto resta.</p>
+        <button class="btn primary" data-prjact="new">Crea progetto</button></div>`;
+      return;
+    }
+    if (prjSel && !db.progetti.some(p => p.id === prjSel)) prjSel = '';
+    const cur = prjSel ? db.progetti.find(p => p.id === prjSel) : null;
+    const card = p => {
+      const L = prjSpese(p), sp = sum(L), bud = Number(p.budget) || 0, pct = bud ? Math.round(sp / bud * 100) : 0;
+      const cls = bud && sp > bud ? 'late' : pct >= 80 ? 'soon' : 'ok';
+      const on = p.attivo === '' || p.attivo == null || isOn(p.attivo);
+      return `<button type="button" class="prj${p.id === prjSel ? ' sel' : ''}${on ? '' : ' off'}" data-prj="${esc(p.id)}">
+        <div class="prj-h"><span class="ic prj-ic">${prjIco(p.icona)}</span><div class="prj-t"><b>${esc(p.nome)}</b><small>${L.length} spes${L.length === 1 ? 'a' : 'e'}${p.fine ? ' · fino al ' + esc(shortDate(p.fine)) : ''}${on ? '' : ' · concluso'}</small></div></div>
+        <div class="prj-v"><b>${eur(sp)}</b>${bud ? `<span class="muted">di ${eur0(bud)}</span>` : ''}</div>
+        ${bud ? `<div class="mnt-bar"><i class="${cls === 'ok' ? '' : cls}" style="width:${Math.min(100, pct)}%"></i></div><small class="${sp > bud ? 'neg-t' : 'muted'}">${sp > bud ? 'Oltre di ' + eur0(sp - bud) : 'Restano ' + eur0(bud - sp)}</small>` : ''}</button>`;
+    };
+    let detail = '';
+    if (cur) {
+      const L = prjSpese(cur).sort((a, b) => b.data.localeCompare(a.data)), byC = {};
+      L.forEach(s => (byC[s.categoria] = (byC[s.categoria] || 0) + (Number(s.importo) || 0)));
+      const cats2 = Object.entries(byC).sort((a, b) => b[1] - a[1]), mx = cats2[0] ? cats2[0][1] : 1;
+      detail = `<div class="card prj-det">
+        <div class="card-h"><h3>${esc(cur.nome)}</h3><div class="row-btns nowrap"><button class="btn sm" data-prjact="edit">Modifica</button><button class="btn sm primary" data-prjact="add">+ Spesa</button></div></div>
+        ${cur.note ? `<p class="muted small" style="margin:0 0 10px">${esc(cur.note)}</p>` : ''}
+        ${cats2.length ? `<div class="bars" style="margin-bottom:14px">${cats2.map(([c, v]) => `<div class="bar-row"><div class="bar-top"><span>${esc(c)}</span><span>${eur(v)}</span></div><div class="bar-track"><div class="bar-fill" style="width:${(v / mx * 100).toFixed(1)}%"></div></div></div>`).join('')}</div>` : ''}
+        <div class="list">${L.map(speseItem).join('') || '<div class="empty">Nessuna spesa collegata. Premi “+ Spesa” oppure scegli il progetto quando registri una spesa (dal bot: <b>#' + esc(String(cur.nome).split(/\s+/)[0].toLowerCase()) + ' 50 cena</b>).</div>'}</div></div>`;
+    }
+    $('#prj-body').innerHTML = `<div class="prj-grid">${all.map(card).join('')}<button type="button" class="prj prj-new" data-prjact="new"><span>+</span>Nuovo progetto</button></div>${detail}`;
+  }
+  function formPrj(p) {
+    const isNew = !p;
+    p = p || { id: uid(), nome: '', icona: 'viaggio', budget: '', inizio: today(), fine: '', attivo: true, note: '', creato: new Date().toISOString() };
+    const on = p.attivo === '' || p.attivo == null || isOn(p.attivo);
+    openSheet(isNew ? 'Nuovo progetto' : 'Modifica progetto', `
+      <label class="f"><span>Nome</span><input name="nome" value="${esc(p.nome)}" placeholder="Es. Vacanza Grecia, Bagno nuovo, Natale" required data-focus></label>
+      <div class="tipi">${Object.keys(PRJ_ICO).map(k => `<label class="tp"><input type="radio" name="icona" value="${k}" ${k === (p.icona || 'altro') ? 'checked' : ''}><span>${prjIco(k)}${{ viaggio: 'Viaggio', casa: 'Casa', regalo: 'Regali', festa: 'Festa', auto: 'Auto', altro: 'Altro' }[k]}</span></label>`).join('')}</div>
+      <div class="f-row">
+        <label class="f"><span>Budget (€)</span><input name="budget" inputmode="decimal" placeholder="Facoltativo" value="${esc(fmtAmt(p.budget))}"></label>
+        <label class="f"><span>Fino al</span><input name="fine" type="date" value="${esc(p.fine || '')}"></label>
+      </div>
+      <label class="f"><span>Note</span><textarea name="note" rows="2">${esc(p.note || '')}</textarea></label>
+      ${isNew ? '' : `<label class="sw"><input type="checkbox" name="attivo" ${on ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>In corso</b><small>Se lo concludi non compare più nella scelta quando registri una spesa.</small></span></label>`}`,
+      fd => {
+        const nome = String(fd.get('nome') || '').trim(); if (!nome) return toast('Inserisci il nome');
+        const row = { ...p, nome, icona: fd.get('icona') || 'altro', budget: num(fd.get('budget')) || '', fine: fd.get('fine') || '', note: String(fd.get('note') || '').trim(), attivo: isNew ? true : fd.get('attivo') === 'on' };
+        write([{ action: 'upsert', sheet: 'Progetti', row }]); prjSel = row.id; closeSheet(); toast(isNew ? 'Progetto creato' : 'Salvato');
+      }, isNew ? null : () => {
+        if (!confirm('Eliminare il progetto? Le spese restano, ma non saranno più collegate.')) return;
+        write([{ action: 'delete', sheet: 'Progetti', id: p.id }, ...prjSpese(p).map(s => ({ action: 'upsert', sheet: 'Spese', row: { ...s, progetto: '' } }))]);
+        prjSel = ''; closeSheet(); toast('Progetto eliminato');
+      });
+  }
+
+  /* ================= COSE DA FARE (faccende di casa) ================= */
+  const fcOpen = () => db.faccende.filter(f => !isOn(f.fatto));
+  let fcWho = 'all';
+  function fcGroup(f) {
+    if (!f.scadenza) return 'Senza data';
+    const d = daysTo(f.scadenza);
+    return d < 0 ? 'In ritardo' : d === 0 ? 'Oggi' : d <= 7 ? 'Questa settimana' : 'Più avanti';
+  }
+  function renderFc() {
+    const pp = personeAttive();
+    $('#fc-who').innerHTML = pp.length > 1 ? `<button class="veh-tab${fcWho === 'all' ? ' on' : ''}" data-fcwho="all">Tutti</button>` + pp.map(p => `<button class="veh-tab${fcWho === p.id ? ' on' : ''}" data-fcwho="${esc(p.id)}">${avatar(p, 'xs')}<span>${esc(p.nome)}</span></button>`).join('') : '';
+    const open = fcOpen().filter(f => fcWho === 'all' || f.personaId === fcWho || !f.personaId);
+    const order = ['In ritardo', 'Oggi', 'Questa settimana', 'Più avanti', 'Senza data'], g = {};
+    open.forEach(f => (g[fcGroup(f)] = g[fcGroup(f)] || []).push(f));
+    const row = f => { const p = personaById(f.personaId); return `<div class="ls-it fc-it${isOn(f.fatto) ? ' done' : ''}" data-lsid="${esc(f.id)}">
+      <button type="button" class="ls-ck" data-fctog="${esc(f.id)}" aria-label="Fatto"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+      <span class="ls-n" data-fc="${esc(f.id)}">${esc(f.titolo)}<small>${[p ? p.nome : '', f.scadenza ? shortDate(f.scadenza) : '', f.note].filter(Boolean).map(esc).join(' · ')}</small></span>
+      ${p ? avatar(p, 'xs') : ''}</div>`; };
+    $('#fc-list').innerHTML = open.length ? order.filter(k => g[k]).map(k => `<div class="ls-g"><div class="ls-gh ${k === 'In ritardo' ? 'neg-t' : ''}">${k}<span>${g[k].length}</span></div>${g[k].sort((a, b) => String(a.scadenza || '').localeCompare(String(b.scadenza || ''))).map(row).join('')}</div>`).join('')
+      : `<div class="ls-empty"><div class="es-ic"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><b>Tutto fatto!</b><span class="muted small">Aggiungi qui sopra le cose da fare in casa e assegnale a qualcuno.</span></div>`;
+    const done = db.faccende.filter(f => isOn(f.fatto)).sort((a, b) => String(b.fattoIl).localeCompare(String(a.fattoIl))).slice(0, 15);
+    $('#fc-done').innerHTML = done.length ? `<div class="ls-dh"><span>Fatte di recente</span><button type="button" class="link-btn" data-fcclear="1">Svuota</button></div>${done.map(row).join('')}` : '';
+    $('#fc-pp').innerHTML = pp.length ? `<label class="wp"><input type="radio" name="fc-p" value="" checked><span>Nessuno</span></label>` + pp.map(p => `<label class="wp"><input type="radio" name="fc-p" value="${esc(p.id)}"><span>${avatar(p, 'xxs')}${esc(p.nome)}</span></label>`).join('') : '';
+  }
+  function fcAdd() {
+    const t = $('#fc-in').value.trim(); if (!t) return;
+    const pid = ($('[name="fc-p"]:checked') || {}).value || '';
+    write([{ action: 'upsert', sheet: 'Faccende', row: { id: uid(), titolo: t.charAt(0).toUpperCase() + t.slice(1), personaId: pid, scadenza: $('#fc-date').value || '', fatto: false, fattoIl: '', note: '', creato: new Date().toISOString() } }]);
+    $('#fc-in').value = ''; $('#fc-date').value = ''; $('#fc-in').focus();
+  }
+  function formFc(f) {
+    const pp = personeAttive();
+    openSheet('Cosa da fare', `
+      <label class="f"><span>Cosa</span><input name="titolo" value="${esc(f.titolo)}" required data-focus></label>
+      ${pp.length ? `<div class="f"><span class="f-l">Chi se ne occupa</span><div class="who-pick"><label class="wp"><input type="radio" name="personaId" value="" ${!f.personaId ? 'checked' : ''}><span>Nessuno</span></label>${pp.map(p => `<label class="wp"><input type="radio" name="personaId" value="${esc(p.id)}" ${p.id === f.personaId ? 'checked' : ''}><span>${avatar(p, 'xxs')}${esc(p.nome)}</span></label>`).join('')}</div></div>` : ''}
+      <label class="f"><span>Entro il</span><input name="scadenza" type="date" value="${esc(f.scadenza || '')}"></label>
+      <label class="f"><span>Note</span><textarea name="note" rows="2">${esc(f.note || '')}</textarea></label>`,
+      fd => { write([{ action: 'upsert', sheet: 'Faccende', row: { ...f, titolo: String(fd.get('titolo') || '').trim() || f.titolo, personaId: fd.get('personaId') || '', scadenza: fd.get('scadenza') || '', note: String(fd.get('note') || '').trim() } }]); closeSheet(); toast('Salvato'); },
+      () => { write([{ action: 'delete', sheet: 'Faccende', id: f.id }]); closeSheet(); toast('Eliminata'); });
+  }
+  function fcDueItem(f) {
+    const p = personaById(f.personaId), d = daysTo(f.scadenza);
+    return `<div class="item" data-fcgo="1"><div class="ic mnt-ic"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+      <div class="main"><div class="t">${esc(f.titolo)}</div><div class="s"><span class="chip ${d < 0 ? 'late' : d <= 1 ? 'soon' : ''}">${d < 0 ? 'In ritardo' : d === 0 ? 'Oggi' : d === 1 ? 'Domani' : esc(shortDate(f.scadenza))}</span>${p ? ' ' + esc(p.nome) : ''}</div></div>
+      <div class="right"><button class="btn sm" data-fctog="${esc(f.id)}">Fatto</button></div></div>`;
   }
 
   /* ================= MODALITÀ DEMO (dati di esempio, nulla viene salvato) ================= */
@@ -3782,7 +3951,22 @@
       mnt('mn3', 'Estintore (revisione)', 'shield', 6, D(2, 10), 25),
       mnt('mn4', 'Pulizia lavatrice', 'drop', 3, D(3, 12), 0),
       mnt('mn5', 'Pulizia grondaie', 'home', 12, D(7, 3), 120)];
-    return { spese, bollette, fatture, fisse, veicoli, estratti: [], persone, entrate, entrateFisse, obiettivi, lista, documenti, manutenzioni, categorie: cats, config, ai: true, tg: {}, backup: {} };
+    const progetti = [
+      { id: 'pj1', nome: 'Vacanza Grecia', icona: 'viaggio', budget: 2500, inizio: D(2, 1), fine: D(-8, 30), attivo: true, note: 'Volo, hotel a Naxos e auto a noleggio', creato: D(2, 1) },
+      { id: 'pj2', nome: 'Bagno nuovo', icona: 'casa', budget: 6000, inizio: D(5, 1), fine: '', attivo: true, note: '', creato: D(5, 1) },
+      { id: 'pj3', nome: 'Regali di Natale', icona: 'regalo', budget: 400, inizio: D(10, 1), fine: D(9, 25), attivo: false, note: '', creato: D(10, 1) }];
+    [['pj1', D(1, 12), 389.6, 'Altro', 'Volo Aegean'], ['pj1', D(1, 20), 640, 'Altro', 'Booking Naxos'], ['pj1', D(0, 2), 120, 'Auto e trasporti', 'Noleggio auto'],
+     ['pj2', D(4, 8), 1250, 'Manutenzione', 'Idraulico Rossi'], ['pj2', D(4, 15), 980, 'Arredamento', 'Mobile bagno'], ['pj2', D(3, 3), 1640, 'Manutenzione', 'Piastrellista'], ['pj2', D(2, 18), 420, 'Manutenzione', 'Leroy Merlin'],
+     ['pj3', D(10, 10), 89.9, 'Altro', 'Amazon'], ['pj3', D(10, 15), 145, 'Altro', 'Zara Home'], ['pj3', D(10, 20), 120, 'Altro', 'Libreria Feltrinelli']]
+      .forEach(([pj, data, importo, categoria, descrizione]) => add({ data, importo, categoria, descrizione, progetto: pj }));
+    const faccende = [
+      { id: 'fc1', titolo: 'Chiamare idraulico per il lavandino', personaId: 'p1', scadenza: ymd(new Date(Date.now() + 864e5)), fatto: false, fattoIl: '', note: '', creato: T },
+      { id: 'fc2', titolo: 'Cambiare lampadina in cucina', personaId: 'p2', scadenza: T, fatto: false, fattoIl: '', note: '', creato: T },
+      { id: 'fc3', titolo: 'Portare il cappotto in lavanderia', personaId: 'p2', scadenza: ymd(new Date(Date.now() + 4 * 864e5)), fatto: false, fattoIl: '', note: '', creato: T },
+      { id: 'fc4', titolo: 'Riparare la tapparella in camera', personaId: 'p1', scadenza: '', fatto: false, fattoIl: '', note: '', creato: T },
+      { id: 'fc5', titolo: 'Prenotare revisione auto', personaId: 'p1', scadenza: ymd(new Date(Date.now() - 2 * 864e5)), fatto: false, fattoIl: '', note: '', creato: T },
+      { id: 'fc6', titolo: 'Pagare bollettino TARI', personaId: 'p2', scadenza: '', fatto: true, fattoIl: T, note: '', creato: T }];
+    return { spese, bollette, fatture, fisse, veicoli, estratti: [], persone, entrate, entrateFisse, obiettivi, lista, documenti, manutenzioni, progetti, faccende, categorie: cats, config, ai: true, tg: {}, backup: {} };
   }
 
   // documento di esempio disegnato al volo (immagine)
@@ -3885,6 +4069,7 @@
     if (pre) s = { ...s, ...pre };
     const pp = personeAttive();
     const whoSel = !isNew ? (s.personaId || '') : s.personaId ? s.personaId : (pp.some(p => p.id === LS.get('sc_lastwho', '')) ? LS.get('sc_lastwho', '') : '');
+    const prjOpts = db.progetti.filter(p => p.id === s.progetto || p.attivo === '' || p.attivo == null || isOn(p.attivo));
     const lsItems = (s._lista || []).map(id => db.lista.find(x => x.id === id)).filter(x => x && !isOn(x.fatto));
     openSheet(isNew ? 'Nuova spesa' : 'Modifica spesa', `
       ${isNew && !pre && aiReady() ? `<div class="ai-row">
@@ -3902,6 +4087,7 @@
         <label class="f"><span>Detrazione 730</span><select name="detrazione"><option value="">Nessuna</option>${Object.keys(DETR).map(k => `<option value="${k}" ${s.detrazione === k ? 'selected' : ''}>${esc(DETR[k].nome)}</option>`).join('')}</select></label>
       </div>
       ${pp.length > 1 ? `<div class="f" id="sp-who"><span class="f-l">Pagata da</span><div class="who-pick"><label class="wp"><input type="radio" name="personaId" value="" ${!whoSel ? 'checked' : ''}><span>Conto comune</span></label>${pp.map(p => `<label class="wp"><input type="radio" name="personaId" value="${esc(p.id)}" ${p.id === whoSel ? 'checked' : ''}><span>${avatar(p, 'xxs')}${esc(p.nome)}</span></label>`).join('')}</div></div>` : ''}
+      ${prjOpts.length ? `<label class="f"><span>Progetto</span><select name="progetto"><option value="">Nessuno</option>${prjOpts.map(p => `<option value="${esc(p.id)}" ${p.id === s.progetto ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>` : ''}
       ${lsItems.length ? `<div class="ai-note ls-note"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Spunterò dalla lista: ${esc(lsItems.map(x => x.nome).join(', '))}</span></div>` : ''}
       <div id="att-box" class="att-wrap"></div>
       <label class="f"><span>Note</span><textarea name="note" rows="2">${esc(s.note)}</textarea></label>`,
@@ -3914,6 +4100,7 @@
         const row = { ...s, importo, descrizione: desc, categoria: fd.get('categoria'), data, metodo: fd.get('metodo'), note: fd.get('note').trim(), creato: s.creato || new Date().toISOString(), allegato, detrazione: detr,
           personaId: fd.get('personaId') || (DETR[detr] ? (s.personaId || (pp[0] || {}).id || '') : '') };
         if (pp.length > 1) LS.set('sc_lastwho', fd.get('personaId') || '');
+        row.progetto = fd.has('progetto') ? (fd.get('progetto') || '') : (s.progetto || '');
         Object.keys(row).forEach(k => { if (k.startsWith('_')) delete row[k]; });
         row.sito = row.descrizione === (s.descrizione || '') ? (s.sito || '') : '';
         LS.set('sc_lastcat', row.categoria); LS.set('sc_lastmet', row.metodo);
@@ -4027,7 +4214,7 @@
     ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
     let lastTouch = 0;
     document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 300 && !e.target.closest('input,select,textarea')) e.preventDefault(); lastTouch = n; }, { passive: false });
-    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : view === 'entrate' ? (db.persone.length ? formEntrata() : formPersona()) : view === 'documenti' ? newDoc() : view === 'manutenzioni' ? formMnt() : view === 'lista' ? $('#ls-in').focus() : formSpesa());
+    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : view === 'entrate' ? (db.persone.length ? formEntrata() : formPersona()) : view === 'documenti' ? newDoc() : view === 'manutenzioni' ? formMnt() : view === 'progetti' ? formPrj() : view === 'faccende' ? $('#fc-in').focus() : view === 'lista' ? $('#ls-in').focus() : formSpesa());
     $('#add-bill').onclick = () => formBill();
     $('#st-file').addEventListener('change', e => { const fl = [...e.target.files]; e.target.value = ''; if (fl.length) analyzeStatement(fl); });
     const dz = $('#st-drop');
@@ -4224,6 +4411,20 @@
       if (e.target.closest('#tg-test')) { tgApi('test').then(() => toast('Messaggio inviato')).catch(() => {}); return; }
       if (e.target.closest('#tg-off')) { if (confirm('Disattivare il bot Telegram?')) tgApi('off').then(r => { db.tg = r; save(); renderTg(); toast('Bot disattivato'); }).catch(() => {}); return; }
       if (e.target.closest('#bk-now')) { bkApi('now'); return; }
+      if (e.target.closest('#nt-test')) { notifyTest(); return; }
+      if (e.target.closest('#tg-weekly')) { tgApi('weekly').then(() => toast('Riepilogo inviato su Telegram')).catch(() => {}); return; }
+      const pj = e.target.closest('[data-prj]');
+      if (pj) { prjSel = prjSel === pj.dataset.prj ? '' : pj.dataset.prj; renderPrj(); if (prjSel && !isDesk()) setTimeout(() => { const d = $('.prj-det'); d && d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); return; }
+      const pa = e.target.closest('[data-prjact]');
+      if (pa) { const a = pa.dataset.prjact, cur = db.progetti.find(x => x.id === prjSel); if (a === 'new') formPrj(); if (a === 'edit' && cur) formPrj(cur); if (a === 'add' && cur) formSpesa(null, { progetto: cur.id, categoria: cats().includes('Altro') ? 'Altro' : cats()[0] }); return; }
+      const fw = e.target.closest('[data-fcwho]');
+      if (fw) { fcWho = fw.dataset.fcwho; renderFc(); return; }
+      const ft2 = e.target.closest('[data-fctog]');
+      if (ft2) { e.stopPropagation(); const x = db.faccende.find(y => y.id === ft2.dataset.fctog); if (x) { const on = !isOn(x.fatto); const el = ft2.closest('.ls-it'); const go = () => { write([{ action: 'upsert', sheet: 'Faccende', row: { ...x, fatto: on, fattoIl: on ? today() : '' } }]); if (on) toast('Fatto ✓'); }; if (el && !reduced()) { el.classList.add(on ? 'checking' : 'unchecking'); setTimeout(go, 260); } else go(); } return; }
+      const fe = e.target.closest('[data-fc]');
+      if (fe) { const x = db.faccende.find(y => y.id === fe.dataset.fc); if (x) formFc(x); return; }
+      if (e.target.closest('[data-fcclear]')) { const d = db.faccende.filter(x => isOn(x.fatto)); if (d.length && confirm(`Eliminare le ${d.length} cose già fatte?`)) write(d.map(x => ({ action: 'delete', sheet: 'Faccende', id: x.id }))); return; }
+      if (e.target.closest('[data-fcgo]')) { location.hash = '#faccende'; return; }
       if (e.target.closest('#bk-json')) { backupJSON(); return; }
       const cl = e.target.closest('[data-copylink]');
       if (cl) { (navigator.clipboard ? navigator.clipboard.writeText(cl.dataset.copylink) : Promise.reject()).then(() => toast('Link copiato')).catch(() => prompt('Copia il link:', cl.dataset.copylink)); return; }
@@ -4234,6 +4435,7 @@
       const ds = e.target.closest('[data-dtset]');
       if (ds && ds.value) { const sp = db.spese.find(x => x.id === ds.dataset.dtset); if (sp) { write([{ action: 'upsert', sheet: 'Spese', row: { ...sp, detrazione: ds.value, personaId: sp.personaId || (dtWho !== 'all' ? dtWho : (personeAttive()[0] || {}).id || '') } }]); toast(ds.value === 'no' ? 'Segnata come non detraibile' : 'Aggiunta al riepilogo 730'); } }
     });
+    $('#fc-form').addEventListener('submit', e => { e.preventDefault(); fcAdd(); });
     $('#ls-form').addEventListener('submit', e => { e.preventDefault(); const i = $('#ls-in'); lsAdd(i.value); i.value = ''; i.focus(); });
     $('#doc-q').addEventListener('input', e => { docF.q = e.target.value; renderDocs(); });
     $('#doc-year').addEventListener('change', e => { docF.year = e.target.value; renderDocs(); });
@@ -4301,7 +4503,7 @@
         if (!j.ok) throw new Error(j.error);
         if (url !== v) { queue = []; }
         url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
+        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], progetti: j.data.progetti || [], faccende: j.data.faccende || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');

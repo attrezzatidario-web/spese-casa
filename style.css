@@ -1404,7 +1404,7 @@ body.is-locked #app, body.is-locked .sheet { visibility: hidden; }
 .f-l { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 500; }
 .who-pick { display: flex; gap: 6px; flex-wrap: wrap; }
 .wp input { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; min-height: 0; }
-.wp span { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 11px; font-size: 14px; font-weight: 600; color: var(--ink-2); background: var(--surface); cursor: pointer; transition: all .15s var(--out); }
+.wp > span { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 11px; font-size: 14px; font-weight: 600; color: var(--ink-2); background: var(--surface); cursor: pointer; transition: all .15s var(--out); }
 .wp .av.xxs { width: 20px; height: 20px; font-size: 9px; }
 .wp input:checked + span { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .who-card { margin-bottom: 10px; }
@@ -1481,3 +1481,49 @@ body.is-locked #app, body.is-locked .sheet { visibility: hidden; }
 .sc-link .s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }
 .ai-btn.pulse { animation: pulse 1s 3; }
 .tg-relay { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* =========================================================
+   v24 — Progetti, Cose da fare
+   ========================================================= */
+@media (min-width: 900px) { .nav { overflow-y: auto; } }
+.fc-add { display: grid; grid-template-columns: minmax(0, 1fr) 150px 48px; gap: 8px; }
+.fc-add input { height: 48px; min-height: 48px; }
+#fc-in { font-size: 16px; }
+@media (max-width: 639px) { .fc-add { grid-template-columns: minmax(0, 1fr) 48px; } #fc-date { grid-column: 1 / -1; grid-row: 2; } }
+.fc-pp { margin-top: 10px; }
+.fc-pp:empty { display: none; }
+.fc-pp .wp > span { height: 34px; font-size: 13px; padding: 0 12px; }
+.fc-it .ls-n { display: grid; cursor: pointer; }
+.fc-it .ls-n small { font-size: 12px; color: var(--muted); font-weight: 500; }
+.ls-gh.neg-t { color: #dc2626; }
+.prj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 12px; }
+@media (min-width: 900px) { .prj-grid { gap: 16px; margin-bottom: 16px; } }
+.prj { display: grid; gap: 8px; text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1.5px solid transparent; border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); cursor: pointer; transition: border-color .15s, transform .15s var(--out); }
+.prj:hover { border-color: var(--line); }
+.prj.sel { border-color: var(--accent); }
+.prj.off { opacity: .65; }
+.prj-h { display: flex; gap: 12px; align-items: center; }
+.prj-ic { width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); flex: none; }
+.prj-ic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.prj-t { display: grid; min-width: 0; }
+.prj-t b { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prj-t small { color: var(--muted); font-size: 12.5px; }
+.prj-v { display: flex; align-items: baseline; gap: 6px; }
+.prj-v b { font-size: 20px; font-weight: 700; }
+.prj-v span { font-size: 13px; }
+.prj .mnt-bar { max-width: none; margin: 0; height: 6px; }
+.prj > small { font-size: 12px; }
+.prj-new { place-items: center; align-content: center; min-height: 120px; border: 1.5px dashed var(--line); box-shadow: none; background: transparent; color: var(--accent); font-weight: 600; }
+.prj-new span { font-size: 26px; line-height: 1; }
+/* v25 notifiche */
+.nt-mattino { background: var(--accent-soft); border-radius: 14px; padding: 12px 14px 6px; margin-bottom: 8px; }
+.nt-mattino .sw { border-top: 0; padding-top: 0; }
+.nt-mattino input[type=time] { height: 42px; min-height: 42px; }
+.nt-mattino .wp > span { height: 42px; }
+.nt-status { display: grid; gap: 10px; margin: 4px 0 14px; }
+.nt-row { display: flex; gap: 10px; align-items: flex-start; }
+.nt-row .dot { margin-top: 6px; flex: none; }
+.nt-row div { display: grid; }
+.nt-row b { font-size: 14px; font-weight: 600; }
+.nt-row small { font-size: 12.5px; color: var(--muted); }
+.nt-row .dot { width: 9px; height: 9px; }
