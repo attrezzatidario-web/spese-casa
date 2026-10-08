@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -41,6 +41,7 @@
       <button id="setup-go" class="btn primary block">Collega</button>
       <p id="setup-err" class="err" hidden></p>
       <button id="setup-local" class="btn ghost block">Usa solo su questo dispositivo</button>
+      <button id="setup-demo" class="btn ghost block">Guarda la demo</button>
     </div>
   </section>
 
@@ -54,6 +55,13 @@
       <a href="#auto" data-view="auto"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/></svg><span>Auto</span><i id="badge-auto" class="badge" hidden></i></a>
       <a href="#estratto" data-view="estratto" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg><span>Estratto conto</span></a>
       <a href="#affitto" data-view="affitto" class="nav-desk"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg><span>Affitto</span><i id="badge-rent" class="badge" hidden></i></a>
+      <a href="#lista" data-view="lista" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.5L21 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg><span>Lista spesa</span></a>
+      <a href="#documenti" data-view="documenti" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Documenti</span></a>
+      <a href="#detrazioni" data-view="detrazioni" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 15l6-6"/><circle cx="9.5" cy="9.5" r=".9"/><circle cx="14.5" cy="14.5" r=".9"/></svg><span>Riepilogo 730</span></a>
+      <a href="#faccende" data-view="faccende" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Cose da fare</span></a>
+      <a href="#progetti" data-view="progetti" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v6M9 13h6"/></svg><span>Progetti</span></a>
+      <a href="#manutenzioni" data-view="manutenzioni" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg><span>Manutenzioni</span></a>
+      <a href="#anno" data-view="anno" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Il tuo anno</span></a>
       <a href="#bollette" data-view="bollette"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Bollette</span><i id="badge" class="badge" hidden></i></a>
       <a href="#impostazioni" data-view="impostazioni"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Altro</span><i id="badge-more" class="badge only-mob-b" hidden></i></a>
       <div class="nav-foot"><span id="sync-side" class="sync"></span></div>
@@ -114,6 +122,10 @@
             </div>
           </div>
           <div class="col-side">
+            <div class="card c-avv" id="h-avv" hidden>
+              <div class="card-h"><h3 class="ai-title"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6v4l-2 3h16l-2-3V9a6 6 0 0 0-6-6zM10 19a2 2 0 0 0 4 0"/></svg>Avvisi <i id="h-avv-n" class="avv-n"></i></h3></div>
+              <div id="h-avv-body"></div>
+            </div>
             <div class="card c-fc" id="h-fc" hidden>
               <div class="card-h"><h3>Previsione fine mese</h3><a href="#entrate" class="link">Entrate</a></div>
               <div id="fc-body"></div>
@@ -127,7 +139,7 @@
               <div id="h-ai-body"></div>
             </div>
             <div class="card c-cat">
-              <div class="card-h"><h3>Per categoria</h3></div>
+              <div class="card-h"><h3>Per categoria</h3><button class="btn sm" id="h-catbud">Budget</button></div>
               <div id="h-cat" class="bars"></div>
             </div>
           </div>
@@ -141,6 +153,7 @@
           <select id="f-month"></select>
           <select id="f-cat"><option value="">Tutte le categorie</option></select>
         </div>
+        <div id="sp-who-card" hidden></div>
         <div class="sum-row"><span id="f-count" class="muted"></span><strong id="f-total"></strong></div>
         <div id="spese-list"></div>
       </section>
@@ -166,12 +179,22 @@
           </div>
           <div class="auto-grid">
             <div class="col-main">
-              <div class="card"><div class="card-h"><h3>Entrate e spese</h3><span class="muted small">ultimi 12 mesi</span></div><div id="in-chart"></div></div>
+              <div class="card in-cal">
+                <div class="cal-h">
+                  <div class="cal-nav"><button class="icon-btn" data-incm="-1" aria-label="Mese precedente">‹</button><h3 id="inc-title"></h3><button class="icon-btn" data-incm="1" aria-label="Mese successivo">›</button></div>
+                  <button class="btn sm" data-incm="0">Oggi</button>
+                </div>
+                <div id="inc-tot" class="cal-tot"></div>
+                <div class="cal-wd"><span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span></div>
+                <div id="inc-grid" class="cal-grid"></div>
+                <div id="inc-agenda" class="cal-agenda"></div>
+              </div>
+              <div class="card"><div class="card-h"><h3>Entrate per mese</h3><span class="muted small">ultimi 12 mesi</span></div><div id="in-chart"></div></div>
               <div class="card"><div class="card-h"><h3>Movimenti</h3></div><div id="in-list"></div></div>
             </div>
             <div class="col-side">
               <div class="card"><div class="card-h"><h3>Entrate ricorrenti</h3><button class="btn sm" data-inact="rec">+ Aggiungi</button></div><div id="in-rec"></div></div>
-              <div class="card" id="in-contrib-card"><div class="card-h"><h3>Contributo per persona</h3></div><div id="in-contrib"></div></div>
+              <div class="card" id="in-contrib-card" hidden><div class="card-h"><h3>Contributo per persona</h3></div><div id="in-contrib"></div></div>
               <div class="card"><div class="card-h"><h3>Per tipo</h3><span class="muted small">quest'anno</span></div><div id="in-tipi" class="bars"></div></div>
             </div>
           </div>
@@ -180,6 +203,103 @@
           <div class="card-h"><h3>Obiettivi di risparmio</h3><div class="row-btns nowrap"><span class="muted small" id="goals-sum"></span><button class="btn sm primary" data-inact="goal">+ Obiettivo</button></div></div>
           <div id="goals" class="goals"></div>
         </div>
+      </section>
+
+      <!-- LISTA DELLA SPESA -->
+      <section id="v-lista" class="view" hidden>
+        <div class="ls-grid">
+          <div class="card ls-card">
+            <form id="ls-form" class="ls-add" autocomplete="off">
+              <input id="ls-in" placeholder="Aggiungi prodotto… (es. latte, 2 pane)" enterkeyhint="done" autocomplete="off">
+              <button class="btn primary ls-btn" type="submit" aria-label="Aggiungi"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+            </form>
+            <div id="ls-sugg" class="vtips ls-sugg" hidden></div>
+            <div class="ls-head"><b id="ls-count"></b></div>
+            <div id="ls-list"></div>
+            <div id="ls-done" class="ls-done"></div>
+          </div>
+          <div class="card ls-info">
+            <div class="es-ic"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.5L21 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg></div>
+            <h3>Una lista per tutta la casa</h3>
+            <p class="muted small">Chi usa l'app vede la stessa lista, aggiornata in tempo reale. I prodotti vengono ordinati per reparto.</p>
+            <p class="muted small">Quando fotografi lo scontrino, l'IA spunta da sola i prodotti che hai comprato.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- DOCUMENTI -->
+      <section id="v-documenti" class="view" hidden>
+        <div class="filters doc-filters">
+          <input id="doc-q" type="search" placeholder="Cerca documenti…">
+          <select id="doc-year"></select>
+        </div>
+        <div id="doc-chips" class="doc-chips"></div>
+        <div class="sum-row"><span id="doc-n" class="muted small"></span></div>
+        <div id="doc-list" class="doc-grid"></div>
+      </section>
+
+      <!-- RIEPILOGO 730 -->
+      <section id="v-detrazioni" class="view" hidden>
+        <div class="dt-top">
+          <div class="year-switch dt-ys"><button class="icon-btn" data-dty="-1" aria-label="Anno precedente">‹</button><strong id="dt-year"></strong><button class="icon-btn" data-dty="1" aria-label="Anno successivo">›</button></div>
+          <div id="dt-who" class="veh-tabs"></div>
+        </div>
+        <div class="card dt-hero" id="dt-hero"></div>
+        <div class="auto-grid">
+          <div class="col-main">
+            <div class="card"><div class="card-h"><h3>Per tipo di detrazione</h3></div><div id="dt-tipi"></div></div>
+          </div>
+          <div class="col-side">
+            <div class="card"><div class="card-h"><h3>Da controllare</h3><button class="btn sm ai-inline" id="dt-ai" hidden><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Classifica con IA</button></div><div id="dt-check"></div></div>
+            <div class="card dt-info"><h3>Come funziona</h3>
+              <p class="muted small">Quando registri una spesa scegli “Detrazione 730” (farmacia e visite vengono proposte da sole). Allega lo scontrino: finirà nel PDF per il commercialista.</p>
+              <p class="muted small">Il rimborso è una stima: 19% per spese sanitarie (oltre i 129,11 € di franchigia), 50% in 10 anni per ristrutturazione e bonus mobili sull'abitazione principale. Verifica sempre con il CAF.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COSE DA FARE -->
+      <section id="v-faccende" class="view" hidden>
+        <div id="fc-who" class="veh-tabs" style="margin-bottom:12px"></div>
+        <div class="ls-grid">
+          <div class="card ls-card">
+            <form id="fc-form" class="fc-add" autocomplete="off">
+              <input id="fc-in" placeholder="Cosa c'è da fare? (es. chiamare l'idraulico)" enterkeyhint="done" autocomplete="off">
+              <input id="fc-date" type="date" aria-label="Entro il">
+              <button class="btn primary ls-btn" type="submit" aria-label="Aggiungi"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+            </form>
+            <div id="fc-pp" class="who-pick fc-pp"></div>
+            <div id="fc-list"></div>
+            <div id="fc-done" class="ls-done"></div>
+          </div>
+          <div class="card ls-info">
+            <div class="es-ic"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+            <h3>Le cose da fare in casa</h3>
+            <p class="muted small">Assegna ogni lavoro a qualcuno e metti una scadenza: il giorno prima arriva il promemoria.</p>
+            <p class="muted small">Dal bot Telegram: <i>“da fare chiamare idraulico”</i>, <b>/fare</b> per la lista e <i>“fatto 1”</i> per spuntare.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROGETTI -->
+      <section id="v-progetti" class="view" hidden>
+        <div id="prj-body"></div>
+      </section>
+
+      <!-- MANUTENZIONI -->
+      <section id="v-manutenzioni" class="view" hidden>
+        <div class="kpis kpis-2" id="mnt-k"></div>
+        <div class="card">
+          <div class="card-h"><h3>Le tue manutenzioni</h3><button class="btn sm primary" id="mnt-add">+ Nuova</button></div>
+          <div id="mnt-list" class="mnt-list"></div>
+          <div id="mnt-pre" class="mnt-pre"></div>
+        </div>
+      </section>
+
+      <!-- IL TUO ANNO -->
+      <section id="v-anno" class="view" hidden>
+        <div class="year-switch dt-ys an-ys"><button class="icon-btn" data-any="-1" aria-label="Anno precedente">‹</button><strong id="an-year"></strong><button class="icon-btn" data-any="1" aria-label="Anno successivo">›</button></div>
+        <div id="an-body" class="an-body"></div>
       </section>
 
       <!-- SPESE FISSE -->
@@ -327,6 +447,13 @@
       <section id="v-impostazioni" class="view settings-grid" hidden>
         <div class="more-tiles">
           <a href="#affitto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg></span><b>Affitto</b><small>Canone e pagamenti</small><i id="tile-rent-badge" class="badge" hidden></i></a>
+          <a href="#lista" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.5L21 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg></span><b>Lista spesa</b><small>Condivisa in famiglia</small></a>
+          <a href="#documenti" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><b>Documenti</b><small>Scontrini, buste paga…</small></a>
+          <a href="#detrazioni" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 15l6-6"/><circle cx="9.5" cy="9.5" r=".9"/><circle cx="14.5" cy="14.5" r=".9"/></svg></span><b>Riepilogo 730</b><small>Spese detraibili</small></a>
+          <a href="#faccende" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><b>Cose da fare</b><small>Lavori e commissioni</small></a>
+          <a href="#progetti" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v6M9 13h6"/></svg></span><b>Progetti</b><small>Viaggi ed eventi</small></a>
+          <a href="#manutenzioni" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></span><b>Manutenzioni</b><small>Caldaia, filtri…</small></a>
+          <a href="#anno" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><b>Il tuo anno</b><small>Riepilogo in numeri</small></a>
           <a href="#estratto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg></span><b>Estratto conto</b><small>Verifica con l'IA</small></a>
         </div>
         <div class="card">
@@ -336,6 +463,19 @@
             <button id="btn-sync" class="btn">Sincronizza ora</button>
             <button id="btn-conn" class="btn ghost">Cambia collegamento</button>
           </div>
+        </div>
+        <div class="card">
+          <h3>Sicurezza</h3>
+          <div id="lock-set"></div>
+        </div>
+        <div class="card">
+          <h3>Telegram</h3>
+          <div id="tg-set"></div>
+        </div>
+        <div class="card">
+          <h3>Notifiche</h3>
+          <p class="muted small" style="margin:0 0 10px">Promemoria di affitto, bollette, spese fisse, auto e manutenzioni via email, calendario e Telegram.</p>
+          <button class="btn" data-rent="notify">Configura notifiche</button>
         </div>
         <div class="card">
           <h3>Intelligenza artificiale</h3>
@@ -359,6 +499,14 @@
             <button id="add-cat" class="btn">Aggiungi</button>
           </div>
           <div id="cat-list" class="chips"></div>
+        </div>
+        <div class="card">
+          <h3>Backup</h3>
+          <div id="bk-set"></div>
+        </div>
+        <div class="card">
+          <h3>Scorciatoie e Siri</h3>
+          <div id="sc-set"></div>
         </div>
         <div class="card">
           <h3>Esporta</h3>
@@ -389,6 +537,33 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="app.js?v=17"></script>
+  <!-- Visualizzatore documenti -->
+  <div id="viewer" class="viewer" hidden>
+    <div class="vw-h">
+      <button type="button" class="icon-btn" id="vw-close" aria-label="Chiudi">✕</button>
+      <div class="vw-t"><b id="vw-title"></b><small id="vw-sub"></small></div>
+    </div>
+    <div id="vw-body" class="vw-body"></div>
+    <div class="vw-f">
+      <button type="button" class="btn" id="vw-go">Apri voce</button>
+      <button type="button" class="btn" id="vw-edit">Modifica</button>
+      <button type="button" class="btn" id="vw-share">Condividi</button>
+      <button type="button" class="btn primary" id="vw-dl">Scarica</button>
+    </div>
+  </div>
+
+  <!-- Blocco Face ID -->
+  <div id="lock" class="lock" hidden>
+    <div class="lock-box">
+      <img src="logo.svg" alt="" width="68" height="68">
+      <h2>Spese Casa</h2>
+      <p class="muted">L'app è bloccata</p>
+      <button type="button" id="lock-go" class="btn primary btn-ic lock-btn"><svg viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9.5v1M15 9.5v1M12 9.5v3.5h-1M9.5 16c1.5 1 3.5 1 5 0"/></svg>Sblocca</button>
+      <p id="lock-err" class="err" hidden></p>
+      <button type="button" id="lock-reset" class="link-btn lock-reset">Non riesci a sbloccare?</button>
+    </div>
+  </div>
+
+  <script src="app.js?v=24"></script>
 </body>
 </html>
