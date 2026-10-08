@@ -19,7 +19,7 @@
   let url = LS.get('sc_url', '');
   let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
   if (!db.estratti) db.estratti = [];
-  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti'].forEach(k => { if (!db[k]) db[k] = []; });
+  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni'].forEach(k => { if (!db[k]) db[k] = []; });
   if (!db.fisse) db.fisse = [];
   if (!db.veicoli) db.veicoli = [];
   if (!db.config) db.config = {};
@@ -180,7 +180,7 @@
   }
 
   /* ================= Data layer ================= */
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti' };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -250,7 +250,7 @@
       const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
+      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
@@ -282,7 +282,7 @@
   /* ================= State ================= */
   let view = 'home';
   let homeMonth = ymOf(new Date());
-  const f = { q: '', month: ymOf(new Date()), cat: '' };
+  const f = { q: '', month: ymOf(new Date()), cat: '', who: '' };
 
   const cats = () => [...db.categorie].sort((a, b) => a.localeCompare(b, 'it'));
   const activeBills = () => db.bollette.filter(b => b.attiva !== false && String(b.attiva).toUpperCase() !== 'FALSE');
@@ -297,16 +297,16 @@
   }
 
   /* ================= Router ================= */
-  const TITLES = { home: 'Home', spese: 'Spese', entrate: 'Entrate', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', lista: 'Lista della spesa', documenti: 'Documenti', detrazioni: 'Riepilogo 730', impostazioni: 'Impostazioni' };
-  const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', lista: 'Condivisa con la famiglia', documenti: 'Tutti i tuoi file', detrazioni: 'Spese detraibili e rimborso stimato', impostazioni: 'Collegamento, IA e categorie' };
+  const TITLES = { home: 'Home', spese: 'Spese', entrate: 'Entrate', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', lista: 'Lista della spesa', documenti: 'Documenti', detrazioni: 'Riepilogo 730', manutenzioni: 'Manutenzioni', anno: 'Il tuo anno', impostazioni: 'Impostazioni' };
+  const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', lista: 'Condivisa con la famiglia', documenti: 'Tutti i tuoi file', detrazioni: 'Spese detraibili e rimborso stimato', manutenzioni: 'Caldaia, filtri e controlli periodici', anno: 'Il riepilogo in numeri', impostazioni: 'Collegamento, IA e categorie' };
   function route() {
     view = (location.hash || '#home').slice(1);
     if (!TITLES[view]) view = 'home';
     document.body.dataset.view = view;
     $$('.view').forEach(v => (v.hidden = v.id !== 'v-' + view));
-    $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto', 'lista', 'documenti', 'detrazioni'].includes(view) && !isDesk())));
+    $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto', 'lista', 'documenti', 'detrazioni', 'manutenzioni', 'anno'].includes(view) && !isDesk())));
     $('#title').textContent = TITLES[view];
-    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : view === 'entrate' ? 'Nuova entrata' : view === 'documenti' ? 'Carica documento' : view === 'lista' ? 'Aggiungi prodotto' : 'Nuova spesa';
+    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : view === 'entrate' ? 'Nuova entrata' : view === 'documenti' ? 'Carica documento' : view === 'manutenzioni' ? 'Nuova manutenzione' : view === 'lista' ? 'Aggiungi prodotto' : 'Nuova spesa';
     const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     animate = true;
@@ -331,6 +331,8 @@
     if (view === 'lista') renderLista();
     if (view === 'documenti') renderDocs();
     if (view === 'detrazioni') renderDetr();
+    if (view === 'manutenzioni') renderMnt();
+    if (view === 'anno') renderAnno();
     setSync();
   }
 
@@ -364,6 +366,12 @@
       <div class="right"><div class="amt">${eur(b.importo)}</div><button class="btn sm" data-pay="${esc(b.id)}">Paga</button></div></div>`;
   }
 
+  function mntDueItem(m) {
+    const st = mntStatus(m);
+    return `<div class="item" data-mnt="${esc(m.id)}"><div class="ic mnt-ic">${mntIco(m.icona)}</div>
+      <div class="main"><div class="t">${esc(m.nome)}</div><div class="s"><span class="chip ${st.cls}">${esc(st.txt)}</span></div></div>
+      <div class="right">${Number(m.costo) ? `<div class="amt">${eur(m.costo)}</div>` : ''}<button class="btn sm" data-mntdone="${esc(m.id)}">Fatto</button></div></div>`;
+  }
   function rentDueItem(r) {
     const st = rentChip(r);
     return `<div class="item" data-go="affitto">
@@ -404,14 +412,15 @@
     const rents = rentUpcoming().map(r => ({ kind: 'rent', due: r.due, importo: r.importo, r }));
     const fxs = fisseActive().filter(f => f.prossima && daysTo(f.prossima) <= 30).map(f => ({ kind: 'fx', due: f.prossima, importo: f.importo, f }));
     const aus = autoScadenze().filter(x => daysTo(x.date) <= 30).map(x => ({ kind: 'auto', due: x.date, importo: x.importo, x }));
-    const all = [...ab, ...rents, ...fxs, ...aus].sort((a, b) => a.due.localeCompare(b.due));
+    const mns = mntActive().filter(m => m.prossima && daysTo(m.prossima) <= 30).map(m => ({ kind: 'mnt', due: m.prossima, importo: Number(m.costo) || 0, m }));
+    const all = [...ab, ...rents, ...fxs, ...aus, ...mns].sort((a, b) => a.due.localeCompare(b.due));
     const due30 = all.filter(x => daysTo(x.due) <= 30);
     const late = all.filter(x => daysTo(x.due) < 0);
     countTo($('#h-bills'), sum(due30));
     $('#h-bills-sub').innerHTML = late.length
       ? `<span class="chip late">${late.length} scadut${late.length === 1 ? 'o' : 'i'}</span> · ${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`
       : `${due30.length} pagament${due30.length === 1 ? 'o' : 'i'}`;
-    $('#h-due').innerHTML = all.slice(0, 6).map(x => x.kind === 'rent' ? rentDueItem(x.r) : x.kind === 'fx' ? fxItem(x.f, true) : x.kind === 'auto' ? autoDueItem(x.x) : dueItem(x.b)).join('') || `<div class="empty">Nessuna scadenza. <a class="link" href="#bollette">Aggiungi una bolletta</a></div>`;
+    $('#h-due').innerHTML = all.slice(0, 6).map(x => x.kind === 'rent' ? rentDueItem(x.r) : x.kind === 'fx' ? fxItem(x.f, true) : x.kind === 'auto' ? autoDueItem(x.x) : x.kind === 'mnt' ? mntDueItem(x.m) : dueItem(x.b)).join('') || `<div class="empty">Nessuna scadenza. <a class="link" href="#bollette">Aggiungi una bolletta</a></div>`;
 
     // affitto del mese
     const rc = rentCfg();
@@ -446,6 +455,7 @@
     renderSaldoKpi();
     renderForecast();
     renderInsights();
+    renderAlerts();
 
     const last = [...db.spese].sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || ''))).slice(0, matchMedia('(min-width: 900px)').matches ? 8 : 5);
     $('#h-last').innerHTML = !last.length ? '<div class="empty">Ancora nessuna spesa. Tocca + per iniziare.</div>'
@@ -531,11 +541,13 @@
   function renderSpese() {
     fillSpeseFilters();
     const q = f.q.trim().toLowerCase();
-    const list = db.spese
+    let list = db.spese
       .filter(s => !f.month || ym(s.data) === f.month)
       .filter(s => !f.cat || s.categoria === f.cat)
       .filter(s => !q || [s.descrizione, s.categoria, s.note, s.metodo].join(' ').toLowerCase().includes(q))
       .sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || '')));
+    renderWhoCard(list);
+    if (f.who) list = list.filter(s => (s.personaId || '') === f.who);
     $('#f-count').textContent = `${list.length} ${list.length === 1 ? 'spesa' : 'spese'}`;
     countTo($('#f-total'), sum(list));
     if (isDesk()) {
@@ -580,6 +592,9 @@
     $('#btn-sync').hidden = isLocal();
     renderAISettings();
     renderLockSettings();
+    renderTg();
+    renderBackup();
+    renderShortcuts();
     $('#shop-list').innerHTML = customShops().map((n, i) => `<div class="item shop">
       <div class="ic logo"><img src="${logoUrl(n.dominio)}" alt=""></div>
       <div class="main"><div class="t">${esc(n.nome)}</div><div class="s">${esc(n.dominio)}${n.categoria ? ' · ' + esc(n.categoria) : ''}</div></div>
@@ -795,13 +810,17 @@
         <span class="sw-t"><b>Includi le spese fisse</b><small>Abbonamenti, rate e assicurazioni con l'avviso attivo.</small></span></label>
       <label class="sw"><input type="checkbox" name="auto" ${n.auto !== false ? 'checked' : ''}><span class="sw-ui"></span>
         <span class="sw-t"><b>Includi le scadenze auto</b><small>Assicurazione, bollo, revisione e tagliando (anche un mese prima).</small></span></label>
+      <label class="sw"><input type="checkbox" name="manutenzioni" ${n.manutenzioni !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Includi le manutenzioni</b><small>Caldaia, filtri e controlli periodici di casa.</small></span></label>
+      ${db.tg && db.tg.attivo ? `<label class="sw"><input type="checkbox" name="telegram" ${n.telegram !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Telegram</b><small>Promemoria e avvisi anche sul bot Telegram.</small></span></label>` : ''}
       <div class="f-row" style="margin-top:6px">
         <label class="f"><span>Avvisami</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
         <label class="f"><span>Orario</span><select name="ora">${hours.map(hh => `<option value="${hh}"${String(n.ora) === hh ? ' selected' : ''}>${hh}:00</option>`).join('')}</select></label>
       </div>
       <p class="muted small" style="margin:0 0 8px">Le email arrivano all'indirizzo Gmail del tuo account Google.</p>`,
       async fd => {
-        const v = { calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
+        const v = { calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', telegram: db.tg && db.tg.attivo ? fd.get('telegram') === 'on' : true, giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
         if (v.calendario && !rentCfg() && !fisseActive().length && !vehActive().length) return toast('Aggiungi prima l\'affitto o una spesa fissa');
         setConfig('notifiche', v);
         setConfig('appUrl', location.href.split('#')[0]);
@@ -2850,6 +2869,7 @@
       if (await bioVerify()) {
         locked = false; document.body.classList.remove('is-locked');
         const l = $('#lock'); l.classList.add('out'); setTimeout(() => { l.hidden = true; l.classList.remove('out'); }, 260);
+        handleLaunch();
       }
     } catch (e) {
       const er = $('#lock-err'); er.hidden = false;
@@ -3346,6 +3366,304 @@
   }
 
 
+
+  /* ================= CHI HA PAGATO COSA ================= */
+  const divCfg = () => db.config.divisione || { modo: 'meta' };
+  function whoData(list, monthKey) {
+    const pp = personeAttive(); if (pp.length < 2) return null;
+    const paid = {}; pp.forEach(p => (paid[p.id] = 0));
+    let comune = 0;
+    list.forEach(s => { if (s.personaId && paid[s.personaId] != null) paid[s.personaId] += Number(s.importo) || 0; else comune += Number(s.importo) || 0; });
+    const base = Object.values(paid).reduce((a, v) => a + v, 0);
+    let share = {}; pp.forEach(p => (share[p.id] = 1 / pp.length));
+    const modo = divCfg().modo;
+    if (modo === 'entrate') {
+      const inc = {}; let ti = 0;
+      db.entrate.filter(e => !monthKey || ym(e.data) === monthKey).forEach(e => { if (paid[e.personaId] != null) { inc[e.personaId] = (inc[e.personaId] || 0) + (Number(e.importo) || 0); ti += Number(e.importo) || 0; } });
+      if (ti > 0) pp.forEach(p => (share[p.id] = (inc[p.id] || 0) / ti));
+    }
+    const bal = pp.map(p => ({ p, paid: paid[p.id], due: base * share[p.id], share: share[p.id], diff: paid[p.id] - base * share[p.id] }));
+    return { bal, base, comune, modo };
+  }
+  function renderWhoCard(list) {
+    const el = $('#sp-who-card'); if (!el) return;
+    const d = whoData(list, f.month);
+    if (!d || !d.base) { el.innerHTML = ''; el.hidden = true; return; }
+    el.hidden = false;
+    const cred = d.bal.filter(b => b.diff > 0.5).sort((a, b) => b.diff - a.diff), deb = d.bal.filter(b => b.diff < -0.5).sort((a, b) => a.diff - b.diff);
+    const msg = cred.length && deb.length ? `<b>${esc(deb[0].p.nome)}</b> deve dare <b>${eur(Math.min(-deb[0].diff, cred[0].diff))}</b> a <b>${esc(cred[0].p.nome)}</b>` : 'Siete in pari 👌';
+    el.innerHTML = `<div class="card who-card">
+      <div class="card-h"><h3>Chi ha pagato</h3><select id="who-modo" class="who-modo"><option value="meta" ${d.modo !== 'entrate' ? 'selected' : ''}>Metà ciascuno</option><option value="entrate" ${d.modo === 'entrate' ? 'selected' : ''}>In base alle entrate</option></select></div>
+      <div class="who-msg">${msg}</div>
+      <div class="who-rows">${d.bal.map(b => `<button type="button" class="who-row${f.who === b.p.id ? ' on' : ''}" data-who="${esc(b.p.id)}">${avatar(b.p, 'xs')}<span class="who-n">${esc(b.p.nome)}<small>quota ${Math.round(b.share * 100)}% · ${eur0(b.due)}</small></span>
+        <span class="who-bar"><i style="width:${d.base ? (b.paid / d.base * 100).toFixed(1) : 0}%;background:${pColor(b.p)}"></i></span><b>${eur(b.paid)}</b></button>`).join('')}</div>
+      ${d.comune ? `<p class="muted small" style="margin:8px 0 0">Conto comune / non assegnate: ${eur(d.comune)}</p>` : ''}
+      ${f.who ? `<button type="button" class="link-btn" data-who="">Mostra tutte le spese</button>` : ''}</div>`;
+    $('#who-modo').onchange = e => setConfig('divisione', { modo: e.target.value });
+  }
+
+  /* ================= MANUTENZIONI DI CASA ================= */
+  const MNT_PRESET = [
+    ['Caldaia (controllo annuale)', 12, 'flame', 90], ['Caldaia (controllo fumi)', 24, 'flame', 60], ['Filtri condizionatore', 6, 'wind', 0], ['Sanificazione condizionatori', 12, 'wind', 80],
+    ['Canna fumaria / camino', 12, 'flame', 70], ['Pulizia grondaie', 12, 'home', 0], ['Estintore (revisione)', 6, 'shield', 25], ['Batterie rilevatore fumo', 12, 'shield', 5],
+    ['Filtro cappa cucina', 3, 'wind', 0], ['Pulizia lavatrice', 3, 'drop', 0], ['Anticalcare lavastoviglie', 2, 'drop', 0], ['Addolcitore / depuratore', 12, 'drop', 60]];
+  const MNT_ICO = {
+    flame: '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2.5-5 .5 1.5 1.3 2.3 2.5 2.5C12 8 11 5.5 12 3z"/>',
+    wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/>',
+    home: '<path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5"/>',
+    shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>',
+    drop: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    tool: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>'
+  };
+  const mntIco = k => `<svg viewBox="0 0 24 24">${MNT_ICO[k] || MNT_ICO.tool}</svg>`;
+  const mntActive = () => db.manutenzioni.filter(m => m.attiva === '' || m.attiva == null || isOn(m.attiva));
+  function mntStatus(m) {
+    if (!m.prossima) return { cls: '', txt: 'Da programmare', pct: 0 };
+    const d = daysTo(m.prossima), tot = Math.max(1, (Number(m.ogniMesi) || 12) * 30.4);
+    const pct = Math.max(0, Math.min(100, 100 - d / tot * 100));
+    if (d < 0) return { cls: 'late', txt: `Scaduta da ${-d} gg`, pct: 100 };
+    if (d <= 14) return { cls: 'soon', txt: d === 0 ? 'Oggi' : `Tra ${d} gg`, pct };
+    return { cls: '', txt: shortDate(m.prossima), pct };
+  }
+  function renderMnt() {
+    const list = mntActive().sort((a, b) => String(a.prossima || '9').localeCompare(String(b.prossima || '9')));
+    const late = list.filter(m => m.prossima && daysTo(m.prossima) < 0).length, soon = list.filter(m => m.prossima && daysTo(m.prossima) >= 0 && daysTo(m.prossima) <= 30).length;
+    const year = new Date().getFullYear();
+    const spent = list.reduce((a, m) => a + parseHist(m).filter(h => String(h[0]).startsWith(year)).reduce((x, h) => x + (Number(h[1]) || 0), 0), 0);
+    $('#mnt-k').innerHTML = `<div class="card kpi"><div class="kpi-h"><span class="label">Da fare</span></div><div class="big ${late ? 'neg-t' : ''}">${late + soon}</div><span class="muted small">${late ? late + ' scadute · ' : ''}${soon} nei prossimi 30 gg</span></div>
+      <div class="card kpi"><div class="kpi-h"><span class="label">Speso quest'anno</span></div><div class="big">${eur(spent)}</div><span class="muted small">${list.length} manutenzioni attive</span></div>`;
+    const used = new Set(list.map(m => m.nome.toLowerCase()));
+    const pres = MNT_PRESET.filter(p => !used.has(p[0].toLowerCase()));
+    $('#mnt-pre').innerHTML = pres.length ? `<div class="muted small" style="margin:0 0 8px">Aggiungi velocemente</div><div class="vtips" style="margin:0">${pres.map((p, i) => `<button type="button" class="chip vtip" data-mntpre="${MNT_PRESET.indexOf(p)}">+ ${esc(p[0])}</button>`).join('')}</div>` : '';
+    $('#mnt-list').innerHTML = list.map(m => {
+      const st = mntStatus(m);
+      return `<div class="mnt" data-mnt="${esc(m.id)}"><div class="ic mnt-ic">${mntIco(m.icona)}</div>
+        <div class="mnt-m"><b>${esc(m.nome)}</b><small>ogni ${Number(m.ogniMesi) === 1 ? 'mese' : esc(m.ogniMesi) + ' mesi'}${m.ultima ? ' · ultima ' + esc(shortDate(m.ultima)) : ''}</small>
+          <div class="mnt-bar"><i class="${st.cls}" style="width:${st.pct}%"></i></div></div>
+        <div class="mnt-r"><span class="chip ${st.cls}">${esc(st.txt)}</span><button type="button" class="btn sm" data-mntdone="${esc(m.id)}">Fatto</button></div></div>`;
+    }).join('') || `<div class="empty">Nessuna manutenzione. Scegline una qui sopra o premi “+ Nuova”.</div>`;
+  }
+  const parseHist = m => { try { return JSON.parse(m.storico || '[]'); } catch { return []; } };
+  function formMnt(m, preset) {
+    const isNew = !m;
+    m = m || { id: uid(), nome: preset ? preset[0] : '', icona: preset ? preset[2] : 'tool', ogniMesi: preset ? preset[1] : 12, ultima: '', prossima: '', costo: preset ? preset[3] : '', storico: '[]', note: '', attiva: true };
+    const hist = parseHist(m);
+    openSheet(isNew ? 'Nuova manutenzione' : 'Modifica manutenzione', `
+      <label class="f"><span>Cosa</span><input name="nome" value="${esc(m.nome)}" placeholder="Es. Caldaia, filtri condizionatore…" required data-focus></label>
+      <div class="f-row">
+        <label class="f"><span>Ogni</span><select name="ogniMesi">${[1, 2, 3, 4, 6, 12, 18, 24, 36, 48].map(v => `<option value="${v}" ${Number(m.ogniMesi) === v ? 'selected' : ''}>${v === 1 ? '1 mese' : v + ' mesi'}</option>`).join('')}</select></label>
+        <label class="f"><span>Costo indicativo (€)</span><input name="costo" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(m.costo))}"></label>
+      </div>
+      <div class="f-row">
+        <label class="f"><span>Ultima volta</span><input name="ultima" type="date" value="${esc(m.ultima || '')}"></label>
+        <label class="f"><span>Prossima</span><input name="prossima" type="date" value="${esc(m.prossima || '')}"></label>
+      </div>
+      <p class="muted small" style="margin:-4px 0 10px">Se lasci vuota la prossima, la calcolo dall'ultima volta.</p>
+      <label class="f"><span>Note</span><textarea name="note" rows="2" placeholder="Tecnico, telefono, modello…">${esc(m.note || '')}</textarea></label>
+      ${hist.length ? `<div class="hist"><h3 style="margin-bottom:4px">Storico</h3>${hist.slice().reverse().map(h => `<div class="item" style="cursor:default"><div class="main"><div class="t">${esc(shortDate(h[0]))}</div><div class="s">${esc(h[2] || '')}</div></div><div class="amt">${h[1] ? eur(h[1]) : '—'}</div></div>`).join('')}</div>` : ''}`,
+      fd => {
+        const nome = String(fd.get('nome') || '').trim(); if (!nome) return toast('Inserisci cosa');
+        const ogni = Number(fd.get('ogniMesi')) || 12, ultima = fd.get('ultima') || '';
+        const prossima = fd.get('prossima') || (ultima ? addMonths(ultima, ogni) : addMonths(today(), 1));
+        write([{ action: 'upsert', sheet: 'Manutenzioni', row: { ...m, nome, ogniMesi: ogni, costo: num(fd.get('costo')) || '', ultima, prossima, note: String(fd.get('note') || '').trim() } }]);
+        closeSheet(); toast(isNew ? 'Manutenzione aggiunta' : 'Salvata');
+      }, isNew ? null : () => { if (!confirm('Eliminare questa manutenzione?')) return; write([{ action: 'delete', sheet: 'Manutenzioni', id: m.id }]); closeSheet(); toast('Eliminata'); });
+  }
+  function formMntDone(m) {
+    openSheet('Fatto: ' + m.nome, `
+      <div class="f-row">
+        <label class="f"><span>Quando</span><input name="data" type="date" value="${today()}" required></label>
+        <label class="f"><span>Costo (€)</span><input name="costo" class="amount-sel" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(m.costo))}"></label>
+      </div>
+      <label class="f"><span>Note</span><input name="note" placeholder="Es. tecnico, cosa è stato fatto"></label>
+      <p class="muted small" style="margin:0 0 10px">Se inserisci un costo la registro anche tra le spese (Manutenzione). La prossima sarà tra ${Number(m.ogniMesi) === 1 ? '1 mese' : esc(m.ogniMesi) + ' mesi'}.</p>`,
+      fd => {
+        const data = fd.get('data') || today(), costo = num(fd.get('costo')), note = String(fd.get('note') || '').trim();
+        const hist = parseHist(m); hist.push([data, costo || 0, note]);
+        const ops = [{ action: 'upsert', sheet: 'Manutenzioni', row: { ...m, ultima: data, prossima: addMonths(data, Number(m.ogniMesi) || 12), storico: JSON.stringify(hist.slice(-20)) } }];
+        if (costo > 0) ops.push({ action: 'upsert', sheet: 'Spese', row: { id: uid(), data, importo: costo, categoria: db.categorie.includes('Manutenzione') ? 'Manutenzione' : pickCat('Manutenzione'), descrizione: m.nome, metodo: 'Carta', note: note || 'Manutenzione periodica', bollettaId: 'mnt:' + m.id, creato: new Date().toISOString(), sito: '', personaId: LS.get('sc_lastwho', '') } });
+        write(ops); closeSheet(); toast('Registrata · prossima ' + shortDate(addMonths(data, Number(m.ogniMesi) || 12)));
+      }, null, 'Segna come fatta');
+  }
+
+  /* ================= IL TUO ANNO IN NUMERI ================= */
+  let annoY = new Date().getFullYear();
+  function renderAnno() {
+    const Y = String(annoY), P = String(annoY - 1);
+    $('#an-year').textContent = Y;
+    const sp = db.spese.filter(s => String(s.data).startsWith(Y));
+    // confronto sullo stesso periodo dell'anno prima (es. gennaio-ottobre), solo se ci sono dati sufficienti
+    const lastM = Number(Y) === new Date().getFullYear() ? new Date().getMonth() + 1 : 12;
+    const spP0 = db.spese.filter(s => String(s.data).startsWith(P) && Number(String(s.data).slice(5, 7)) <= lastM);
+    const pMonths = new Set(spP0.map(s => ym(s.data))).size;
+    const spP = pMonths >= Math.max(1, lastM - 1) ? spP0 : [];
+    const en = db.entrate.filter(e => String(e.data).startsWith(Y));
+    const tot = sum(sp), totP = sum(spP), inc = sum(en);
+    const months = [...Array(12)].map((_, i) => `${Y}-${pad(i + 1)}`);
+    const mv = months.map(k => sum(sp.filter(s => ym(s.data) === k))), mi = months.map(k => sum(en.filter(e => ym(e.data) === k)));
+    const act = months.map((k, i) => [k, mv[i]]).filter(x => x[1] > 0);
+    const maxM = act.slice().sort((a, b) => b[1] - a[1])[0], minM = act.slice().sort((a, b) => a[1] - b[1])[0];
+    const now = new Date(), daysN = Number(Y) === now.getFullYear() ? Math.max(1, Math.round((now - new Date(now.getFullYear(), 0, 1)) / 864e5) + 1) : (Number(Y) % 4 ? 365 : 366);
+    const shops = {}; sp.filter(s => !s.bollettaId && s.descrizione).forEach(s => { const k = s.descrizione.trim(); const o = shops[k] = shops[k] || { n: 0, v: 0, s }; o.n++; o.v += Number(s.importo) || 0; });
+    const topShops = Object.entries(shops).sort((a, b) => b[1].v - a[1].v).slice(0, 5);
+    const fav = Object.entries(shops).sort((a, b) => b[1].n - a[1].n)[0];
+    const cat = {}, catP = {}; sp.forEach(s => (cat[s.categoria] = (cat[s.categoria] || 0) + (Number(s.importo) || 0))); spP.forEach(s => (catP[s.categoria] = (catP[s.categoria] || 0) + (Number(s.importo) || 0)));
+    const cats7 = Object.entries(cat).sort((a, b) => b[1] - a[1]).slice(0, 7), cmax = cats7[0] ? cats7[0][1] : 1;
+    const fuel = sp.filter(s => s.voceAuto === 'Carburante'), litri = fuel.reduce((a, s) => a + (Number(s.litri) || 0), 0);
+    const kms = fuel.map(s => Number(s.km) || 0).filter(Boolean), kmDone = kms.length > 1 ? Math.max(...kms) - Math.min(...kms) : 0;
+    const bills = sum(sp.filter(s => s.bollettaId && !String(s.bollettaId).startsWith('affitto:') && !String(s.bollettaId).startsWith('fissa:') && !String(s.bollettaId).startsWith('mnt:')));
+    const save = inc - tot, delta = totP ? Math.round((tot - totP) / totP * 100) : null;
+    if (!sp.length) { $('#an-body').innerHTML = `<div class="card empty">Nessuna spesa registrata nel ${Y}.</div>`; return; }
+    const W = 640, H = 170, bw = W / 12, mx = Math.max(1, ...mv, ...mi);
+    const svg = `<svg viewBox="0 0 ${W} ${H + 22}" class="an-svg">${months.map((k, i) => { const x = i * bw + bw * .18, w = bw * .3, hi = mi[i] / mx * H, ho = mv[i] / mx * H; return `<rect class="an-in" x="${x}" y="${H - hi}" width="${w}" height="${hi}" rx="3" style="animation-delay:${i * 40}ms"/><rect class="an-out" x="${x + w + 3}" y="${H - ho}" width="${w}" height="${ho}" rx="3" style="animation-delay:${i * 40 + 20}ms"/><text x="${i * bw + bw / 2}" y="${H + 16}" text-anchor="middle">${esc(monthShort(k))}</text>`; }).join('')}</svg>`;
+    $('#an-body').innerHTML = `
+      <div class="card an-hero"><span class="label">Nel ${Y} avete speso</span><div class="big" id="an-tot">0</div>
+        <div class="an-hs">${delta != null ? `<span class="chip ${delta > 0 ? 'late' : 'paid'}">${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)}% rispetto al ${P}${lastM < 12 ? ' (stesso periodo)' : ''}</span>` : ''}<span>${eur0(tot / daysN)} al giorno · ${sp.length} spese registrate</span></div>
+        ${inc ? `<div class="an-hrow"><div><span>Entrate</span><b>${eur0(inc)}</b></div><div><span>Risparmiato</span><b>${save >= 0 ? '+' : '−'}${eur0(Math.abs(save))}</b></div><div><span>Tasso di risparmio</span><b>${Math.round(save / inc * 100)}%</b></div></div>` : ''}</div>
+      <div class="an-grid">
+        ${maxM ? `<div class="card an-t"><span class="label">Mese più caro</span><b>${esc(monthName(maxM[0]))}</b><span class="neg-t">${eur0(maxM[1])}</span></div>` : ''}
+        ${minM ? `<div class="card an-t"><span class="label">Mese più leggero</span><b>${esc(monthName(minM[0]))}</b><span class="pos-t">${eur0(minM[1])}</span></div>` : ''}
+        ${fav ? `<div class="card an-t an-fav">${iconHTML(fav[0], fav[1].s.categoria, fav[1].s.sito)}<span class="label">Negozio preferito</span><b>${esc(fav[0])}</b><span>${fav[1].n} volte · ${eur0(fav[1].v)}</span></div>` : ''}
+        ${cats7[0] ? `<div class="card an-t"><span class="label">Categoria principale</span><b>${esc(cats7[0][0])}</b><span>${eur0(cats7[0][1])} · ${Math.round(cats7[0][1] / tot * 100)}% del totale</span></div>` : ''}
+        ${bills ? `<div class="card an-t"><span class="label">Bollette</span><b>${eur0(bills)}</b><span>${eur0(bills / 12)} al mese in media</span></div>` : ''}
+        ${litri ? `<div class="card an-t"><span class="label">Auto</span><b>${fmtNum(litri, 0)} litri</b><span>${kmDone ? fmtNum(kmDone, 0) + ' km · ' : ''}${eur0(sum(fuel))} di carburante</span></div>` : ''}
+      </div>
+      <div class="auto-grid">
+        <div class="col-main">
+          <div class="card"><div class="card-h"><h3>Mese per mese</h3><span class="an-leg"><i class="in"></i>Entrate <i class="out"></i>Spese</span></div>${svg}</div>
+          <div class="card"><div class="card-h"><h3>Categorie</h3>${totP ? `<span class="muted small">rispetto al ${P}</span>` : ''}</div><div class="bars">
+            ${cats7.map(([c, v]) => { const p = catP[c] || 0, dd = p ? Math.round((v - p) / p * 100) : null; return `<div class="bar-row"><div class="bar-top"><span>${esc(c)} ${dd != null ? `<span class="chip ${dd > 0 ? 'late' : 'paid'}">${dd > 0 ? '+' : ''}${dd}%</span>` : ''}</span><span>${eur0(v)}</span></div><div class="bar-track"><div class="bar-fill" style="width:${(v / cmax * 100).toFixed(1)}%"></div></div></div>`; }).join('')}</div></div>
+        </div>
+        <div class="col-side">
+          <div class="card"><div class="card-h"><h3>Dove spendete di più</h3></div><div class="list">${topShops.map(([n, o], i) => `<div class="item" style="cursor:default"><span class="an-rank">${i + 1}</span>${iconHTML(n, o.s.categoria, o.s.sito)}<div class="main"><div class="t">${esc(n)}</div><div class="s">${o.n} volte</div></div><div class="amt">${eur0(o.v)}</div></div>`).join('')}</div></div>
+        </div>
+      </div>`;
+    countTo($('#an-tot'), tot, eur0);
+  }
+
+  /* ================= AVVISI INTELLIGENTI ================= */
+  const normD = s => String(s.descrizione || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  function smartAlerts() {
+    const out = [], t = today(), from = ymd(new Date(Date.now() - 45 * 864e5));
+    const recent = db.spese.filter(s => s.data >= from && s.data <= t);
+    // doppio addebito
+    recent.forEach(a => {
+      if ((Number(a.importo) || 0) < 10) return;
+      const b = db.spese.find(x => x.id !== a.id && normD(x) === normD(a) && Number(x.importo) === Number(a.importo) && Math.abs(parseD(x.data) - parseD(a.data)) <= 3 * 864e5 && String(x.id) < String(a.id));
+      if (b) out.push({ key: 'dup_' + [a.id, b.id].sort().join('_'), tipo: 'late', titolo: 'Possibile doppio addebito', testo: `${a.descrizione} ${eur(a.importo)} registrata due volte (${shortDate(b.data)} e ${shortDate(a.data)})`, ref: a.id });
+    });
+    // aumenti e bollette più care
+    const byRef = {};
+    db.spese.filter(s => s.bollettaId && !String(s.bollettaId).startsWith('affitto:') && !String(s.bollettaId).startsWith('mnt:')).forEach(s => (byRef[s.bollettaId] = byRef[s.bollettaId] || []).push(s));
+    Object.keys(byRef).forEach(k => {
+      const l = byRef[k].sort((a, b) => a.data.localeCompare(b.data)), last = l[l.length - 1];
+      if (l.length < 2 || last.data < from) return;
+      if (k.startsWith('fissa:')) {
+        const p = Number(l[l.length - 2].importo), n = Number(last.importo);
+        if (n > p * 1.03 && n - p >= 0.5) out.push({ key: 'up_' + last.id, tipo: 'soon', titolo: `${last.descrizione} è aumentato`, testo: `Da ${eur(p)} a ${eur(n)} (+${eur(n - p)} al pagamento, circa ${eur0((n - p) * 12)} l'anno)`, ref: last.id });
+      } else {
+        const prev = l.slice(-4, -1), avg = sum(prev) / prev.length;
+        if (avg > 0 && Number(last.importo) > avg * 1.25) out.push({ key: 'bill_' + last.id, tipo: 'soon', titolo: `${last.descrizione} più cara del solito`, testo: `${eur(last.importo)}, il ${Math.round((last.importo / avg - 1) * 100)}% sopra la media delle ultime (${eur(avg)})`, ref: last.id });
+      }
+    });
+    // spesa insolita per la categoria
+    const byCat = {}; db.spese.filter(s => !s.bollettaId).forEach(s => (byCat[s.categoria] = byCat[s.categoria] || []).push(Number(s.importo) || 0));
+    recent.filter(s => !s.bollettaId && Number(s.importo) >= 100).forEach(s => {
+      const v = (byCat[s.categoria] || []).slice().sort((a, b) => a - b); if (v.length < 6) return;
+      const med = v[Math.floor(v.length / 2)];
+      if (Number(s.importo) > med * 4) out.push({ key: 'big_' + s.id, tipo: '', titolo: 'Spesa insolita', testo: `${s.descrizione || s.categoria} ${eur(s.importo)}: molto più del solito per ${s.categoria} (di solito ${eur0(med)})`, ref: s.id });
+    });
+    const dis = LS.get('sc_dismiss', []);
+    return out.filter(a => !dis.includes(a.key));
+  }
+  function renderAlerts() {
+    const card = $('#h-avv'); if (!card) return;
+    const al = smartAlerts();
+    card.hidden = !al.length;
+    if (!al.length) return;
+    $('#h-avv-n').textContent = al.length;
+    $('#h-avv-body').innerHTML = al.slice(0, 5).map(a => `<div class="avv ${a.tipo}"><i></i><div class="avv-m" data-spesa="${esc(a.ref)}"><b>${esc(a.titolo)}</b><span>${esc(a.testo)}</span></div><button type="button" class="icon-btn avv-x" data-avvx="${esc(a.key)}" aria-label="Ignora">✕</button></div>`).join('');
+  }
+
+  /* ================= TELEGRAM, BACKUP, SCORCIATOIE (Impostazioni) ================= */
+  function renderTg() {
+    const box = $('#tg-set'); if (!box) return;
+    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
+    if (isLocal()) { box.innerHTML = '<p class="muted small" style="margin:0">Disponibile solo con il collegamento al Foglio Google.</p>'; return; }
+    const tg = db.tg || {};
+    if (!tg.attivo) {
+      box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Registra le spese scrivendo al tuo bot (“45 benzina eni”) o mandando la foto dello scontrino, e ricevi i promemoria su Telegram.</p>
+        <ol class="tg-steps"><li>Su Telegram apri <a class="link" href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, scrivi <b>/newbot</b> e scegli un nome</li><li>Copia il <b>token</b> che ti dà e incollalo qui</li></ol>
+        <div class="inline-add"><input id="tg-token" type="password" placeholder="Token del bot (123456:ABC…)" autocomplete="off"><button class="btn primary" id="tg-go">Attiva</button></div>`;
+      return;
+    }
+    const pp = personeAttive(), chats = tg.chats || [];
+    const who = pp.length ? pp : [{ id: '', nome: 'Me' }];
+    box.innerHTML = `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attivo</span> Bot <a class="link" href="https://t.me/${esc(tg.bot)}" target="_blank" rel="noopener">@${esc(tg.bot)}</a></p>
+      <div class="list">${who.map(p => { const on = chats.some(c => (c.personaId || '') === (p.id || '')); return `<div class="item" style="cursor:default">${p.id ? avatar(p) : '<span class="av">?</span>'}<div class="main"><div class="t">${esc(p.nome)}</div><div class="s">${on ? 'Collegato' : 'Non collegato'}</div></div>
+        ${on ? `<button class="btn sm ghost" data-tgunlink="${esc(p.id || '')}">Scollega</button>` : `<button class="btn sm primary" data-tglink="${esc(p.id || '')}">Collega</button>`}</div>`; }).join('')}</div>
+      <div id="tg-code"></div>
+      <div class="row-btns" style="margin-top:10px"><button class="btn sm" id="tg-test">Messaggio di prova</button><button class="btn sm ghost" id="tg-off">Disattiva bot</button></div>`;
+  }
+  async function tgApi(op, extra) {
+    busy(op === 'setup' ? 'Collego il bot…' : 'Un attimo…');
+    try { const r = await api('telegram', { op, ...extra }); busy(); return r; }
+    catch (e) { busy(); toast(/autorizz|permission|permess|UrlFetch/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message); throw e; }
+  }
+  function renderBackup() {
+    const box = $('#bk-set'); if (!box) return;
+    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${DEMO ? 'Il backup su Drive non è disponibile nella demo.' : 'Il backup su Drive richiede il collegamento al Foglio Google.'}</p><button class="btn" id="bk-json">Scarica copia dei dati</button>`; return; }
+    const b = db.backup || {};
+    box.innerHTML = `<label class="sw"><input type="checkbox" id="bk-on" ${b.attivo ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>Backup automatico ogni settimana</b><small>Ogni domenica una copia del Foglio nella cartella “Spese Casa - Backup” di Google Drive (tiene le ultime 8).</small></span></label>
+      <p class="muted small" style="margin:6px 0 10px">${b.ultimo ? 'Ultimo backup: <b>' + esc(shortDate(b.ultimo)) + '</b>' : 'Nessun backup ancora.'}</p>
+      <div class="row-btns"><button class="btn" id="bk-now">Fai backup ora</button><button class="btn ghost" id="bk-json">Scarica copia (JSON)</button></div>`;
+  }
+  async function bkApi(op) {
+    busy(op === 'now' ? 'Creo il backup…' : 'Salvo…');
+    try { db.backup = await api('backup', { op }); save(); busy(); toast(op === 'off' ? 'Backup automatico disattivato' : 'Backup fatto'); }
+    catch (e) { busy(); toast(/autorizz|permission|permess|trigger|Drive/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message); }
+    renderBackup();
+  }
+  function backupJSON() {
+    const data = { app: 'Spese Casa', creato: new Date().toISOString(), ...db };
+    delete data.ai; delete data.tg; delete data.backup;
+    saveBlob(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }), `spese-casa-backup-${today()}.json`);
+  }
+  function renderShortcuts() {
+    const box = $('#sc-set'); if (!box) return;
+    const base = location.origin + location.pathname;
+    const links = [['Nuova spesa', '?add=spesa'], ['Foto scontrino', '?add=foto'], ['Lista della spesa', '?add=lista'], ['Nuova entrata', '?add=entrata'], ['Spesa dettata (Siri)', '?testo=']];
+    box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Su iPhone: app <b>Comandi</b> → <b>+</b> → azione <b>Apri URL</b> → incolla un link e dai un nome al comando (es. “Nuova spesa”). Poi basta dire <i>“Ehi Siri, nuova spesa”</i>. Per dettare la spesa a Siri aggiungi prima l'azione <b>Detta testo</b> e mettila in fondo al link “Spesa dettata”.</p>
+      <div class="list">${links.map(([n, q]) => `<div class="item sc-link" style="cursor:default"><div class="main"><div class="t">${esc(n)}</div><div class="s">${esc(base + q)}</div></div><button class="btn sm" data-copylink="${esc(base + q)}">Copia</button></div>`).join('')}</div>`;
+  }
+  // apre l'azione richiesta da una scorciatoia (?add=… / ?testo=…)
+  let launchDone = false;
+  async function handleLaunch() {
+    if (launchDone) return; launchDone = true;
+    const q = new URLSearchParams(location.search);
+    const add = q.get('add'), testo = q.get('testo');
+    if (!add && testo == null) return;
+    history.replaceState(null, '', location.pathname + (DEMO ? '?demo' : '') + location.hash);
+    await sleep(350);
+    if (testo) {
+      if (!aiReady()) return formSpesa(null, { note: testo });
+      busy('Creo la spesa…');
+      try {
+        const r = await aiCall('text', { testo }); busy();
+        const list = (r.spese || []).filter(x => Number(x.importo) > 0);
+        if (!list.length) return toast('Non ho trovato importi');
+        const rows = list.map(x => ({ id: uid(), importo: Math.round(Number(x.importo) * 100) / 100, descrizione: x.descrizione, data: validDate(x.data), categoria: pickCat(x.categoria), metodo: x.metodo || 'Carta', note: '', sito: x.sito || '' }));
+        rows.length === 1 ? formSpesa(null, { _ai: true, ...rows[0] }) : confirmMany(rows);
+      } catch (e) { busy(); toast(e.message); }
+      return;
+    }
+    if (add === 'lista') { location.hash = '#lista'; setTimeout(() => $('#ls-in') && $('#ls-in').focus(), 300); return; }
+    if (add === 'entrata') { location.hash = '#entrate'; setTimeout(() => (db.persone.length ? formEntrata() : formPersona()), 300); return; }
+    if (add === 'documento') { location.hash = '#documenti'; return; }
+    formSpesa();
+    if (add === 'foto') { const b = $('#sheet-body [data-ai=receipt]'); if (b) { b.classList.add('pulse'); toast('Tocca “Foto scontrino”'); } }
+  }
+
   /* ================= MODALITÀ DEMO (dati di esempio, nulla viene salvato) ================= */
   const demoFiles = {}, demoMeta = {};
   function demoData() {
@@ -3357,7 +3675,9 @@
     const D = (mAgo, day) => { const y = now.getFullYear(), m = now.getMonth() - mAgo; return ymd(new Date(y, m, Math.min(day, new Date(y, m + 1, 0).getDate()))); };
     const nextOn = day => { const t = D(0, day); return t > T ? t : D(-1, day); };
     const spese = [];
-    const add = o => { const s = { id: o.id || uid(), metodo: 'Carta', note: '', bollettaId: '', creato: o.data + 'T12:00:00', sito: '', ...o }; if (s.data <= T) spese.push(s); return s; };
+    const WHO = ['p1', 'p2', 'p1', 'p2', ''];
+    const add = o => { const s = { id: o.id || uid(), metodo: 'Carta', note: '', bollettaId: '', creato: o.data + 'T12:00:00', sito: '', personaId: WHO[spese.length % 5], ...o }; if (s.data <= T) spese.push(s); return s; };
+    const nfxLast = D(0, 15) <= T ? 0 : 1;
     const doc = (title, lines, total, extra) => { const id = 'demo:' + uid(); demoMeta[id] = { title, lines, total, ...(extra || {}) }; return id; };
     const persone = [{ id: 'p1', nome: 'Marco', colore: '#17795a', attiva: true }, { id: 'p2', nome: 'Giulia', colore: '#c026d3', attiva: true }];
     const STORES = [['Conad', 'conad.it'], ['Lidl', 'lidl.it'], ['Esselunga', 'esselunga.it'], ['Coop', 'e-coop.it'], ['Eurospin', 'eurospin.it']];
@@ -3374,7 +3694,7 @@
       }
       add({ id: `rent-${m}`, data: D(m, 3), importo: 650, categoria: 'Affitto / Mutuo', descrizione: 'Affitto', metodo: 'Bonifico', bollettaId: 'affitto:' + D(m, 3).slice(0, 7) });
       [['fx1', 'Netflix', 13.99, 15, 'Abbonamenti', 'netflix.com'], ['fx2', 'Spotify', 11.99, 2, 'Abbonamenti', 'spotify.com'], ['fx3', 'Rata auto Findomestic', 249, 20, 'Rate e finanziamenti', 'findomestic.it']]
-        .forEach(([id, nome, imp, day, cat, sito]) => add({ id: `fx-${id}-${D(m, day)}`, data: D(m, day), importo: imp, categoria: cat, descrizione: nome, metodo: 'Addebito in conto', note: 'Addebito automatico', bollettaId: 'fissa:' + id, sito }));
+        .forEach(([id, nome, imp, day, cat, sito]) => add({ id: `fx-${id}-${D(m, day)}`, data: D(m, day), importo: id === 'fx1' && m === nfxLast ? 15.49 : imp, categoria: cat, descrizione: nome, metodo: 'Addebito in conto', note: 'Addebito automatico', bollettaId: 'fissa:' + id, sito }));
       add({ data: D(m, 5), importo: 29.9, categoria: 'Abbonamenti', descrizione: 'Palestra McFit', bollettaId: 'fissa:fx4' });
       add({ data: D(m, 12), importo: 29.9, categoria: 'Internet e telefono', descrizione: 'Fibra TIM', metodo: 'Addebito in conto', bollettaId: 'b4' });
       if (m % 2 === 1) {
@@ -3392,6 +3712,10 @@
         add({ data, importo: imp, categoria: 'Salute', descrizione: 'Farmacia Comunale', metodo: 'Bancomat', detrazione: 'sanitarie', personaId: who, allegato: R() < .6 ? doc('Scontrino parlante farmacia', [['Farmaci (codice fiscale indicato)', imp]], imp, { date: data }) : '' });
       }
     }
+    // un doppio addebito da far notare agli avvisi
+    const dd2 = ymd(new Date(Date.now() - 2 * 864e5));
+    add({ id: 'zz1', data: dd2, importo: 59.9, categoria: 'Altro', descrizione: 'Zalando', sito: 'zalando.it' });
+    add({ id: 'zz2', data: dd2, importo: 59.9, categoria: 'Altro', descrizione: 'Zalando', sito: 'zalando.it' });
     // spese detraibili più grandi
     const dent = D(5, 9); add({ data: dent, importo: 180, categoria: 'Salute', descrizione: 'Studio dentistico Bianchi', detrazione: 'sanitarie', personaId: 'p2', allegato: doc('Fattura studio dentistico', [['Igiene dentale', 80], ['Visita di controllo', 100]], 180, { date: dent }) });
     add({ data: D(7, 14), importo: 95, categoria: 'Salute', descrizione: 'Visita oculistica', detrazione: 'sanitarie', personaId: 'p1', metodo: 'Carta' });
@@ -3409,7 +3733,7 @@
     const fatture = lastLuce.slice(0, 3).map((s, i) => ({ id: 'ft' + i, bollettaId: 'b1', numero: 'E' + (48210 - i * 7), emissione: addMonths(s.data, 0).slice(0, 8) + '01', periodoDa: addMonths(s.data, -3).slice(0, 8) + '01', periodoA: ymd(new Date(parseD(addMonths(s.data, -1)).getFullYear(), parseD(addMonths(s.data, -1)).getMonth() + 1, 0)), consumo: Math.round(s.importo * 3.9), unita: 'kWh', importo: s.importo, scadenza: s.data, voci: voci(s.importo), spesaId: s.id, note: '', allegato: i < 2 ? doc('Bolletta Luce n. E' + (48210 - i * 7), JSON.parse(voci(s.importo)).map(v => [v.descrizione, v.importo]), s.importo, { date: s.data }) : '' }));
     // spese fisse
     const fisse = [
-      { id: 'fx1', nome: 'Netflix', tipo: 'Abbonamento', categoria: 'Abbonamenti', importo: 13.99, frequenza: 'mensile', prossima: nextOn(15), fine: '', rate: '', metodo: 'Carta', sito: 'netflix.com', auto: true, notifica: true, attiva: true, note: '' },
+      { id: 'fx1', nome: 'Netflix', tipo: 'Abbonamento', categoria: 'Abbonamenti', importo: 15.49, frequenza: 'mensile', prossima: nextOn(15), fine: '', rate: '', metodo: 'Carta', sito: 'netflix.com', auto: true, notifica: true, attiva: true, note: '' },
       { id: 'fx2', nome: 'Spotify', tipo: 'Abbonamento', categoria: 'Abbonamenti', importo: 11.99, frequenza: 'mensile', prossima: nextOn(2), fine: '', rate: '', metodo: 'Carta', sito: 'spotify.com', auto: true, notifica: true, attiva: true, note: '' },
       { id: 'fx3', nome: 'Rata auto Findomestic', tipo: 'Rata', categoria: 'Rate e finanziamenti', importo: 249, frequenza: 'mensile', prossima: nextOn(20), fine: '', rate: 48, metodo: 'Addebito in conto', sito: 'findomestic.it', auto: true, notifica: true, attiva: true, note: '' },
       { id: 'fx4', nome: 'Palestra McFit', tipo: 'Abbonamento', categoria: 'Abbonamenti', importo: 29.9, frequenza: 'mensile', prossima: nextOn(5), fine: '', rate: '', metodo: 'Carta', sito: 'mcfit.com', auto: false, notifica: true, attiva: true, note: '' },
@@ -3447,7 +3771,14 @@
       budget: { limite: 1700, email: false, escludiAffitto: true },
       budgetCat: { limiti: { 'Spesa alimentare': 520, 'Auto e trasporti': 200, 'Abbonamenti': 60 }, email: false }
     };
-    return { spese, bollette, fatture, fisse, veicoli, estratti: [], persone, entrate, entrateFisse, obiettivi, lista, documenti, categorie: cats, config, ai: true };
+    const mnt = (id, nome, icona, ogni, ultima, costo, hist) => ({ id, nome, icona, ogniMesi: ogni, ultima, prossima: addMonths(ultima, ogni), costo, storico: JSON.stringify(hist || [[ultima, costo, '']]), note: '', attiva: true });
+    const manutenzioni = [
+      mnt('mn1', 'Caldaia (controllo annuale)', 'flame', 12, D(11, 20), 90, [[D(23, 18), 85, 'Tecnico Rossi'], [D(11, 20), 90, 'Tecnico Rossi']]),
+      mnt('mn2', 'Filtri condizionatore', 'wind', 6, D(5, 25), 0),
+      mnt('mn3', 'Estintore (revisione)', 'shield', 6, D(2, 10), 25),
+      mnt('mn4', 'Pulizia lavatrice', 'drop', 3, D(3, 12), 0),
+      mnt('mn5', 'Pulizia grondaie', 'home', 12, D(7, 3), 120)];
+    return { spese, bollette, fatture, fisse, veicoli, estratti: [], persone, entrate, entrateFisse, obiettivi, lista, documenti, manutenzioni, categorie: cats, config, ai: true, tg: {}, backup: {} };
   }
 
   // documento di esempio disegnato al volo (immagine)
@@ -3549,6 +3880,7 @@
     s = s || { id: uid(), data: today(), importo: '', categoria: LS.get('sc_lastcat', cats()[0] || ''), descrizione: '', metodo: LS.get('sc_lastmet', 'Carta'), note: '', sito: '' };
     if (pre) s = { ...s, ...pre };
     const pp = personeAttive();
+    const whoSel = !isNew ? (s.personaId || '') : s.personaId ? s.personaId : (pp.some(p => p.id === LS.get('sc_lastwho', '')) ? LS.get('sc_lastwho', '') : '');
     const lsItems = (s._lista || []).map(id => db.lista.find(x => x.id === id)).filter(x => x && !isOn(x.fatto));
     openSheet(isNew ? 'Nuova spesa' : 'Modifica spesa', `
       ${isNew && !pre && aiReady() ? `<div class="ai-row">
@@ -3565,7 +3897,7 @@
         <label class="f"><span>Metodo di pagamento</span><select name="metodo">${opt(METODI, s.metodo)}</select></label>
         <label class="f"><span>Detrazione 730</span><select name="detrazione"><option value="">Nessuna</option>${Object.keys(DETR).map(k => `<option value="${k}" ${s.detrazione === k ? 'selected' : ''}>${esc(DETR[k].nome)}</option>`).join('')}</select></label>
       </div>
-      ${pp.length > 1 ? `<label class="f" id="sp-who" ${isDetr(s) ? '' : 'hidden'}><span>Intestata a (per il 730)</span><select name="personaId">${pp.map(p => `<option value="${esc(p.id)}" ${p.id === (s.personaId || pp[0].id) ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>` : ''}
+      ${pp.length > 1 ? `<div class="f" id="sp-who"><span class="f-l">Pagata da</span><div class="who-pick"><label class="wp"><input type="radio" name="personaId" value="" ${!whoSel ? 'checked' : ''}><span>Conto comune</span></label>${pp.map(p => `<label class="wp"><input type="radio" name="personaId" value="${esc(p.id)}" ${p.id === whoSel ? 'checked' : ''}><span>${avatar(p, 'xxs')}${esc(p.nome)}</span></label>`).join('')}</div></div>` : ''}
       ${lsItems.length ? `<div class="ai-note ls-note"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Spunterò dalla lista: ${esc(lsItems.map(x => x.nome).join(', '))}</span></div>` : ''}
       <div id="att-box" class="att-wrap"></div>
       <label class="f"><span>Note</span><textarea name="note" rows="2">${esc(s.note)}</textarea></label>`,
@@ -3576,13 +3908,16 @@
         const allegato = await att.commit(`Scontrino ${desc || fd.get('categoria')} ${data}` + (att.pending && att.pending.mime === 'application/pdf' ? '.pdf' : '.jpg'));
         const detr = fd.get('detrazione') || (s.detrazione === 'no' ? 'no' : '');
         const row = { ...s, importo, descrizione: desc, categoria: fd.get('categoria'), data, metodo: fd.get('metodo'), note: fd.get('note').trim(), creato: s.creato || new Date().toISOString(), allegato, detrazione: detr,
-          personaId: DETR[detr] ? (fd.get('personaId') || s.personaId || (pp[0] || {}).id || '') : (s.personaId || '') };
+          personaId: fd.get('personaId') || (DETR[detr] ? (s.personaId || (pp[0] || {}).id || '') : '') };
+        if (pp.length > 1) LS.set('sc_lastwho', fd.get('personaId') || '');
         Object.keys(row).forEach(k => { if (k.startsWith('_')) delete row[k]; });
         row.sito = row.descrizione === (s.descrizione || '') ? (s.sito || '') : '';
         LS.set('sc_lastcat', row.categoria); LS.set('sc_lastmet', row.metodo);
         const ops = [{ action: 'upsert', sheet: 'Spese', row }];
         lsItems.forEach(x => ops.push({ action: 'upsert', sheet: 'Lista', row: { ...x, fatto: true, fattoIl: today() } }));
         write(ops);
+        const dupA = isNew && smartAlerts().find(a => a.key.startsWith('dup_') && a.key.includes(row.id));
+        if (dupA) { closeSheet(); toast('Attenzione: sembra un doppione di una spesa già registrata'); return; }
         closeSheet(); toast((isNew ? 'Spesa aggiunta' : 'Spesa aggiornata') + (lsItems.length ? ` · ${lsItems.length} prodott${lsItems.length === 1 ? 'o' : 'i'} spuntat${lsItems.length === 1 ? 'o' : 'i'}` : ''));
       },
       isNew ? null : () => {
@@ -3592,7 +3927,7 @@
     bindMerchantField(isNew && !(pre && pre._ai), s);
     const att = attachBox({ id: s.allegato || '', pending: s._doc || null, label: 'Scontrino', cartella: 'Scontrini' });
     const dsel = $('#sheet-body [name=detrazione]'), csel = $('#sheet-body [name=categoria]');
-    const syncWho = () => { const w = $('#sp-who'); if (w) w.hidden = !DETR[dsel.value]; };
+    const syncWho = () => {};
     dsel.addEventListener('change', syncWho);
     if (isNew) {
       let dTouched = !!s.detrazione;
@@ -3688,7 +4023,7 @@
     ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
     let lastTouch = 0;
     document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 300 && !e.target.closest('input,select,textarea')) e.preventDefault(); lastTouch = n; }, { passive: false });
-    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : view === 'entrate' ? (db.persone.length ? formEntrata() : formPersona()) : view === 'documenti' ? newDoc() : view === 'lista' ? $('#ls-in').focus() : formSpesa());
+    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : view === 'entrate' ? (db.persone.length ? formEntrata() : formPersona()) : view === 'documenti' ? newDoc() : view === 'manutenzioni' ? formMnt() : view === 'lista' ? $('#ls-in').focus() : formSpesa());
     $('#add-bill').onclick = () => formBill();
     $('#st-file').addEventListener('change', e => { const fl = [...e.target.files]; e.target.value = ''; if (fl.length) analyzeStatement(fl); });
     const dz = $('#st-drop');
@@ -3860,9 +4195,36 @@
       if (da) { da.dataset.dtact === 'pdf' ? dtPDF() : dtCSV(); return; }
       if (e.target.closest('#dt-ai')) { dtClassifyAI(); return; }
       if (e.target.closest('#h-catbud')) { formBudgetCat(); return; }
+      const wh = e.target.closest('[data-who]');
+      if (wh) { f.who = f.who === wh.dataset.who ? '' : wh.dataset.who; renderSpese(); return; }
+      const mp = e.target.closest('[data-mntpre]');
+      if (mp) { formMnt(null, MNT_PRESET[Number(mp.dataset.mntpre)]); return; }
+      const md = e.target.closest('[data-mntdone]');
+      if (md) { e.stopPropagation(); const m = db.manutenzioni.find(x => x.id === md.dataset.mntdone); if (m) formMntDone(m); return; }
+      const mn = e.target.closest('[data-mnt]');
+      if (mn) { const m = db.manutenzioni.find(x => x.id === mn.dataset.mnt); if (m) formMnt(m); return; }
+      if (e.target.closest('#mnt-add')) { formMnt(); return; }
+      const ay = e.target.closest('[data-any]');
+      if (ay) { annoY += Number(ay.dataset.any); renderAnno(); stagger($('#v-anno')); return; }
+      const ax = e.target.closest('[data-avvx]');
+      if (ax) { LS.set('sc_dismiss', [...LS.get('sc_dismiss', []), ax.dataset.avvx].slice(-200)); renderAlerts(); return; }
+      if (e.target.closest('#tg-go')) { const t = $('#tg-token').value.trim(); if (!t) return toast('Incolla il token'); tgApi('setup', { token: t, url }).then(r => { db.tg = r; save(); renderTg(); toast('Bot attivo: ora collega il tuo Telegram'); }).catch(() => {}); return; }
+      const tl = e.target.closest('[data-tglink]');
+      if (tl) { const p = personaById(tl.dataset.tglink); tgApi('code', { personaId: tl.dataset.tglink, nome: p ? p.nome : '' }).then(r => { const link = `https://t.me/${r.bot}?start=${r.code}`;
+        $('#tg-code').innerHTML = `<div class="tg-code"><p class="small" style="margin:0 0 8px">Apri il link dal telefono di <b>${esc(p ? p.nome : 'chi vuoi collegare')}</b> e premi <b>Avvia</b>:</p><a class="btn primary block" href="${esc(link)}" target="_blank" rel="noopener">Apri @${esc(r.bot)} su Telegram</a><p class="muted small" style="margin:8px 0 0">Oppure scrivi al bot: <b>/collega ${esc(r.code)}</b> · valido 30 minuti</p><button class="btn sm ghost" id="tg-refresh" style="margin-top:6px">Ho fatto, aggiorna</button></div>`; }).catch(() => {}); return; }
+      if (e.target.closest('#tg-refresh')) { pull(true); return; }
+      const tu = e.target.closest('[data-tgunlink]');
+      if (tu) { tgApi('unlink', { personaId: tu.dataset.tgunlink }).then(r => { db.tg = r; save(); renderTg(); }).catch(() => {}); return; }
+      if (e.target.closest('#tg-test')) { tgApi('test').then(() => toast('Messaggio inviato')).catch(() => {}); return; }
+      if (e.target.closest('#tg-off')) { if (confirm('Disattivare il bot Telegram?')) tgApi('off').then(r => { db.tg = r; save(); renderTg(); toast('Bot disattivato'); }).catch(() => {}); return; }
+      if (e.target.closest('#bk-now')) { bkApi('now'); return; }
+      if (e.target.closest('#bk-json')) { backupJSON(); return; }
+      const cl = e.target.closest('[data-copylink]');
+      if (cl) { (navigator.clipboard ? navigator.clipboard.writeText(cl.dataset.copylink) : Promise.reject()).then(() => toast('Link copiato')).catch(() => prompt('Copia il link:', cl.dataset.copylink)); return; }
       if (e.target.closest('[data-close]')) closeSheet();
     });
     document.addEventListener('change', e => {
+      if (e.target.id === 'bk-on') { bkApi(e.target.checked ? 'on' : 'off'); return; }
       const ds = e.target.closest('[data-dtset]');
       if (ds && ds.value) { const sp = db.spese.find(x => x.id === ds.dataset.dtset); if (sp) { write([{ action: 'upsert', sheet: 'Spese', row: { ...sp, detrazione: ds.value, personaId: sp.personaId || (dtWho !== 'all' ? dtWho : (personeAttive()[0] || {}).id || '') } }]); toast(ds.value === 'no' ? 'Segnata come non detraibile' : 'Aggiunta al riepilogo 730'); } }
     });
@@ -3918,6 +4280,7 @@
     hideSplash();
     route();
     if (!isLocal()) pull();
+    if (!locked) handleLaunch();
   }
 
   function setupBind() {
@@ -3932,7 +4295,7 @@
         if (!j.ok) throw new Error(j.error);
         if (url !== v) { queue = []; }
         url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
+        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');
