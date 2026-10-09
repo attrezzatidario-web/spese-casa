@@ -16,7 +16,18 @@
     mensile: 1, bimestrale: 2, trimestrale: 3, quadrimestrale: 4, semestrale: 6, annuale: 12, 'una tantum': 0
   };
 
-  let url = LS.get('sc_url', '');
+  // indirizzo del tuo script: i nuovi dispositivi si collegano da soli e chiedono solo il codice
+  const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzYhgylTZQvP8PKZwSDbK7nOCqx-BL8iXjZPUwq7CvRvA5SNxc4RSvzhcXA3KZf0wXZ/exec';
+  const HAS_DEFAULT = /^https:\/\/script\.google\.com\//.test(DEFAULT_URL);
+  let url = LS.get('sc_url', '') || (HAS_DEFAULT && !DEMO ? DEFAULT_URL : '');
+  let tok = LS.get('sc_tok', '');
+  // ogni richiesta allo script porta il "token" del dispositivo
+  function sfetch(u, o) {
+    o = o || {};
+    if (!o.method || o.method === 'GET') u += (u.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(tok);
+    else { try { const b = JSON.parse(o.body); b.k = tok; o = { ...o, body: JSON.stringify(b) }; } catch {} }
+    return fetch(u, o).then(r => r.clone().json().then(j => { if (j && j.ok === false && j.error === 'AUTH') { showLogin(); throw new Error('AUTH_REQ'); } return r; }, () => r));
+  }
   let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
   if (!db.estratti) db.estratti = [];
   ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni', 'progetti', 'faccende'].forEach(k => { if (!db[k]) db[k] = []; });
@@ -71,6 +82,7 @@
     const t = $('#toast');
     t.innerHTML = `<svg viewBox="0 0 24 24" class="t-ic"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 10"/></svg><span>${esc(msg)}</span>`;
     t.hidden = false; t.classList.remove('out'); void t.offsetWidth; t.classList.add('in');
+    try { if (navigator.vibrate) navigator.vibrate(8); } catch {}
     clearTimeout(toast._t); toast._t = setTimeout(() => { t.classList.add('out'); setTimeout(() => (t.hidden = true), 250); }, 2400);
   }
 
@@ -84,6 +96,7 @@
     const to = Number(value) || 0;
     const from = el._v != null ? el._v : 0;
     el._v = to;
+    if (el.classList.contains('odo') && !reduced()) { odoSet(el, fmt(to), el._odo); el._odo = fmt(to); return; }
     if (reduced() || Math.abs(to - from) < 0.005) { el.textContent = fmt(to); return; }
     const t0 = performance.now(), dur = 750;
     cancelAnimationFrame(el._raf);
@@ -218,7 +231,7 @@
   }
   async function api(action, extra) {
     if (DEMO) throw new Error('Nella demo questa funzione non è disponibile');
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...extra }) });
+    const r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...extra }) });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || 'Errore');
     return j.result;
@@ -229,7 +242,7 @@
     syncing = true; setSync();
     const batch = queue.slice();
     try {
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: batch }) });
+      const r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: batch }) });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'Errore');
       queue = queue.slice(batch.length); save();
@@ -247,7 +260,7 @@
     if (isLocal()) { if (showToast) toast('Modalità solo dispositivo'); return; }
     try {
       setSync('Aggiorno…');
-      const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
+      const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
       db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], progetti: j.data.progetti || [], faccende: j.data.faccende || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
@@ -255,6 +268,7 @@
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
     } catch (e) {
+      if (e.message === 'AUTH_REQ') return;
       online = false;
       if (showToast) toast('Impossibile collegarsi');
     }
@@ -299,7 +313,8 @@
   /* ================= Router ================= */
   const TITLES = { home: 'Home', spese: 'Spese', entrate: 'Entrate', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', lista: 'Lista della spesa', documenti: 'Documenti', detrazioni: 'Riepilogo 730', manutenzioni: 'Manutenzioni', anno: 'Il tuo anno', progetti: 'Progetti', faccende: 'Cose da fare', impostazioni: 'Impostazioni' };
   const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', lista: 'Condivisa con la famiglia', documenti: 'Tutti i tuoi file', detrazioni: 'Spese detraibili e rimborso stimato', manutenzioni: 'Caldaia, filtri e controlli periodici', anno: 'Il riepilogo in numeri', progetti: 'Viaggi, lavori ed eventi con budget', faccende: 'Lavori e commissioni di casa', impostazioni: 'Collegamento, IA e categorie' };
-  function route() {
+  function route() { routeAnimated(doRoute); }
+  function doRoute(vt) {
     view = (location.hash || '#home').slice(1);
     if (!TITLES[view]) view = 'home';
     document.body.dataset.view = view;
@@ -311,9 +326,11 @@
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     animate = true;
     render();
-    stagger($('#v-' + view));
+    if (!vt) stagger($('#v-' + view));
     animate = false;
     window.scrollTo(0, 0);
+    document.body.classList.remove('scrolled');
+    requestAnimationFrame(() => navPill(true));
   }
 
   function render() {
@@ -459,6 +476,7 @@
     renderForecast();
     renderInsights();
     renderAlerts();
+    setTimeout(autoInsights, 1200);
 
     const last = [...db.spese].sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || ''))).slice(0, matchMedia('(min-width: 900px)').matches ? 8 : 5);
     $('#h-last').innerHTML = !last.length ? '<div class="empty">Ancora nessuna spesa. Tocca + per iniziare.</div>'
@@ -488,22 +506,27 @@
       g += `<line class="grid" x1="0" x2="${W - pr}" y1="${yy}" y2="${yy}"/><text class="axis" x="${W}" y="${yy + 4}" text-anchor="end">${eur0(nice * p)}</text>`;
     });
     g += `<line class="grid" x1="0" x2="${W - pr}" y1="${H - pb}" y2="${H - pb}"/>`;
+    const barPath = (i, v) => {
+      const cx = pl + bw * i + bw / 2, top = yS(Math.min(v, nice)), h = Math.max(0, H - pb - top), r = Math.min(4, h), x = cx - barW / 2;
+      return h > 0 ? `M${x},${H - pb} V${top + r} Q${x},${top} ${x + r},${top} H${x + barW - r} Q${x + barW},${top} ${x + barW},${top + r} V${H - pb} Z` : '';
+    };
+    const prevVals = renderChart._prev, morph = !animate && !reduced() && prevVals && prevVals.join() !== vals.join();
+    renderChart._prev = vals.slice();
     months.forEach((k, i) => {
       const cx = pl + bw * i + bw / 2;
-      const v = vals[i];
-      const top = yS(v);
-      const h = Math.max(0, H - pb - top);
-      const r = Math.min(4, h);
-      const x = cx - barW / 2;
-      const path = h > 0
-        ? `M${x},${H - pb} V${top + r} Q${x},${top} ${x + r},${top} H${x + barW - r} Q${x + barW},${top} ${x + barW},${top + r} V${H - pb} Z`
-        : '';
+      const path = barPath(i, morph ? prevVals[i] : vals[i]);
       g += `<rect class="hit" x="${pl + bw * i}" y="0" width="${bw}" height="${H}" data-i="${i}"/>`;
       g += `<path class="b ${k === homeMonth ? 'cur' : ''}${animate && !reduced() ? ' grow' : ''}" style="animation-delay:${120 + i * 40}ms" d="${path}"/>`;
       g += `<text class="axis" x="${cx}" y="${H - 6}" text-anchor="middle">${esc(monthShort(k))}</text>`;
     });
     el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Spese ultimi 12 mesi">${g}</svg>`;
     const svg = el.querySelector('svg');
+    if (morph) {
+      // le barre si trasformano dal mese precedente al nuovo
+      const bars = $$('.b', svg), t0 = performance.now();
+      const step = now => { const k = ease(Math.min(1, (now - t0) / 550)); bars.forEach((b, i) => b.setAttribute('d', barPath(i, prevVals[i] + (vals[i] - prevVals[i]) * k))); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    }
     let tip;
     const show = e => {
       const i = +e.target.dataset.i;
@@ -595,8 +618,10 @@
     $('#btn-sync').hidden = isLocal();
     renderAISettings();
     renderLockSettings();
+    renderTheme();
     renderTg();
     renderNotifyCard();
+    renderAccess();
     renderBackup();
     renderShortcuts();
     $('#shop-list').innerHTML = customShops().map((n, i) => `<div class="item shop">
@@ -1128,9 +1153,11 @@
       isNew ? null : () => { if (!confirm('Eliminare questa entrata?')) return; write([{ action: 'delete', sheet: 'Entrate', id: e.id }]); closeSheet(); toast('Eliminata'); });
     const att = attachBox({ id: e.allegato || '', label: 'Busta paga', cartella: 'Buste paga', autoRead: isNew,
       onRead: async doc => {
-        busy('Leggo la busta paga…');
+        busy('Apro la busta paga…');
         try {
-          const r = await aiCall('payslip', { image: doc.b64, mime: doc.mime }); busy();
+          const img = await docForAI(doc, 2);
+          busy('Leggo la busta paga…');
+          const r = await aiCall('payslip', img); busy();
           if (r.valido === false) return toast('Non sembra una busta paga');
           const F = n => $('#sheet-body [name=' + n + ']');
           if (r.netto) F('importo').value = fmtAmt(r.netto);
@@ -1445,15 +1472,47 @@
   const words = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(w => w.length > 2 && !/^(pagamento|pos|carta|presso|del|per|con|sdd|addebito|bonifico|favore|disposizione|operazione|roma|italia|srl|spa)$/.test(w));
 
   function canvasToB64(c) { return c.toDataURL('image/jpeg', 0.85).split(',')[1]; }
+  // apre un PDF, chiedendo la password se è protetto (le buste paga spesso usano il codice fiscale)
+  async function openPdf(bytes) {
+    const lib = await libPdf();
+    const task = lib.getDocument({ data: bytes.slice() });
+    task.onPassword = (update, reason) => {
+      const b = $('#busy'); if (b) b.hidden = true;
+      const pw = prompt(reason === 2 ? 'Password errata, riprova:' : 'Il PDF è protetto da password (per le buste paga di solito è il codice fiscale, in maiuscolo). Inseriscila:');
+      if (pw == null) { task.destroy(); return; }
+      if (b) b.hidden = false;
+      update(pw.trim());
+    };
+    try { return await task.promise; }
+    catch (e) { if (/password|destroy|abort/i.test((e.name || '') + (e.message || ''))) throw new Error('PDF protetto: senza password non posso leggerlo'); throw new Error('PDF non leggibile'); }
+  }
+  // prepara un documento per l'IA: i PDF diventano un'immagine leggera delle prime pagine
+  async function docForAI(doc, maxPages = 2) {
+    if (doc.mime !== 'application/pdf') return { image: doc.b64, mime: doc.mime };
+    const bin = atob(doc.b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const pdf = await openPdf(bytes);
+    const n = Math.min(pdf.numPages, maxPages), W = 1500, canv = [];
+    for (let i = 1; i <= n; i++) {
+      const page = await pdf.getPage(i), vp0 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: W / vp0.width });
+      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise; canv.push(c);
+    }
+    const H = canv.reduce((a, c) => a + c.height, 0), k = Math.min(1, 4200 / H);
+    const out = document.createElement('canvas'); out.width = Math.round(W * k); out.height = Math.round(H * k);
+    const o = out.getContext('2d'); o.fillStyle = '#fff'; o.fillRect(0, 0, out.width, out.height);
+    let y = 0; canv.forEach(c => { o.drawImage(c, 0, y, c.width * k, c.height * k); y += c.height * k; });
+    return { image: out.toDataURL('image/jpeg', 0.82).split(',')[1], mime: 'image/jpeg' };
+  }
 
   async function readStatementFile(files) {
     const pages = [];
     const f0 = files[0];
     const isPdf = f0.type === 'application/pdf' || /\.pdf$/i.test(f0.name);
     if (isPdf) {
-      const lib = await libPdf();
       const bytes = new Uint8Array(await f0.arrayBuffer());
-      const doc = await lib.getDocument({ data: bytes.slice() }).promise;
+      const doc = await openPdf(bytes);
       const n = Math.min(doc.numPages, 12);
       for (let i = 1; i <= n; i++) {
         busy(`Preparo pagina ${i} di ${n}…`);
@@ -1782,7 +1841,7 @@
   async function downloadSavedFile(id) {
     busy('Scarico il file…');
     try {
-      const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+      const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
       const j = await r.json(); if (!j.ok) throw new Error(j.error);
       const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -1793,7 +1852,7 @@
   async function openSavedStatement(id) {
     busy('Apro l\'analisi…');
     try {
-      const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+      const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
       const j = await r.json(); if (!j.ok) throw new Error(j.error);
       const d = j.data;
       let only = []; try { only = JSON.parse(d.onlyApp || '[]'); } catch {}
@@ -2629,7 +2688,7 @@
       updVoci();
     };
     const att = attachBox({ id: f.allegato || '', pending: pendingDoc || null, label: 'Bolletta', cartella: 'Bollette',
-      onRead: async doc => { busy('Leggo la bolletta…'); try { const r = await aiCall('bill', { image: doc.b64, mime: doc.mime }); busy(); if (r.valido === false) return toast('Non sembra una bolletta'); fillFromAI(r); toast('Dati letti dalla bolletta'); } catch (e) { busy(); toast(e.message); } } });
+      onRead: async doc => { busy('Apro la bolletta…'); try { const img = await docForAI(doc, 3); busy('Leggo la bolletta…'); const r = await aiCall('bill', img); busy(); if (r.valido === false) return toast('Non sembra una bolletta'); fillFromAI(r); toast('Dati letti dalla bolletta'); } catch (e) { busy(); toast(e.message); } } });
     voci.forEach(v => addVoce(v.descrizione, v.importo));
     $('#sheet-body [name=importo]').addEventListener('input', updVoci);
     updVoci();
@@ -2653,9 +2712,16 @@
 
   async function aiCall(task, extra) {
     if (DEMO) return demoAI(task, extra || {});
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'ai', task, categorie: cats(), oggi: today(), ...extra }) });
-    const j = await r.json();
+    // tempo massimo di attesa: senza risposta non resto bloccato all'infinito
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 100000);
+    let r;
+    try {
+      r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal,
+        body: JSON.stringify({ action: 'ai', task, categorie: cats(), oggi: today(), ...extra }) });
+    } catch (e) {
+      throw new Error(e.name === 'AbortError' ? 'L\'IA non ha risposto in tempo. Riprova tra poco o compila a mano: l\'allegato resta salvato.' : 'Connessione assente, riprova');
+    } finally { clearTimeout(tm); }
+    let j; try { j = await r.json(); } catch { throw new Error('Risposta non valida dallo script: hai creato la Nuova versione del deployment?'); }
     if (!j.ok) throw new Error(j.error || 'Errore IA');
     return j.result;
   }
@@ -2759,7 +2825,7 @@
     try { img = await pickDoc(); } catch (e) { if (e.message !== 'annullato') toast(e.message); return; }
     busy('Leggo la bolletta…');
     try {
-      const r = await aiCall('bill', { image: img.b64, mime: img.mime });
+      const r = await aiCall('bill', await docForAI(img, 3));
       busy();
       if (!r.valido) return toast('Non sembra una bolletta, riprova');
       const pre = { _ai: true, importo: r.importo, scadenza: validDate(r.scadenza), frequenza: FREQ[r.frequenza] !== undefined ? r.frequenza : 'mensile', categoria: pickCat(r.categoria) };
@@ -2778,51 +2844,123 @@
     } catch (e) { busy(); toast(e.message); }
   }
 
-  /* Consigli del mese */
+  /* ================= ANALISI IA COMPLETA (Home) ================= */
+  const R2 = v => Math.round((Number(v) || 0) * 100) / 100;
   function insightsData(month) {
     const [y, m] = month.split('-').map(Number);
-    const mesi = [];
-    for (let i = 5; i >= 0; i--) mesi.push(ymOf(new Date(y, m - 1 - i, 1)));
+    const mesi = []; for (let i = 11; i >= 0; i--) mesi.push(ymOf(new Date(y, m - 1 - i, 1)));
+    const isCur = month === ymOf(new Date());
+    const catOf = L => { const o = {}; L.forEach(s => (o[s.categoria || 'Altro'] = R2((o[s.categoria || 'Altro'] || 0) + Number(s.importo || 0)))); return o; };
     const perMese = mesi.map(k => {
-      const ms = db.spese.filter(s => ym(s.data) === k);
-      const cat = {};
-      ms.forEach(s => (cat[s.categoria] = Math.round(((cat[s.categoria] || 0) + Number(s.importo || 0)) * 100) / 100));
-      return { mese: k, totale: Math.round(sum(ms) * 100) / 100, entrate: Math.round(sum(db.entrate.filter(x => ym(x.data) === k)) * 100) / 100, numero: ms.length, perCategoria: cat };
+      const ms = db.spese.filter(s => ym(s.data) === k), en = sum(db.entrate.filter(x => ym(x.data) === k));
+      return { mese: k, spese: R2(sum(ms)), entrate: R2(en), risparmio: R2(en - sum(ms)), numeroSpese: ms.length, perCategoria: catOf(ms) };
     });
-    const speseMese = db.spese.filter(s => ym(s.data) === month).slice(0, 200).map(s => ({ d: s.data, e: Number(s.importo), c: s.categoria, n: s.descrizione, p: s.metodo }));
-    const bollette = activeBills().map(b => ({ nome: b.nome, previsto: Number(b.importo), freq: b.frequenza, scadenza: b.scadenza,
-      pagamenti: db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data)).slice(0, 6).map(s => [s.data, Number(s.importo)]),
-      fatture: billFatture(b).slice(0, 6).map(f => ({ periodo: [f.periodoDa, f.periodoA].filter(Boolean).join('/'), totale: Number(f.importo), consumo: f.consumo, unita: f.unita, voci: parseVoci(f).map(v => [v.descrizione, v.importo]) })) }));
-    return { perMese, speseMese, bollette };
+    const sm = db.spese.filter(s => ym(s.data) === month);
+    const lyKey = ymOf(new Date(y - 1, m - 1, 1)), ly = db.spese.filter(s => ym(s.data) === lyKey);
+    const days = new Date(y, m, 0).getDate(), dayNow = isCur ? new Date().getDate() : days;
+    const lim = Number(budgetCfg().limite) || 0, lims = catLimits(), tot = sum(sm);
+    // negozi: ultimi 6 mesi contro i 6 precedenti
+    const d6 = ymd(new Date(y, m - 7, 1)), d12 = ymd(new Date(y, m - 13, 1)), end = `${month}-${pad(days)}`;
+    const shop = {};
+    db.spese.filter(s => !s.bollettaId && s.descrizione && s.data >= d12 && s.data <= end).forEach(s => {
+      const k = s.descrizione.trim(), o = shop[k] = shop[k] || { negozio: k, categoria: s.categoria, ult6: 0, volte6: 0, prec6: 0 };
+      if (s.data >= d6) { o.ult6 += Number(s.importo) || 0; o.volte6++; } else o.prec6 += Number(s.importo) || 0;
+    });
+    const negozi = Object.values(shop).sort((a, b) => b.ult6 - a.ult6).slice(0, 25).map(o => ({ ...o, ult6: R2(o.ult6), prec6: R2(o.prec6), scontrinoMedio: o.volte6 ? R2(o.ult6 / o.volte6) : 0 }));
+    // giorni della settimana (ultimi 3 mesi, spese variabili)
+    const d3 = ymd(new Date(y, m - 4, 1)), wd = [0, 0, 0, 0, 0, 0, 0], wdN = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+    db.spese.filter(s => !s.bollettaId && s.data >= d3 && s.data <= end).forEach(s => { wd[(parseD(s.data).getDay() + 6) % 7] += Number(s.importo) || 0; });
+    const fixed = fisseActive().map(f => { const mm = { settimanale: 4.33, mensile: 1, bimestrale: .5, trimestrale: 1 / 3, quadrimestrale: .25, semestrale: 1 / 6, annuale: 1 / 12 }[f.frequenza] || 1; return { nome: f.nome, tipo: f.tipo, importo: Number(f.importo), frequenza: f.frequenza, alMese: R2(Number(f.importo) * mm), pagamentiRecenti: db.spese.filter(s => s.bollettaId === 'fissa:' + f.id).sort((a, b) => b.data.localeCompare(a.data)).slice(0, 4).map(s => Number(s.importo)) }; });
+    const fuel = db.spese.filter(s => s.voceAuto === 'Carburante' && s.data >= d6).sort((a, b) => a.data.localeCompare(b.data));
+    const litri = fuel.reduce((a, s) => a + (Number(s.litri) || 0), 0), kms = fuel.map(s => Number(s.km) || 0).filter(Boolean);
+    const fc = isCur ? forecastData() : null;
+    const wh = whoData(sm, month);
+    return {
+      meseAnalizzato: month, meseInCorso: isCur, giornoDelMese: dayNow, giorniNelMese: days,
+      ultimi12Mesi: perMese,
+      meseCorrente: {
+        totale: R2(tot), perCategoria: catOf(sm), spesaMediaGiornaliera: R2(tot / Math.max(1, dayNow)),
+        stessoMeseAnnoScorso: ly.length ? { totale: R2(sum(ly)), perCategoria: catOf(ly) } : null,
+        spese: sm.slice().sort((a, b) => b.importo - a.importo).slice(0, 120).map(s => [s.data.slice(8), Number(s.importo), s.categoria, s.descrizione, s.metodo, (personaById(s.personaId) || {}).nome || ''])
+      },
+      limiteMensile: lim || null, budgetCategorie: Object.keys(lims).map(c => ({ categoria: c, limite: lims[c], speso: R2(sum(sm.filter(s => s.categoria === c))) })),
+      previsioneFineMese: fc ? { entrateRicevute: R2(fc.inReg), entrateInArrivo: R2(fc.inExpTot), speseFatte: R2(fc.outReg), pagamentiInArrivo: R2(fc.plannedTot), variabiliStimate: R2(fc.varEst), saldoPrevisto: R2(fc.result) } : null,
+      negozi, spesaPerGiornoSettimana_ultimi3mesi: Object.fromEntries(wdN.map((n, i) => [n, R2(wd[i])])),
+      speseFisseEAbbonamenti: { totaleAlMese: R2(fixed.reduce((a, f) => a + f.alMese, 0)), elenco: fixed },
+      affitto: rentCfg() ? { canone: Number(rentCfg().canone) } : null,
+      bollette: activeBills().map(b => ({ nome: b.nome, previsto: Number(b.importo), frequenza: b.frequenza, pagamenti: db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data)).slice(0, 6).map(s => [s.data.slice(0, 7), Number(s.importo)]),
+        fatture: billFatture(b).slice(0, 4).map(f => ({ periodo: [f.periodoDa, f.periodoA].filter(Boolean).join('/'), totale: Number(f.importo), consumo: Number(f.consumo) || null, unita: f.unita, costoUnitario: Number(f.consumo) > 0 ? R2(f.importo / f.consumo * 1000) / 1000 : null })) })),
+      auto: fuel.length ? { rifornimenti6mesi: fuel.length, litri: R2(litri), speso: R2(sum(fuel)), prezzoMedioLitro: litri ? R2(sum(fuel) / litri * 1000) / 1000 : null, km: kms.length > 1 ? Math.max(...kms) - Math.min(...kms) : null, scadenze: autoScadenze().filter(x => daysTo(x.date) <= 90).map(x => ({ cosa: x.title || x.titolo || x.voce, data: x.date, importo: x.importo })) } : null,
+      entratePerPersona: personeAttive().map(p => ({ nome: p.nome, ultimi3mesi: R2(sum(db.entrate.filter(e => e.personaId === p.id && e.data >= d3))) })),
+      chiHaPagato: wh ? { modo: wh.modo, perPersona: wh.bal.map(b => ({ nome: b.p.nome, pagato: R2(b.paid), quota: R2(b.due) })), contoComune: R2(wh.comune) } : null,
+      obiettivi: db.obiettivi.filter(g => g.attivo === '' || g.attivo == null || isOn(g.attivo)).map(g => ({ nome: g.nome, obiettivo: Number(g.target), versato: Number(g.versato), scadenza: g.scadenza || null })),
+      progetti: db.progetti.filter(p => p.attivo === '' || p.attivo == null || isOn(p.attivo)).map(p => ({ nome: p.nome, budget: Number(p.budget) || null, speso: R2(sum(prjSpese(p))) })),
+      detrazioniAnno: R2(sum(db.spese.filter(s => isDetr(s) && String(s.data).startsWith(String(y))))),
+      avvisiAutomatici: smartAlerts().map(a => a.titolo + ': ' + a.testo)
+    };
   }
-  const insKey = month => 'sc_ins_' + month;
-  const insSig = month => { const ms = db.spese.filter(s => ym(s.data) === month); return ms.length + ':' + sum(ms).toFixed(2); };
-
+  const insKey = month => 'sc_ins2_' + month;
+  const insSig = month => { const ms = db.spese.filter(s => ym(s.data) === month); return ms.length + ':' + sum(ms).toFixed(2) + ':' + db.entrate.filter(e => ym(e.data) === month).length; };
+  const AREA_ICO = { 'Spesa alimentare': '🛒', 'Abbonamenti': '📺', 'Bollette': '💡', 'Auto': '🚗', 'Entrate': '💼', 'Risparmio': '🏦', 'Budget': '🎯', 'Casa': '🏠', 'Abitudini': '📊', 'Obiettivi': '🎯', 'Salute': '💊' };
+  const scoreCls = v => v >= 75 ? 'good' : v >= 50 ? 'mid' : 'bad';
+  function scoreRing(v, size = 64) {
+    const r = size / 2 - 6, c = 2 * Math.PI * r, k = Math.max(0, Math.min(100, Number(v) || 0)) / 100;
+    return `<div class="ins-ring ${scoreCls(v)}" style="width:${size}px;height:${size}px"><svg viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="bg"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="fg" stroke-dasharray="${(c * k).toFixed(1)} ${c.toFixed(1)}"/></svg><b>${Math.round(v)}</b></div>`;
+  }
+  function insPoint(p) {
+    return `<div class="ins2-p ${esc(p.tipo)}"><span class="ins2-a">${AREA_ICO[p.area] || '•'}</span><div><b>${esc(p.titolo || '')}</b><span>${esc(p.testo)}</span>
+      ${Number(p.impatto) > 0 ? `<em class="ins2-imp">fino a ${eur0(p.impatto)}/mese</em>` : ''}</div></div>`;
+  }
   function renderInsights() {
-    const card = $('#h-ai');
-    if (!card) return;
+    const card = $('#h-ai'); if (!card) return;
     card.hidden = !aiReady();
     if (!aiReady()) return;
-    const saved = LS.get(insKey(homeMonth), null);
+    const saved = LS.get(insKey(homeMonth), null), r = saved && saved.r;
     const stale = saved && saved.sig !== insSig(homeMonth);
     const box = $('#h-ai-body');
     $('#h-ai-btn').textContent = saved ? 'Aggiorna' : 'Analizza';
-    if (!saved) { box.innerHTML = `<p class="muted small" style="margin:0">L'IA analizza le spese di ${esc(monthName(homeMonth))} e ti dice dove intervenire.</p>`; return; }
-    box.innerHTML = `<p class="ins-sum">${esc(saved.r.sintesi)}</p>
-      <ul class="ins">${(saved.r.punti || []).map(p => `<li class="${esc(p.tipo)}"><i></i><span>${esc(p.testo)}</span></li>`).join('')}</ul>
-      ${stale ? '<p class="muted small" style="margin:6px 0 0">Ci sono nuove spese: premi Aggiorna.</p>' : ''}`;
+    if (!r || r.voto == null) {
+      box.innerHTML = `<p class="muted small" style="margin:0">L'IA studia tutti i tuoi dati di ${esc(monthName(homeMonth))} e degli ultimi 12 mesi: spese, entrate, abbonamenti, bollette, auto, budget e obiettivi. Ti dà un punteggio, dove risparmiare e cosa fare questo mese.</p>`;
+      return;
+    }
+    const done = LS.get('sc_insdone_' + homeMonth, []);
+    box.innerHTML = `<div class="ins2-top">${scoreRing(r.voto)}<div class="ins2-sum"><span class="label">Salute finanziaria</span><b>${esc(r.votoMotivo || '')}</b><p>${esc(r.sintesi)}</p></div></div>
+      <div class="ins2-kpis">${Number(r.risparmioPotenziale) > 0 ? `<div><span>Risparmio possibile</span><b class="pos-t">${eur0(r.risparmioPotenziale)}/mese</b></div>` : ''}
+        ${r.previsione && r.previsione.fineMese != null && homeMonth === ymOf(new Date()) ? `<div><span>Fine mese</span><b class="${r.previsione.fineMese < 0 ? 'neg-t' : ''}">${r.previsione.fineMese >= 0 ? '+' : '−'}${eur0(Math.abs(r.previsione.fineMese))}</b></div>` : ''}</div>
+      <div class="ins2-list">${(r.punti || []).slice(0, 3).map(insPoint).join('')}</div>
+      ${(r.azioni || []).length ? `<div class="ins2-act"><div class="ins2-h">Cosa fare questo mese</div>${r.azioni.map((a, i) => `<label class="ins2-todo${done.includes(i) ? ' done' : ''}"><input type="checkbox" data-insdone="${i}" ${done.includes(i) ? 'checked' : ''}><span>${esc(a.testo)}${Number(a.risparmioMensile) > 0 ? ` <em>−${eur0(a.risparmioMensile)}/mese</em>` : ''}</span></label>`).join('')}</div>` : ''}
+      ${(r.punti || []).length > 3 ? `<button type="button" class="link-btn" id="ins-all">Vedi l'analisi completa (${r.punti.length} punti) →</button>` : ''}
+      <p class="muted small ins2-foot">${stale ? 'Ci sono dati nuovi: premi Aggiorna.' : 'Aggiornata il ' + esc(new Date(saved.at || Date.now()).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</p>`;
   }
-
-  async function runInsights() {
+  function insFull() {
+    const saved = LS.get(insKey(homeMonth), null), r = saved && saved.r; if (!r) return;
+    const groups = {}; (r.punti || []).forEach(p => (groups[p.area || 'Altro'] = groups[p.area || 'Altro'] || []).push(p));
+    openSheet('Analisi di ' + monthName(homeMonth), `
+      <div class="ins2-top">${scoreRing(r.voto, 76)}<div class="ins2-sum"><span class="label">Salute finanziaria</span><b>${esc(r.votoMotivo || '')}</b><p>${esc(r.sintesi)}</p></div></div>
+      ${r.previsione && r.previsione.commento ? `<div class="ai-note">${ICO.spark}<span>${esc(r.previsione.commento)}</span></div>` : ''}
+      ${Object.keys(groups).map(g => `<div class="ins2-h">${AREA_ICO[g] || '•'} ${esc(g)}</div><div class="ins2-list">${groups[g].map(insPoint).join('')}</div>`).join('')}`, () => closeSheet(), null, 'Chiudi');
+    $('#sheet-form').classList.add('wide');
+  }
+  async function runInsights(auto) {
     const month = homeMonth;
-    if (!db.spese.some(s => ym(s.data) === month)) return toast('Nessuna spesa in questo mese');
+    if (!db.spese.some(s => ym(s.data) === month)) { if (!auto) toast('Nessuna spesa in questo mese'); return; }
     const btn = $('#h-ai-btn'); btn.disabled = true; btn.textContent = 'Analizzo…';
+    const box = $('#h-ai-body'); if (box && !LS.get(insKey(month), null)) box.innerHTML = '<div class="ins2-load"><div class="spin"></div><span>Studio 12 mesi di dati…</span></div>' + skelLines(4);
     try {
       const r = await aiCall('insights', { mese: monthName(month), dati: insightsData(month) });
-      LS.set(insKey(month), { r, sig: insSig(month) });
-    } catch (e) { toast(e.message); }
+      LS.set(insKey(month), { r, sig: insSig(month), at: Date.now() });
+    } catch (e) { if (!auto) toast(e.message); }
     btn.disabled = false;
     renderInsights();
+  }
+  // la prima volta che apri la Home nel mese l'analisi parte da sola
+  function autoInsights() {
+    if (!aiReady() || runInsights._busy) return;
+    const saved = LS.get(insKey(homeMonth), null);
+    if (saved && saved.r && saved.r.voto != null) return;
+    if (LS.get('sc_insauto', '') === homeMonth + today()) return;
+    LS.set('sc_insauto', homeMonth + today());
+    runInsights._busy = true; runInsights(true).finally(() => (runInsights._busy = false));
   }
 
   function renderAISettings() {
@@ -2840,7 +2978,7 @@
   async function setAIKey(key) {
     busy(key ? 'Verifico la chiave…' : 'Rimuovo…');
     try {
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'setKey', key }) });
+      const r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'setKey', key }) });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
       db.ai = !!key; save(); render();
@@ -2978,7 +3116,7 @@
     const x = db.lista.find(y => y.id === id); if (!x) return;
     const on = !isOn(x.fatto);
     const el = $(`[data-lsid="${CSS.escape(id)}"]`);
-    const go = () => write([{ action: 'upsert', sheet: 'Lista', row: { ...x, fatto: on, fattoIl: on ? today() : '' } }]);
+    const go = () => { write([{ action: 'upsert', sheet: 'Lista', row: { ...x, fatto: on, fattoIl: on ? today() : '' } }]); if (on && !lsOpen().length) { confetti(); toast('Spesa completata! 🎉'); } };
     if (el && !reduced()) { el.classList.add(on ? 'checking' : 'unchecking'); setTimeout(go, 260); } else go();
   }
   function renderLista() {
@@ -3142,7 +3280,7 @@
     if (DEMO) { if (!demoFiles[id]) demoFiles[id] = { blob: await demoDocBlob(id), name: ((demoMeta[id] || {}).title || 'documento') + '.png', mime: 'image/png' }; return demoFiles[id]; }
     const key = new URL('__doc/' + encodeURIComponent(id), location.href).href;
     try { const c = await caches.open('sc-docs'); const hit = await c.match(key); if (hit) { const blob = await hit.blob(); return { blob, name: decodeURIComponent(hit.headers.get('x-name') || 'documento'), mime: blob.type }; } } catch {}
-    const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+    const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
     const j = await r.json(); if (!j.ok) throw new Error(j.error);
     const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -3588,7 +3726,7 @@
     });
     // spesa insolita per la categoria
     const byCat = {}; db.spese.filter(s => !s.bollettaId).forEach(s => (byCat[s.categoria] = byCat[s.categoria] || []).push(Number(s.importo) || 0));
-    recent.filter(s => !s.bollettaId && Number(s.importo) >= 100).forEach(s => {
+    recent.filter(s => !s.bollettaId && !s.progetto && Number(s.importo) >= 100).forEach(s => {
       const v = (byCat[s.categoria] || []).slice().sort((a, b) => a - b); if (v.length < 6) return;
       const med = v[Math.floor(v.length / 2)];
       if (Number(s.importo) > med * 4) out.push({ key: 'big_' + s.id, tipo: '', titolo: 'Spesa insolita', testo: `${s.descrizione || s.categoria} ${eur(s.importo)}: molto più del solito per ${s.categoria} (di solito ${eur0(med)})`, ref: s.id });
@@ -3606,6 +3744,31 @@
   }
 
   /* ================= TELEGRAM, BACKUP, SCORCIATOIE (Impostazioni) ================= */
+  let acStatus = null;
+  async function renderAccess(force) {
+    const box = $('#ac-set'); if (!box) return;
+    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Non disponibile nella demo.' : 'Disponibile solo con il collegamento al Foglio Google.'}</p>`; return; }
+    const st = acStatus;
+    box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Sui nuovi dispositivi basta aprire l'app e inserire il codice una sola volta. Senza codice nessuno può vedere i vostri dati.</p>
+      ${st ? `<div class="nt-status"><div class="nt-row"><i class="dot ${st.attivo ? 'paid' : 'late'}"></i><div><b>${st.attivo ? 'Codice attivo' : 'Codice non impostato'}</b><small>${st.attivo ? st.dispositivi + ' dispositiv' + (st.dispositivi === 1 ? 'o collegato' : 'i collegati') : 'Impostalo subito: l\'app è pubblica'}</small></div></div></div>` : ''}
+      <div class="row-btns"><button class="btn ${st && !st.attivo ? 'primary' : ''}" id="ac-set-btn">${st && st.attivo ? 'Cambia codice' : 'Imposta codice'}</button>${st && st.attivo ? '<button class="btn ghost" id="ac-out">Scollega gli altri dispositivi</button>' : ''}</div>`;
+    if (!st || force) { try { acStatus = await api('access', { op: 'status' }); } catch { acStatus = null; } if (view === 'impostazioni' && acStatus) renderAccess(); }
+  }
+  function formAccess() {
+    const on = acStatus && acStatus.attivo;
+    openSheet(on ? 'Cambia codice di accesso' : 'Imposta codice di accesso', `
+      <p class="muted small" style="margin:0 0 12px">Da 4 a 12 cifre o lettere. Gli altri dispositivi dovranno inserire il nuovo codice una volta.</p>
+      ${on ? '<label class="f"><span>Codice attuale</span><input name="vecchio" type="password" autocomplete="off" required></label>' : ''}
+      <label class="f"><span>Nuovo codice</span><input name="nuovo" type="password" inputmode="text" autocomplete="new-password" required data-focus></label>
+      <label class="f"><span>Ripeti il nuovo codice</span><input name="nuovo2" type="password" autocomplete="new-password" required></label>`,
+      async fd => {
+        const nuovo = String(fd.get('nuovo') || '').trim();
+        if (nuovo !== String(fd.get('nuovo2') || '').trim()) return toast('I due codici non coincidono');
+        busy('Salvo il codice…');
+        try { const r = await api('access', { op: 'set', vecchio: fd.get('vecchio') || '', nuovo, device: 'questo dispositivo' }); tok = r.token; LS.set('sc_tok', tok); busy(); closeSheet(); toast('Codice impostato'); acStatus = null; renderAccess(true); }
+        catch (e) { busy(); toast(e.message); }
+      });
+  }
   let ntStatus = null, ntLoading = false;
   async function renderNotifyCard(force) {
     const box = $('#nt-set'); if (!box) return;
@@ -3837,6 +4000,262 @@
       <div class="right"><button class="btn sm" data-fctog="${esc(f.id)}">Fatto</button></div></div>`;
   }
 
+
+  /* ================= MOTION E INTERAZIONI ================= */
+  const haptic = (ms = 10) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch {} };
+  const touchUI = () => matchMedia('(pointer: coarse)').matches && !isDesk();
+
+  /* --- Contachilometri per i numeri principali --- */
+  function odoSet(el, txt, prevTxt) {
+    const H = '1.15em';
+    txt = txt.replace(/ /g, '\u00a0'); if (prevTxt) prevTxt = prevTxt.replace(/ /g, '\u00a0');
+    const build = t => [...t].map((ch, i) => /\d/.test(ch)
+      ? `<span class="od-d"><span class="od-s" style="transform:translateY(calc(-${H} * ${ch}))">${'0123456789'.split('').map(d => `<span>${d}</span>`).join('')}</span></span>`
+      : `<span class="od-c">${esc(ch)}</span>`).join('');
+    const same = prevTxt && prevTxt.length === txt.length && prevTxt.replace(/\d/g, '0') === txt.replace(/\d/g, '0') && $$('.od-s', el).length === (txt.match(/\d/g) || []).length && el.textContent.replace(/\s/g, '').length > 10;
+    if (!same) {
+      // struttura nuova: parto da zero e faccio rotolare le cifre
+      el.innerHTML = build(txt.replace(/\d/g, '0'));
+      el.setAttribute('aria-label', txt);
+      void el.offsetWidth;
+    }
+    const strips = $$('.od-s', el), digits = [...txt].filter(c => /\d/.test(c));
+    strips.forEach((s, i) => { s.style.transitionDelay = (strips.length - i) * 35 + 'ms'; s.style.transform = `translateY(calc(-${H} * ${digits[i]}))`; });
+    el.setAttribute('aria-label', txt);
+  }
+
+  /* --- Transizioni tra pagine (View Transitions) --- */
+  const NAV_ORDER = ['home', 'spese', 'entrate', 'fisse', 'auto', 'estratto', 'affitto', 'lista', 'documenti', 'detrazioni', 'faccende', 'progetti', 'manutenzioni', 'anno', 'bollette', 'impostazioni'];
+  let routedOnce = false;
+  function routeAnimated(apply) {
+    const next = (location.hash || '#home').slice(1).split('?')[0];
+    const a = NAV_ORDER.indexOf(view), b = NAV_ORDER.indexOf(next);
+    document.documentElement.dataset.dir = b >= a ? 'fwd' : 'back';
+    if (routedOnce && document.startViewTransition && !reduced() && next !== view) {
+      try { document.startViewTransition(() => apply(true)); return; } catch {}
+    }
+    routedOnce = true;
+    apply(false);
+  }
+
+  /* --- Barra in basso: evidenziatore che scorre + icone che si disegnano --- */
+  function navInit() {
+    const nav = $('.nav'); if (!nav || $('.nav-pill', nav)) return;
+    const pill = document.createElement('i'); pill.className = 'nav-pill'; nav.prepend(pill);
+    $$('.nav a svg *').forEach(e => e.setAttribute('pathLength', '1'));
+    window.addEventListener('resize', () => navPill(false));
+  }
+  function navPill(anim = true) {
+    const nav = $('.nav'), pill = nav && $('.nav-pill', nav); if (!pill) return;
+    const a = $$('.nav a', nav).find(x => x.classList.contains('active') && x.offsetParent !== null);
+    if (!a || isDesk()) { pill.style.opacity = 0; return; }
+    const nr = nav.getBoundingClientRect(), r = a.getBoundingClientRect();
+    if (!anim) pill.style.transition = 'none';
+    pill.style.opacity = 1;
+    pill.style.transform = `translateX(${r.left - nr.left + r.width / 2 - 23}px)`;
+    if (!anim) { void pill.offsetWidth; pill.style.transition = ''; }
+  }
+
+  /* --- Titolo grande che si compatta scorrendo --- */
+  function scrollInit() {
+    let tk = false;
+    window.addEventListener('scroll', () => {
+      if (tk) return; tk = true;
+      requestAnimationFrame(() => { document.body.classList.toggle('scrolled', window.scrollY > 24); tk = false; });
+    }, { passive: true });
+  }
+
+  /* --- Toast con azione "Annulla" --- */
+  function toastUndo(msg, undo) {
+    toast(msg);
+    const t = $('#toast');
+    const b = document.createElement('button'); b.type = 'button'; b.className = 't-act'; b.textContent = 'Annulla';
+    b.onclick = () => { undo(); haptic(8); t.classList.add('out'); setTimeout(() => (t.hidden = true), 250); };
+    t.appendChild(b);
+    clearTimeout(toast._t); toast._t = setTimeout(() => { t.classList.add('out'); setTimeout(() => (t.hidden = true), 250); }, 4500);
+  }
+
+  /* --- Scorri per eliminare / modificare / spuntare (telefono) --- */
+  const ICO_TRASH = '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>';
+  const ICO_EDIT = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>';
+  const ICO_OK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const ICO_PAY = '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>';
+  function swipeTarget(el) {
+    const sp = el.closest('.item[data-spesa]');
+    if (sp && !sp.closest('.hist, .sheet, .dt-c')) { const s = db.spese.find(x => String(x.id) === sp.dataset.spesa); if (s) return { el: sp, left: { cls: 'del', ico: ICO_TRASH, txt: 'Elimina', run: () => { write([{ action: 'delete', sheet: 'Spese', id: s.id }]); toastUndo('Spesa eliminata', () => write([{ action: 'upsert', sheet: 'Spese', row: s }])); } }, right: { cls: 'edit', ico: ICO_EDIT, txt: 'Modifica', run: () => formSpesa(s) } }; }
+    const fc = el.closest('.fc-it');
+    if (fc) { const f = db.faccende.find(x => x.id === fc.dataset.lsid); if (f) return { el: fc, left: { cls: 'del', ico: ICO_TRASH, txt: 'Elimina', run: () => { write([{ action: 'delete', sheet: 'Faccende', id: f.id }]); toastUndo('Eliminata', () => write([{ action: 'upsert', sheet: 'Faccende', row: f }])); } }, right: { cls: 'ok', ico: ICO_OK, txt: isOn(f.fatto) ? 'Da fare' : 'Fatto', run: () => { write([{ action: 'upsert', sheet: 'Faccende', row: { ...f, fatto: !isOn(f.fatto), fattoIl: isOn(f.fatto) ? '' : today() } }]); fcCelebrate(); } } }; }
+    const ls = el.closest('.ls-it');
+    if (ls) { const x = db.lista.find(y => y.id === ls.dataset.lsid); if (x) return { el: ls, left: { cls: 'del', ico: ICO_TRASH, txt: 'Elimina', run: () => { write([{ action: 'delete', sheet: 'Lista', id: x.id }]); toastUndo(x.nome + ' tolto dalla lista', () => write([{ action: 'upsert', sheet: 'Lista', row: x }])); } }, right: { cls: 'ok', ico: ICO_OK, txt: isOn(x.fatto) ? 'Rimetti' : 'Preso', run: () => lsToggle(x.id) } }; }
+    const bl = el.closest('.bill[data-bill]');
+    if (bl) { const b = db.bollette.find(x => x.id === bl.dataset.bill); if (b && activeBills().includes(b)) return { el: bl, right: { cls: 'ok', ico: ICO_PAY, txt: 'Paga', run: () => formPay(b) }, left: { cls: 'edit', ico: ICO_EDIT, txt: 'Modifica', run: () => formBill(b) } }; }
+    return null;
+  }
+  let swipeJust = 0;
+  function swipeInit() {
+    let st = null;
+    document.addEventListener('touchstart', e => {
+      if (!touchUI() || e.touches.length !== 1 || e.target.closest('button, input, select, textarea, a')) return;
+      const t = swipeTarget(e.target); if (!t) return;
+      st = { ...t, x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, lock: null, t0: Date.now() };
+    }, { passive: true });
+    document.addEventListener('touchmove', e => {
+      if (!st) return;
+      const dx = e.touches[0].clientX - st.x, dy = e.touches[0].clientY - st.y;
+      if (!st.lock) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; st.lock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y'; if (st.lock === 'y') { st = null; return; } swipeStart(st); }
+      e.preventDefault();
+      const side = dx < 0 ? st.left : st.right;
+      let d = side ? dx : dx * 0.15;                       // resistenza se non c'è azione
+      if (Math.abs(d) > st.w * 0.6) d = Math.sign(d) * (st.w * 0.6 + (Math.abs(d) - st.w * 0.6) * 0.3);
+      st.dx = d; st.el.style.transform = `translateX(${d}px)`;
+      const arm = side && Math.abs(d) > 80;
+      st.bg.className = 'sw-bg ' + (d < 0 ? 'l ' : 'r ') + (side ? side.cls : '') + (arm ? ' armed' : '');
+      st.bg.innerHTML = side ? `<span>${side.ico}${esc(side.txt)}</span>` : '';
+      if (arm && !st.armed) haptic(6);
+      st.armed = arm;
+    }, { passive: false });
+    const end = () => {
+      if (!st || !st.bg) { st = null; return; }
+      const s = st; st = null; swipeJust = Date.now();
+      const side = s.dx < 0 ? s.left : s.right;
+      if (side && Math.abs(s.dx) > 80) {
+        haptic(12);
+        if (side.cls === 'del') { s.el.style.transition = 'transform .22s ease-in, opacity .22s'; s.el.style.transform = `translateX(${Math.sign(s.dx) * s.w}px)`; s.el.style.opacity = 0; setTimeout(() => { swipeEnd(s); side.run(); }, 220); return; }
+        s.el.style.transition = 'transform .3s var(--spring)'; s.el.style.transform = ''; setTimeout(() => { swipeEnd(s); side.run(); }, 160); return;
+      }
+      s.el.style.transition = 'transform .35s var(--spring)'; s.el.style.transform = ''; setTimeout(() => swipeEnd(s), 350);
+    };
+    document.addEventListener('touchend', end); document.addEventListener('touchcancel', end);
+    // dopo uno scorrimento il tocco non deve aprire la scheda
+    document.addEventListener('click', e => { if (Date.now() - swipeJust < 350) { e.stopPropagation(); e.preventDefault(); } }, true);
+  }
+  function swipeStart(s) {
+    s.w = s.el.offsetWidth;
+    const par = s.el.parentNode; s.par = par; s.parPos = par.style.position; s.parOv = par.style.overflow;
+    if (getComputedStyle(par).position === 'static') par.style.position = 'relative';
+    par.style.overflow = 'hidden';
+    const bg = document.createElement('div'); bg.className = 'sw-bg';
+    const r = s.el.getBoundingClientRect();
+    Object.assign(bg.style, { left: (s.el.offsetLeft) + 'px', top: (s.el.offsetTop) + 'px', width: r.width + 'px', height: r.height + 'px' });
+    s.el.parentNode.insertBefore(bg, s.el);
+    s.bg = bg; s.el.classList.add('swiping'); s.el.style.transition = 'none';
+  }
+  function swipeEnd(s) { if (s.bg) s.bg.remove(); s.el.classList.remove('swiping'); s.el.style.transition = ''; s.el.style.opacity = ''; if (s.par) { s.par.style.position = s.parPos; s.par.style.overflow = s.parOv; } }
+
+  /* --- Trascina giù per chiudere i pannelli --- */
+  function sheetDragInit() {
+    const panel = $('#sheet-form'); if (!panel) return;
+    let d = null;
+    panel.addEventListener('touchstart', e => {
+      if (matchMedia('(min-width: 640px)').matches || e.touches.length !== 1) return;
+      const inHead = e.target.closest('.sheet-h, .sheet-grab');
+      if (!inHead && panel.scrollTop > 0) return;
+      if (e.target.closest('input, select, textarea, .att, .who-pick, .tipi')) return;
+      d = { y: e.touches[0].clientY, dy: 0, t: Date.now(), head: !!inHead };
+    }, { passive: true });
+    panel.addEventListener('touchmove', e => {
+      if (!d) return;
+      const dy = e.touches[0].clientY - d.y;
+      if (!d.on) { if (dy < 6) { if (dy < -6) d = null; return; } if (!d.head && panel.scrollTop > 0) { d = null; return; } d.on = true; panel.style.transition = 'none'; }
+      e.preventDefault();
+      d.dy = Math.max(0, dy);
+      panel.style.transform = `translateY(${d.dy}px)`;
+      $('.sheet-bg').style.opacity = Math.max(0.2, 1 - d.dy / 500);
+    }, { passive: false });
+    panel.addEventListener('touchend', () => {
+      if (!d || !d.on) { d = null; return; }
+      const v = d.dy / Math.max(1, Date.now() - d.t);
+      if (d.dy > 140 || (v > 0.6 && d.dy > 40)) {
+        panel.style.transition = 'transform .22s ease-in'; panel.style.transform = 'translateY(110%)';
+        setTimeout(() => { closeSheet(); panel.style.transform = ''; panel.style.transition = ''; $('.sheet-bg').style.opacity = ''; }, 200);
+      } else { panel.style.transition = 'transform .35s var(--spring)'; panel.style.transform = ''; $('.sheet-bg').style.opacity = ''; setTimeout(() => (panel.style.transition = ''), 350); }
+      d = null;
+    });
+  }
+
+  /* --- Tira giù per aggiornare --- */
+  function ptrInit() {
+    const el = document.createElement('div'); el.id = 'ptr'; el.className = 'ptr';
+    el.innerHTML = '<img src="logo.svg" alt="" width="30" height="30">';
+    document.body.appendChild(el);
+    let p = null;
+    document.addEventListener('touchstart', e => {
+      if (!touchUI() || window.scrollY > 0 || !$('#sheet').hidden || !$('#app') || $('#app').hidden || locked || e.target.closest('.sheet, .viewer, .nav, .cal-grid, .veh-tabs, .doc-chips, input, textarea')) return;
+      p = { y: e.touches[0].clientY, d: 0 };
+    }, { passive: true });
+    document.addEventListener('touchmove', e => {
+      if (!p) return;
+      const dy = e.touches[0].clientY - p.y;
+      if (dy <= 0 || window.scrollY > 0) { if (p.d) { el.style.transform = ''; el.classList.remove('on'); } p = dy < -4 ? null : p; return; }
+      p.d = Math.min(120, dy * 0.45);
+      el.classList.add('on');
+      el.style.transform = `translateY(${p.d}px) rotate(${p.d * 3}deg)`;
+      el.classList.toggle('ready', p.d > 70);
+      if (p.d > 70 && !p.rd) haptic(6); p.rd = p.d > 70;
+    }, { passive: true });
+    document.addEventListener('touchend', async () => {
+      if (!p) return;
+      const go = p.d > 70; p = null;
+      if (!go) { el.style.transform = ''; el.classList.remove('on', 'ready'); return; }
+      el.classList.add('spin'); el.style.transform = 'translateY(70px)';
+      if (isLocal()) { await sleep(500); render(); toast(DEMO ? 'Dati aggiornati' : 'Modalità solo dispositivo'); }
+      else await pull(true);
+      el.classList.remove('spin', 'ready'); el.style.transform = ''; setTimeout(() => el.classList.remove('on'), 300);
+    });
+  }
+
+  /* --- Celebrazioni --- */
+  function fcCelebrate() { setTimeout(() => { if (!fcOpen().length && db.faccende.length) { confetti(); toast('Tutto fatto! 🎉'); } }, 300); }
+  function monthCelebrate() {
+    const b = budgetCfg(), lim = Number(b.limite) || 0; if (!lim) return;
+    const d0 = new Date(); if (d0.getDate() > 10) return;
+    const prev = ymOf(new Date(d0.getFullYear(), d0.getMonth() - 1, 1)), k = 'sc_celebr_' + prev;
+    if (LS.get(k, false)) return;
+    const tot = budgetTotal(prev);
+    if (!tot || tot > lim) { LS.set(k, true); return; }
+    LS.set(k, true);
+    setTimeout(() => { confetti(); toast(`${monthName(prev).replace(/^./, c => c.toUpperCase())} chiuso sotto il limite: ${eur0(lim - tot)} risparmiati 🎉`); }, 1600);
+  }
+
+  /* --- Tema chiaro / scuro / automatico --- */
+  const themeGet = () => { try { return localStorage.getItem('sc_theme') || 'auto'; } catch { return 'auto'; } };
+  function themeApply(t) {
+    const r = document.documentElement;
+    if (t === 'auto') delete r.dataset.theme; else r.dataset.theme = t;
+    try { localStorage.setItem('sc_theme', t); } catch {}
+    const bg = getComputedStyle(r).getPropertyValue('--bg').trim();
+    $$('meta[name="theme-color"]').forEach(m => m.setAttribute('content', bg));
+  }
+  function themeSet(t, ev) {
+    if (t === themeGet()) return;
+    if (!document.startViewTransition || reduced()) { themeApply(t); renderTheme(); return; }
+    const x = ev ? ev.clientX : innerWidth / 2, y = ev ? ev.clientY : innerHeight / 2;
+    const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    document.documentElement.classList.add('theme-vt');
+    const vt = document.startViewTransition(() => { themeApply(t); renderTheme(); });
+    vt.ready.then(() => document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] }, { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' }));
+    vt.finished.finally(() => document.documentElement.classList.remove('theme-vt'));
+  }
+  function renderTheme() {
+    const box = $('#theme-set'); if (!box) return;
+    const t = themeGet();
+    box.innerHTML = `<div class="seg seg3">${[['auto', 'Automatico'], ['light', 'Chiaro'], ['dark', 'Scuro']].map(([k, l]) => `<button type="button" class="${t === k ? 'on' : ''}" data-themeset="${k}">${l}</button>`).join('')}</div>
+      <p class="muted small" style="margin:8px 0 0">Automatico segue l'impostazione del telefono o del computer.</p>`;
+  }
+
+  /* --- Caricamento: sagome luccicanti --- */
+  const skelLines = (n = 3) => `<div class="skel-wrap">${Array.from({ length: n }, (_, i) => `<div class="skel" style="width:${[92, 76, 84, 60, 70][i % 5]}%"></div>`).join('')}</div>`;
+
+  function motionInit() {
+    navInit(); scrollInit(); swipeInit(); sheetDragInit(); ptrInit();
+    document.addEventListener('click', e => { const t = e.target.closest('[data-themeset]'); if (t) themeSet(t.dataset.themeset, e); });
+    // icone degli stati vuoti: si disegnano
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) $$('.es-ic svg *', n).forEach(x => x.setAttribute('pathLength', '1')); }))).observe(document.body, { childList: true, subtree: true });
+    $$('.es-ic svg *').forEach(x => x.setAttribute('pathLength', '1'));
+    // maniglia dei pannelli
+    const h = $('#sheet-form .sheet-h'); if (h && !$('.sheet-grab')) { const g = document.createElement('div'); g.className = 'sheet-grab'; h.parentNode.insertBefore(g, h); }
+  }
+
   /* ================= MODALITÀ DEMO (dati di esempio, nulla viene salvato) ================= */
   const demoFiles = {}, demoMeta = {};
   function demoData() {
@@ -4006,14 +4425,18 @@
     if (task === 'payslip') { const pm = ymOf(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)); return { valido: true, netto: 1812.6, lordo: 2520, mese: pm, data: pm + '-27', tipo: 'Stipendio', datore: 'Azienda Esempio', note: 'Straordinari 6h' }; }
     if (task === 'detraz') return { voci: (extra.spese || []).map(s => ({ i: s.i, tipo: DT_RE.test(s.n + ' ' + (s.note || '')) || s.c === 'Salute' ? 'sanitarie' : 'no' })) };
     if (task === 'insights') {
-      const pm = (extra.dati && extra.dati.perMese) || [], cur = pm[pm.length - 1] || {}, prev = pm[pm.length - 2] || {};
+      const pm = ((extra.dati && (extra.dati.ultimi12Mesi || extra.dati.perMese)) || []).map(x => ({ ...x, totale: x.spese ?? x.totale })), cur = pm[pm.length - 1] || {}, prev = pm[pm.length - 2] || {};
       const c = cur.perCategoria || {}, p = prev.perCategoria || {};
       const al = c['Spesa alimentare'] || 0, alp = p['Spesa alimentare'] || 0;
-      return { sintesi: (cur.totale || 0) > (prev.totale || 0) ? 'Mese più caro del precedente: tieni d\'occhio le spese variabili.' : 'Mese sotto controllo, in linea con i precedenti.', punti: [
+      return { voto: 72, votoMotivo: 'Buona, ma le spese variabili sono in crescita', risparmioPotenziale: 95,
+        previsione: { fineMese: (extra.dati.previsioneFineMese || {}).saldoPrevisto ?? 900, commento: 'Al ritmo attuale chiuderete il mese in positivo: mantenete la spesa alimentare sotto i 500 €.' },
+        azioni: [{ testo: 'Disdici o metti in pausa uno tra Netflix e Spotify per due mesi', risparmioMensile: 14 }, { testo: 'Fai la spesa grossa da Lidl invece che da Esselunga una volta su due', risparmioMensile: 45 }, { testo: 'Confronta l\'offerta del gas prima dell\'inverno', risparmioMensile: 25 }],
+        sintesi: (cur.totale || 0) > (prev.totale || 0) ? 'Mese più caro del precedente: tieni d\'occhio le spese variabili.' : 'Mese sotto controllo, in linea con i precedenti.', punti: [
         { tipo: al > alp ? 'attenzione' : 'positivo', testo: `Spesa alimentare a ${eur0(al)} contro ${eur0(alp)} del mese scorso.` },
         { tipo: 'info', testo: `Gli abbonamenti costano circa ${eur0((c['Abbonamenti'] || 56))} al mese: valuta se li usi tutti.` },
         { tipo: 'positivo', testo: 'Le bollette sono in linea con la media degli ultimi 6 mesi.' },
-        { tipo: 'info', testo: 'Consiglio: fai la spesa grossa una volta a settimana con la lista, riduci gli acquisti d\'impulso.' }] };
+        { tipo: 'info', testo: 'Consiglio: fai la spesa grossa una volta a settimana con la lista, riduci gli acquisti d\'impulso.' }].map((p, i) => ({ ...p, area: ['Spesa alimentare', 'Abbonamenti', 'Bollette', 'Abitudini'][i], titolo: ['Spesa alimentare', 'Abbonamenti', 'Bollette', 'Abitudini di spesa'][i], impatto: [40, 14, 0, 30][i] }))
+        .concat([{ tipo: 'attenzione', area: 'Abitudini', titolo: 'Il weekend pesa', testo: 'Sabato e domenica concentrano il 38% delle spese variabili degli ultimi 3 mesi.', impatto: 20 }, { tipo: 'positivo', area: 'Risparmio', titolo: 'Tasso di risparmio', testo: 'Negli ultimi 12 mesi avete risparmiato il 41% delle entrate, sopra il 20% consigliato.', impatto: 0 }]) };
     }
     throw new Error('Nella demo questa funzione non è disponibile');
   }
@@ -4365,6 +4788,7 @@
       if (e.target.closest('#ai-save')) { const k = $('#ai-key').value.trim(); if (k) setAIKey(k); return; }
       if (e.target.closest('#ai-off')) { if (confirm('Disattivare l\'IA?')) setAIKey(''); return; }
       if (e.target.closest('#h-ai-btn')) { runInsights(); return; }
+      if (e.target.closest('#ins-all')) { insFull(); return; }
       if (e.target.closest('#bill-photo')) { aiBill(); return; }
       const lt = e.target.closest('[data-lstog]');
       if (lt) { lsToggle(lt.dataset.lstog); return; }
@@ -4412,6 +4836,8 @@
       if (e.target.closest('#tg-off')) { if (confirm('Disattivare il bot Telegram?')) tgApi('off').then(r => { db.tg = r; save(); renderTg(); toast('Bot disattivato'); }).catch(() => {}); return; }
       if (e.target.closest('#bk-now')) { bkApi('now'); return; }
       if (e.target.closest('#nt-test')) { notifyTest(); return; }
+      if (e.target.closest('#ac-set-btn')) { formAccess(); return; }
+      if (e.target.closest('#ac-out')) { if (confirm('Scollegare tutti gli altri dispositivi? Dovranno reinserire il codice.')) api('access', { op: 'logoutAll', device: 'questo dispositivo' }).then(r => { tok = r.token || tok; LS.set('sc_tok', tok); acStatus = null; renderAccess(true); toast('Altri dispositivi scollegati'); }).catch(er => toast(er.message)); return; }
       if (e.target.closest('#tg-weekly')) { tgApi('weekly').then(() => toast('Riepilogo inviato su Telegram')).catch(() => {}); return; }
       const pj = e.target.closest('[data-prj]');
       if (pj) { prjSel = prjSel === pj.dataset.prj ? '' : pj.dataset.prj; renderPrj(); if (prjSel && !isDesk()) setTimeout(() => { const d = $('.prj-det'); d && d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); return; }
@@ -4420,7 +4846,7 @@
       const fw = e.target.closest('[data-fcwho]');
       if (fw) { fcWho = fw.dataset.fcwho; renderFc(); return; }
       const ft2 = e.target.closest('[data-fctog]');
-      if (ft2) { e.stopPropagation(); const x = db.faccende.find(y => y.id === ft2.dataset.fctog); if (x) { const on = !isOn(x.fatto); const el = ft2.closest('.ls-it'); const go = () => { write([{ action: 'upsert', sheet: 'Faccende', row: { ...x, fatto: on, fattoIl: on ? today() : '' } }]); if (on) toast('Fatto ✓'); }; if (el && !reduced()) { el.classList.add(on ? 'checking' : 'unchecking'); setTimeout(go, 260); } else go(); } return; }
+      if (ft2) { e.stopPropagation(); const x = db.faccende.find(y => y.id === ft2.dataset.fctog); if (x) { const on = !isOn(x.fatto); const el = ft2.closest('.ls-it'); const go = () => { write([{ action: 'upsert', sheet: 'Faccende', row: { ...x, fatto: on, fattoIl: on ? today() : '' } }]); if (on) { toast('Fatto ✓'); fcCelebrate(); } }; if (el && !reduced()) { el.classList.add(on ? 'checking' : 'unchecking'); setTimeout(go, 260); } else go(); } return; }
       const fe = e.target.closest('[data-fc]');
       if (fe) { const x = db.faccende.find(y => y.id === fe.dataset.fc); if (x) formFc(x); return; }
       if (e.target.closest('[data-fcclear]')) { const d = db.faccende.filter(x => isOn(x.fatto)); if (d.length && confirm(`Eliminare le ${d.length} cose già fatte?`)) write(d.map(x => ({ action: 'delete', sheet: 'Faccende', id: x.id }))); return; }
@@ -4432,6 +4858,8 @@
     });
     document.addEventListener('change', e => {
       if (e.target.id === 'bk-on') { bkApi(e.target.checked ? 'on' : 'off'); return; }
+      const idn = e.target.closest('[data-insdone]');
+      if (idn) { const k = 'sc_insdone_' + homeMonth, l = LS.get(k, []), i = Number(idn.dataset.insdone); LS.set(k, idn.checked ? [...new Set([...l, i])] : l.filter(x => x !== i)); idn.closest('.ins2-todo').classList.toggle('done', idn.checked); return; }
       const ds = e.target.closest('[data-dtset]');
       if (ds && ds.value) { const sp = db.spese.find(x => x.id === ds.dataset.dtset); if (sp) { write([{ action: 'upsert', sheet: 'Spese', row: { ...sp, detrazione: ds.value, personaId: sp.personaId || (dtWho !== 'all' ? dtWho : (personeAttive()[0] || {}).id || '') } }]); toast(ds.value === 'no' ? 'Segnata come non detraibile' : 'Aggiunta al riepilogo 730'); } }
     });
@@ -4477,7 +4905,32 @@
   function showSetup() {
     hideSplash();
     $('#app').hidden = true; $('#setup').hidden = false;
+    $('#setup').classList.toggle('code-mode', false);
     $('#setup-url').value = isLocal() ? '' : url;
+  }
+  // nuovo dispositivo (o codice cambiato): basta il codice di accesso
+  function showLogin() {
+    if (DEMO || !$('#setup')) return;
+    hideSplash();
+    $('#app').hidden = true; $('#setup').hidden = false;
+    $('#setup').classList.add('code-mode');
+    $('#code-err').hidden = true;
+    setTimeout(() => $('#setup-code') && $('#setup-code').focus(), 300);
+  }
+  async function doLogin() {
+    const code = $('#setup-code').value.trim(), err = $('#code-err'), btn = $('#code-go');
+    if (!code) return;
+    err.hidden = true; btn.disabled = true; btn.textContent = 'Verifico…';
+    try {
+      const target = url || DEFAULT_URL;
+      const r = await fetch(target, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'login', code, device: (navigator.userAgentData && navigator.userAgentData.platform) || (/iPhone|iPad/.test(navigator.userAgent) ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'PC') }) });
+      const j = await r.json(); if (!j.ok) throw new Error(j.error);
+      tok = j.result.token || ''; LS.set('sc_tok', tok);
+      url = target; LS.set('sc_url', url);
+      $('#setup-code').value = '';
+      startApp(); toast('Benvenuto 👋');
+    } catch (e) { err.textContent = e.message === 'Failed to fetch' ? 'Connessione assente, riprova' : e.message; err.hidden = false; $('#setup-code').select(); }
+    btn.disabled = false; btn.textContent = 'Entra';
   }
   function hideSplash() {
     const sp = $('#splash'); if (!sp) return;
@@ -4486,9 +4939,12 @@
   function startApp() {
     $('#setup').hidden = true; $('#app').hidden = false;
     hideSplash();
+    const firstLoad = !isLocal() && !db.spese.length && !db.bollette.length;
+    if (firstLoad) document.body.classList.add('is-loading');
     route();
-    if (!isLocal()) pull();
+    if (!isLocal()) pull().finally(() => document.body.classList.remove('is-loading'));
     if (!locked) handleLaunch();
+    setTimeout(monthCelebrate, 800);
   }
 
   function setupBind() {
@@ -4498,20 +4954,25 @@
       if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(v)) { err.textContent = 'URL non valido: deve iniziare con https://script.google.com/…/exec'; err.hidden = false; return; }
       $('#setup-go').textContent = 'Verifico…';
       try {
-        const r = await fetch(v + (v.includes('?') ? '&' : '?') + 'action=all');
+        const r = await sfetch(v + (v.includes('?') ? '&' : '?') + 'action=all');
         const j = await r.json();
         if (!j.ok) throw new Error(j.error);
-        if (url !== v) { queue = []; }
+        if (url !== v) { queue = []; tok = ''; LS.set('sc_tok', ''); }
         url = v; LS.set('sc_url', url);
         db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], progetti: j.data.progetti || [], faccende: j.data.faccende || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
         save(); online = true; startApp(); toast('Collegato');
       } catch (e) {
+        if (e.message === 'AUTH_REQ') { url = v; LS.set('sc_url', url); $('#setup-go').textContent = 'Collega'; return; }
         err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');
         err.hidden = false;
       }
       $('#setup-go').textContent = 'Collega';
     };
     $('#setup-demo').onclick = () => { location.href = location.pathname + '?demo'; };
+    $('#code-go').onclick = doLogin;
+    $('#setup-code').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    $('#code-adv').onclick = () => $('#setup').classList.remove('code-mode');
+    $('#code-demo').onclick = () => { location.href = location.pathname + '?demo'; };
     $('#setup-local').onclick = () => {
       url = 'local'; LS.set('sc_url', url); queue = [];
       if (!db.categorie.length) db.categorie = DEFAULT_CATS.slice();
@@ -4520,7 +4981,7 @@
   }
 
   /* ================= Init ================= */
-  bind(); setupBind(); lockBind(); viewerBind();
+  bind(); setupBind(); lockBind(); viewerBind(); motionInit(); themeApply(themeGet());
   if (DEMO) demoStart();
   if (url && lockCfg() && !DEMO) { showLock(); setTimeout(() => { if (locked) unlock(); }, 450); }
   if (url) startApp(); else showSetup();
