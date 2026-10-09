@@ -459,6 +459,7 @@
     renderForecast();
     renderInsights();
     renderAlerts();
+    setTimeout(autoInsights, 1200);
 
     const last = [...db.spese].sort((a, b) => (b.data + (b.creato || '')).localeCompare(a.data + (a.creato || ''))).slice(0, matchMedia('(min-width: 900px)').matches ? 8 : 5);
     $('#h-last').innerHTML = !last.length ? '<div class="empty">Ancora nessuna spesa. Tocca + per iniziare.</div>'
@@ -1128,9 +1129,11 @@
       isNew ? null : () => { if (!confirm('Eliminare questa entrata?')) return; write([{ action: 'delete', sheet: 'Entrate', id: e.id }]); closeSheet(); toast('Eliminata'); });
     const att = attachBox({ id: e.allegato || '', label: 'Busta paga', cartella: 'Buste paga', autoRead: isNew,
       onRead: async doc => {
-        busy('Leggo la busta paga…');
+        busy('Apro la busta paga…');
         try {
-          const r = await aiCall('payslip', { image: doc.b64, mime: doc.mime }); busy();
+          const img = await docForAI(doc, 2);
+          busy('Leggo la busta paga…');
+          const r = await aiCall('payslip', img); busy();
           if (r.valido === false) return toast('Non sembra una busta paga');
           const F = n => $('#sheet-body [name=' + n + ']');
           if (r.netto) F('importo').value = fmtAmt(r.netto);
@@ -1445,15 +1448,47 @@
   const words = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(w => w.length > 2 && !/^(pagamento|pos|carta|presso|del|per|con|sdd|addebito|bonifico|favore|disposizione|operazione|roma|italia|srl|spa)$/.test(w));
 
   function canvasToB64(c) { return c.toDataURL('image/jpeg', 0.85).split(',')[1]; }
+  // apre un PDF, chiedendo la password se è protetto (le buste paga spesso usano il codice fiscale)
+  async function openPdf(bytes) {
+    const lib = await libPdf();
+    const task = lib.getDocument({ data: bytes.slice() });
+    task.onPassword = (update, reason) => {
+      const b = $('#busy'); if (b) b.hidden = true;
+      const pw = prompt(reason === 2 ? 'Password errata, riprova:' : 'Il PDF è protetto da password (per le buste paga di solito è il codice fiscale, in maiuscolo). Inseriscila:');
+      if (pw == null) { task.destroy(); return; }
+      if (b) b.hidden = false;
+      update(pw.trim());
+    };
+    try { return await task.promise; }
+    catch (e) { if (/password|destroy|abort/i.test((e.name || '') + (e.message || ''))) throw new Error('PDF protetto: senza password non posso leggerlo'); throw new Error('PDF non leggibile'); }
+  }
+  // prepara un documento per l'IA: i PDF diventano un'immagine leggera delle prime pagine
+  async function docForAI(doc, maxPages = 2) {
+    if (doc.mime !== 'application/pdf') return { image: doc.b64, mime: doc.mime };
+    const bin = atob(doc.b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const pdf = await openPdf(bytes);
+    const n = Math.min(pdf.numPages, maxPages), W = 1500, canv = [];
+    for (let i = 1; i <= n; i++) {
+      const page = await pdf.getPage(i), vp0 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: W / vp0.width });
+      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise; canv.push(c);
+    }
+    const H = canv.reduce((a, c) => a + c.height, 0), k = Math.min(1, 4200 / H);
+    const out = document.createElement('canvas'); out.width = Math.round(W * k); out.height = Math.round(H * k);
+    const o = out.getContext('2d'); o.fillStyle = '#fff'; o.fillRect(0, 0, out.width, out.height);
+    let y = 0; canv.forEach(c => { o.drawImage(c, 0, y, c.width * k, c.height * k); y += c.height * k; });
+    return { image: out.toDataURL('image/jpeg', 0.82).split(',')[1], mime: 'image/jpeg' };
+  }
 
   async function readStatementFile(files) {
     const pages = [];
     const f0 = files[0];
     const isPdf = f0.type === 'application/pdf' || /\.pdf$/i.test(f0.name);
     if (isPdf) {
-      const lib = await libPdf();
       const bytes = new Uint8Array(await f0.arrayBuffer());
-      const doc = await lib.getDocument({ data: bytes.slice() }).promise;
+      const doc = await openPdf(bytes);
       const n = Math.min(doc.numPages, 12);
       for (let i = 1; i <= n; i++) {
         busy(`Preparo pagina ${i} di ${n}…`);
@@ -2629,7 +2664,7 @@
       updVoci();
     };
     const att = attachBox({ id: f.allegato || '', pending: pendingDoc || null, label: 'Bolletta', cartella: 'Bollette',
-      onRead: async doc => { busy('Leggo la bolletta…'); try { const r = await aiCall('bill', { image: doc.b64, mime: doc.mime }); busy(); if (r.valido === false) return toast('Non sembra una bolletta'); fillFromAI(r); toast('Dati letti dalla bolletta'); } catch (e) { busy(); toast(e.message); } } });
+      onRead: async doc => { busy('Apro la bolletta…'); try { const img = await docForAI(doc, 3); busy('Leggo la bolletta…'); const r = await aiCall('bill', img); busy(); if (r.valido === false) return toast('Non sembra una bolletta'); fillFromAI(r); toast('Dati letti dalla bolletta'); } catch (e) { busy(); toast(e.message); } } });
     voci.forEach(v => addVoce(v.descrizione, v.importo));
     $('#sheet-body [name=importo]').addEventListener('input', updVoci);
     updVoci();
@@ -2653,9 +2688,16 @@
 
   async function aiCall(task, extra) {
     if (DEMO) return demoAI(task, extra || {});
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'ai', task, categorie: cats(), oggi: today(), ...extra }) });
-    const j = await r.json();
+    // tempo massimo di attesa: senza risposta non resto bloccato all'infinito
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 100000);
+    let r;
+    try {
+      r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal,
+        body: JSON.stringify({ action: 'ai', task, categorie: cats(), oggi: today(), ...extra }) });
+    } catch (e) {
+      throw new Error(e.name === 'AbortError' ? 'L\'IA non ha risposto in tempo. Riprova tra poco o compila a mano: l\'allegato resta salvato.' : 'Connessione assente, riprova');
+    } finally { clearTimeout(tm); }
+    let j; try { j = await r.json(); } catch { throw new Error('Risposta non valida dallo script: hai creato la Nuova versione del deployment?'); }
     if (!j.ok) throw new Error(j.error || 'Errore IA');
     return j.result;
   }
@@ -2759,7 +2801,7 @@
     try { img = await pickDoc(); } catch (e) { if (e.message !== 'annullato') toast(e.message); return; }
     busy('Leggo la bolletta…');
     try {
-      const r = await aiCall('bill', { image: img.b64, mime: img.mime });
+      const r = await aiCall('bill', await docForAI(img, 3));
       busy();
       if (!r.valido) return toast('Non sembra una bolletta, riprova');
       const pre = { _ai: true, importo: r.importo, scadenza: validDate(r.scadenza), frequenza: FREQ[r.frequenza] !== undefined ? r.frequenza : 'mensile', categoria: pickCat(r.categoria) };
@@ -2778,51 +2820,123 @@
     } catch (e) { busy(); toast(e.message); }
   }
 
-  /* Consigli del mese */
+  /* ================= ANALISI IA COMPLETA (Home) ================= */
+  const R2 = v => Math.round((Number(v) || 0) * 100) / 100;
   function insightsData(month) {
     const [y, m] = month.split('-').map(Number);
-    const mesi = [];
-    for (let i = 5; i >= 0; i--) mesi.push(ymOf(new Date(y, m - 1 - i, 1)));
+    const mesi = []; for (let i = 11; i >= 0; i--) mesi.push(ymOf(new Date(y, m - 1 - i, 1)));
+    const isCur = month === ymOf(new Date());
+    const catOf = L => { const o = {}; L.forEach(s => (o[s.categoria || 'Altro'] = R2((o[s.categoria || 'Altro'] || 0) + Number(s.importo || 0)))); return o; };
     const perMese = mesi.map(k => {
-      const ms = db.spese.filter(s => ym(s.data) === k);
-      const cat = {};
-      ms.forEach(s => (cat[s.categoria] = Math.round(((cat[s.categoria] || 0) + Number(s.importo || 0)) * 100) / 100));
-      return { mese: k, totale: Math.round(sum(ms) * 100) / 100, entrate: Math.round(sum(db.entrate.filter(x => ym(x.data) === k)) * 100) / 100, numero: ms.length, perCategoria: cat };
+      const ms = db.spese.filter(s => ym(s.data) === k), en = sum(db.entrate.filter(x => ym(x.data) === k));
+      return { mese: k, spese: R2(sum(ms)), entrate: R2(en), risparmio: R2(en - sum(ms)), numeroSpese: ms.length, perCategoria: catOf(ms) };
     });
-    const speseMese = db.spese.filter(s => ym(s.data) === month).slice(0, 200).map(s => ({ d: s.data, e: Number(s.importo), c: s.categoria, n: s.descrizione, p: s.metodo }));
-    const bollette = activeBills().map(b => ({ nome: b.nome, previsto: Number(b.importo), freq: b.frequenza, scadenza: b.scadenza,
-      pagamenti: db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data)).slice(0, 6).map(s => [s.data, Number(s.importo)]),
-      fatture: billFatture(b).slice(0, 6).map(f => ({ periodo: [f.periodoDa, f.periodoA].filter(Boolean).join('/'), totale: Number(f.importo), consumo: f.consumo, unita: f.unita, voci: parseVoci(f).map(v => [v.descrizione, v.importo]) })) }));
-    return { perMese, speseMese, bollette };
+    const sm = db.spese.filter(s => ym(s.data) === month);
+    const lyKey = ymOf(new Date(y - 1, m - 1, 1)), ly = db.spese.filter(s => ym(s.data) === lyKey);
+    const days = new Date(y, m, 0).getDate(), dayNow = isCur ? new Date().getDate() : days;
+    const lim = Number(budgetCfg().limite) || 0, lims = catLimits(), tot = sum(sm);
+    // negozi: ultimi 6 mesi contro i 6 precedenti
+    const d6 = ymd(new Date(y, m - 7, 1)), d12 = ymd(new Date(y, m - 13, 1)), end = `${month}-${pad(days)}`;
+    const shop = {};
+    db.spese.filter(s => !s.bollettaId && s.descrizione && s.data >= d12 && s.data <= end).forEach(s => {
+      const k = s.descrizione.trim(), o = shop[k] = shop[k] || { negozio: k, categoria: s.categoria, ult6: 0, volte6: 0, prec6: 0 };
+      if (s.data >= d6) { o.ult6 += Number(s.importo) || 0; o.volte6++; } else o.prec6 += Number(s.importo) || 0;
+    });
+    const negozi = Object.values(shop).sort((a, b) => b.ult6 - a.ult6).slice(0, 25).map(o => ({ ...o, ult6: R2(o.ult6), prec6: R2(o.prec6), scontrinoMedio: o.volte6 ? R2(o.ult6 / o.volte6) : 0 }));
+    // giorni della settimana (ultimi 3 mesi, spese variabili)
+    const d3 = ymd(new Date(y, m - 4, 1)), wd = [0, 0, 0, 0, 0, 0, 0], wdN = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+    db.spese.filter(s => !s.bollettaId && s.data >= d3 && s.data <= end).forEach(s => { wd[(parseD(s.data).getDay() + 6) % 7] += Number(s.importo) || 0; });
+    const fixed = fisseActive().map(f => { const mm = { settimanale: 4.33, mensile: 1, bimestrale: .5, trimestrale: 1 / 3, quadrimestrale: .25, semestrale: 1 / 6, annuale: 1 / 12 }[f.frequenza] || 1; return { nome: f.nome, tipo: f.tipo, importo: Number(f.importo), frequenza: f.frequenza, alMese: R2(Number(f.importo) * mm), pagamentiRecenti: db.spese.filter(s => s.bollettaId === 'fissa:' + f.id).sort((a, b) => b.data.localeCompare(a.data)).slice(0, 4).map(s => Number(s.importo)) }; });
+    const fuel = db.spese.filter(s => s.voceAuto === 'Carburante' && s.data >= d6).sort((a, b) => a.data.localeCompare(b.data));
+    const litri = fuel.reduce((a, s) => a + (Number(s.litri) || 0), 0), kms = fuel.map(s => Number(s.km) || 0).filter(Boolean);
+    const fc = isCur ? forecastData() : null;
+    const wh = whoData(sm, month);
+    return {
+      meseAnalizzato: month, meseInCorso: isCur, giornoDelMese: dayNow, giorniNelMese: days,
+      ultimi12Mesi: perMese,
+      meseCorrente: {
+        totale: R2(tot), perCategoria: catOf(sm), spesaMediaGiornaliera: R2(tot / Math.max(1, dayNow)),
+        stessoMeseAnnoScorso: ly.length ? { totale: R2(sum(ly)), perCategoria: catOf(ly) } : null,
+        spese: sm.slice().sort((a, b) => b.importo - a.importo).slice(0, 120).map(s => [s.data.slice(8), Number(s.importo), s.categoria, s.descrizione, s.metodo, (personaById(s.personaId) || {}).nome || ''])
+      },
+      limiteMensile: lim || null, budgetCategorie: Object.keys(lims).map(c => ({ categoria: c, limite: lims[c], speso: R2(sum(sm.filter(s => s.categoria === c))) })),
+      previsioneFineMese: fc ? { entrateRicevute: R2(fc.inReg), entrateInArrivo: R2(fc.inExpTot), speseFatte: R2(fc.outReg), pagamentiInArrivo: R2(fc.plannedTot), variabiliStimate: R2(fc.varEst), saldoPrevisto: R2(fc.result) } : null,
+      negozi, spesaPerGiornoSettimana_ultimi3mesi: Object.fromEntries(wdN.map((n, i) => [n, R2(wd[i])])),
+      speseFisseEAbbonamenti: { totaleAlMese: R2(fixed.reduce((a, f) => a + f.alMese, 0)), elenco: fixed },
+      affitto: rentCfg() ? { canone: Number(rentCfg().canone) } : null,
+      bollette: activeBills().map(b => ({ nome: b.nome, previsto: Number(b.importo), frequenza: b.frequenza, pagamenti: db.spese.filter(s => s.bollettaId === b.id).sort((a, c) => c.data.localeCompare(a.data)).slice(0, 6).map(s => [s.data.slice(0, 7), Number(s.importo)]),
+        fatture: billFatture(b).slice(0, 4).map(f => ({ periodo: [f.periodoDa, f.periodoA].filter(Boolean).join('/'), totale: Number(f.importo), consumo: Number(f.consumo) || null, unita: f.unita, costoUnitario: Number(f.consumo) > 0 ? R2(f.importo / f.consumo * 1000) / 1000 : null })) })),
+      auto: fuel.length ? { rifornimenti6mesi: fuel.length, litri: R2(litri), speso: R2(sum(fuel)), prezzoMedioLitro: litri ? R2(sum(fuel) / litri * 1000) / 1000 : null, km: kms.length > 1 ? Math.max(...kms) - Math.min(...kms) : null, scadenze: autoScadenze().filter(x => daysTo(x.date) <= 90).map(x => ({ cosa: x.title || x.titolo || x.voce, data: x.date, importo: x.importo })) } : null,
+      entratePerPersona: personeAttive().map(p => ({ nome: p.nome, ultimi3mesi: R2(sum(db.entrate.filter(e => e.personaId === p.id && e.data >= d3))) })),
+      chiHaPagato: wh ? { modo: wh.modo, perPersona: wh.bal.map(b => ({ nome: b.p.nome, pagato: R2(b.paid), quota: R2(b.due) })), contoComune: R2(wh.comune) } : null,
+      obiettivi: db.obiettivi.filter(g => g.attivo === '' || g.attivo == null || isOn(g.attivo)).map(g => ({ nome: g.nome, obiettivo: Number(g.target), versato: Number(g.versato), scadenza: g.scadenza || null })),
+      progetti: db.progetti.filter(p => p.attivo === '' || p.attivo == null || isOn(p.attivo)).map(p => ({ nome: p.nome, budget: Number(p.budget) || null, speso: R2(sum(prjSpese(p))) })),
+      detrazioniAnno: R2(sum(db.spese.filter(s => isDetr(s) && String(s.data).startsWith(String(y))))),
+      avvisiAutomatici: smartAlerts().map(a => a.titolo + ': ' + a.testo)
+    };
   }
-  const insKey = month => 'sc_ins_' + month;
-  const insSig = month => { const ms = db.spese.filter(s => ym(s.data) === month); return ms.length + ':' + sum(ms).toFixed(2); };
-
+  const insKey = month => 'sc_ins2_' + month;
+  const insSig = month => { const ms = db.spese.filter(s => ym(s.data) === month); return ms.length + ':' + sum(ms).toFixed(2) + ':' + db.entrate.filter(e => ym(e.data) === month).length; };
+  const AREA_ICO = { 'Spesa alimentare': '🛒', 'Abbonamenti': '📺', 'Bollette': '💡', 'Auto': '🚗', 'Entrate': '💼', 'Risparmio': '🏦', 'Budget': '🎯', 'Casa': '🏠', 'Abitudini': '📊', 'Obiettivi': '🎯', 'Salute': '💊' };
+  const scoreCls = v => v >= 75 ? 'good' : v >= 50 ? 'mid' : 'bad';
+  function scoreRing(v, size = 64) {
+    const r = size / 2 - 6, c = 2 * Math.PI * r, k = Math.max(0, Math.min(100, Number(v) || 0)) / 100;
+    return `<div class="ins-ring ${scoreCls(v)}" style="width:${size}px;height:${size}px"><svg viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="bg"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="fg" stroke-dasharray="${(c * k).toFixed(1)} ${c.toFixed(1)}"/></svg><b>${Math.round(v)}</b></div>`;
+  }
+  function insPoint(p) {
+    return `<div class="ins2-p ${esc(p.tipo)}"><span class="ins2-a">${AREA_ICO[p.area] || '•'}</span><div><b>${esc(p.titolo || '')}</b><span>${esc(p.testo)}</span>
+      ${Number(p.impatto) > 0 ? `<em class="ins2-imp">fino a ${eur0(p.impatto)}/mese</em>` : ''}</div></div>`;
+  }
   function renderInsights() {
-    const card = $('#h-ai');
-    if (!card) return;
+    const card = $('#h-ai'); if (!card) return;
     card.hidden = !aiReady();
     if (!aiReady()) return;
-    const saved = LS.get(insKey(homeMonth), null);
+    const saved = LS.get(insKey(homeMonth), null), r = saved && saved.r;
     const stale = saved && saved.sig !== insSig(homeMonth);
     const box = $('#h-ai-body');
     $('#h-ai-btn').textContent = saved ? 'Aggiorna' : 'Analizza';
-    if (!saved) { box.innerHTML = `<p class="muted small" style="margin:0">L'IA analizza le spese di ${esc(monthName(homeMonth))} e ti dice dove intervenire.</p>`; return; }
-    box.innerHTML = `<p class="ins-sum">${esc(saved.r.sintesi)}</p>
-      <ul class="ins">${(saved.r.punti || []).map(p => `<li class="${esc(p.tipo)}"><i></i><span>${esc(p.testo)}</span></li>`).join('')}</ul>
-      ${stale ? '<p class="muted small" style="margin:6px 0 0">Ci sono nuove spese: premi Aggiorna.</p>' : ''}`;
+    if (!r || r.voto == null) {
+      box.innerHTML = `<p class="muted small" style="margin:0">L'IA studia tutti i tuoi dati di ${esc(monthName(homeMonth))} e degli ultimi 12 mesi: spese, entrate, abbonamenti, bollette, auto, budget e obiettivi. Ti dà un punteggio, dove risparmiare e cosa fare questo mese.</p>`;
+      return;
+    }
+    const done = LS.get('sc_insdone_' + homeMonth, []);
+    box.innerHTML = `<div class="ins2-top">${scoreRing(r.voto)}<div class="ins2-sum"><span class="label">Salute finanziaria</span><b>${esc(r.votoMotivo || '')}</b><p>${esc(r.sintesi)}</p></div></div>
+      <div class="ins2-kpis">${Number(r.risparmioPotenziale) > 0 ? `<div><span>Risparmio possibile</span><b class="pos-t">${eur0(r.risparmioPotenziale)}/mese</b></div>` : ''}
+        ${r.previsione && r.previsione.fineMese != null && homeMonth === ymOf(new Date()) ? `<div><span>Fine mese</span><b class="${r.previsione.fineMese < 0 ? 'neg-t' : ''}">${r.previsione.fineMese >= 0 ? '+' : '−'}${eur0(Math.abs(r.previsione.fineMese))}</b></div>` : ''}</div>
+      <div class="ins2-list">${(r.punti || []).slice(0, 3).map(insPoint).join('')}</div>
+      ${(r.azioni || []).length ? `<div class="ins2-act"><div class="ins2-h">Cosa fare questo mese</div>${r.azioni.map((a, i) => `<label class="ins2-todo${done.includes(i) ? ' done' : ''}"><input type="checkbox" data-insdone="${i}" ${done.includes(i) ? 'checked' : ''}><span>${esc(a.testo)}${Number(a.risparmioMensile) > 0 ? ` <em>−${eur0(a.risparmioMensile)}/mese</em>` : ''}</span></label>`).join('')}</div>` : ''}
+      ${(r.punti || []).length > 3 ? `<button type="button" class="link-btn" id="ins-all">Vedi l'analisi completa (${r.punti.length} punti) →</button>` : ''}
+      <p class="muted small ins2-foot">${stale ? 'Ci sono dati nuovi: premi Aggiorna.' : 'Aggiornata il ' + esc(new Date(saved.at || Date.now()).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</p>`;
   }
-
-  async function runInsights() {
+  function insFull() {
+    const saved = LS.get(insKey(homeMonth), null), r = saved && saved.r; if (!r) return;
+    const groups = {}; (r.punti || []).forEach(p => (groups[p.area || 'Altro'] = groups[p.area || 'Altro'] || []).push(p));
+    openSheet('Analisi di ' + monthName(homeMonth), `
+      <div class="ins2-top">${scoreRing(r.voto, 76)}<div class="ins2-sum"><span class="label">Salute finanziaria</span><b>${esc(r.votoMotivo || '')}</b><p>${esc(r.sintesi)}</p></div></div>
+      ${r.previsione && r.previsione.commento ? `<div class="ai-note">${ICO.spark}<span>${esc(r.previsione.commento)}</span></div>` : ''}
+      ${Object.keys(groups).map(g => `<div class="ins2-h">${AREA_ICO[g] || '•'} ${esc(g)}</div><div class="ins2-list">${groups[g].map(insPoint).join('')}</div>`).join('')}`, () => closeSheet(), null, 'Chiudi');
+    $('#sheet-form').classList.add('wide');
+  }
+  async function runInsights(auto) {
     const month = homeMonth;
-    if (!db.spese.some(s => ym(s.data) === month)) return toast('Nessuna spesa in questo mese');
+    if (!db.spese.some(s => ym(s.data) === month)) { if (!auto) toast('Nessuna spesa in questo mese'); return; }
     const btn = $('#h-ai-btn'); btn.disabled = true; btn.textContent = 'Analizzo…';
+    const box = $('#h-ai-body'); if (box && !LS.get(insKey(month), null)) box.innerHTML = '<div class="ins2-load"><div class="spin"></div><span>Studio 12 mesi di dati…</span></div>';
     try {
       const r = await aiCall('insights', { mese: monthName(month), dati: insightsData(month) });
-      LS.set(insKey(month), { r, sig: insSig(month) });
-    } catch (e) { toast(e.message); }
+      LS.set(insKey(month), { r, sig: insSig(month), at: Date.now() });
+    } catch (e) { if (!auto) toast(e.message); }
     btn.disabled = false;
     renderInsights();
+  }
+  // la prima volta che apri la Home nel mese l'analisi parte da sola
+  function autoInsights() {
+    if (!aiReady() || runInsights._busy) return;
+    const saved = LS.get(insKey(homeMonth), null);
+    if (saved && saved.r && saved.r.voto != null) return;
+    if (LS.get('sc_insauto', '') === homeMonth + today()) return;
+    LS.set('sc_insauto', homeMonth + today());
+    runInsights._busy = true; runInsights(true).finally(() => (runInsights._busy = false));
   }
 
   function renderAISettings() {
@@ -3588,7 +3702,7 @@
     });
     // spesa insolita per la categoria
     const byCat = {}; db.spese.filter(s => !s.bollettaId).forEach(s => (byCat[s.categoria] = byCat[s.categoria] || []).push(Number(s.importo) || 0));
-    recent.filter(s => !s.bollettaId && Number(s.importo) >= 100).forEach(s => {
+    recent.filter(s => !s.bollettaId && !s.progetto && Number(s.importo) >= 100).forEach(s => {
       const v = (byCat[s.categoria] || []).slice().sort((a, b) => a - b); if (v.length < 6) return;
       const med = v[Math.floor(v.length / 2)];
       if (Number(s.importo) > med * 4) out.push({ key: 'big_' + s.id, tipo: '', titolo: 'Spesa insolita', testo: `${s.descrizione || s.categoria} ${eur(s.importo)}: molto più del solito per ${s.categoria} (di solito ${eur0(med)})`, ref: s.id });
@@ -4006,14 +4120,18 @@
     if (task === 'payslip') { const pm = ymOf(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)); return { valido: true, netto: 1812.6, lordo: 2520, mese: pm, data: pm + '-27', tipo: 'Stipendio', datore: 'Azienda Esempio', note: 'Straordinari 6h' }; }
     if (task === 'detraz') return { voci: (extra.spese || []).map(s => ({ i: s.i, tipo: DT_RE.test(s.n + ' ' + (s.note || '')) || s.c === 'Salute' ? 'sanitarie' : 'no' })) };
     if (task === 'insights') {
-      const pm = (extra.dati && extra.dati.perMese) || [], cur = pm[pm.length - 1] || {}, prev = pm[pm.length - 2] || {};
+      const pm = ((extra.dati && (extra.dati.ultimi12Mesi || extra.dati.perMese)) || []).map(x => ({ ...x, totale: x.spese ?? x.totale })), cur = pm[pm.length - 1] || {}, prev = pm[pm.length - 2] || {};
       const c = cur.perCategoria || {}, p = prev.perCategoria || {};
       const al = c['Spesa alimentare'] || 0, alp = p['Spesa alimentare'] || 0;
-      return { sintesi: (cur.totale || 0) > (prev.totale || 0) ? 'Mese più caro del precedente: tieni d\'occhio le spese variabili.' : 'Mese sotto controllo, in linea con i precedenti.', punti: [
+      return { voto: 72, votoMotivo: 'Buona, ma le spese variabili sono in crescita', risparmioPotenziale: 95,
+        previsione: { fineMese: (extra.dati.previsioneFineMese || {}).saldoPrevisto ?? 900, commento: 'Al ritmo attuale chiuderete il mese in positivo: mantenete la spesa alimentare sotto i 500 €.' },
+        azioni: [{ testo: 'Disdici o metti in pausa uno tra Netflix e Spotify per due mesi', risparmioMensile: 14 }, { testo: 'Fai la spesa grossa da Lidl invece che da Esselunga una volta su due', risparmioMensile: 45 }, { testo: 'Confronta l\'offerta del gas prima dell\'inverno', risparmioMensile: 25 }],
+        sintesi: (cur.totale || 0) > (prev.totale || 0) ? 'Mese più caro del precedente: tieni d\'occhio le spese variabili.' : 'Mese sotto controllo, in linea con i precedenti.', punti: [
         { tipo: al > alp ? 'attenzione' : 'positivo', testo: `Spesa alimentare a ${eur0(al)} contro ${eur0(alp)} del mese scorso.` },
         { tipo: 'info', testo: `Gli abbonamenti costano circa ${eur0((c['Abbonamenti'] || 56))} al mese: valuta se li usi tutti.` },
         { tipo: 'positivo', testo: 'Le bollette sono in linea con la media degli ultimi 6 mesi.' },
-        { tipo: 'info', testo: 'Consiglio: fai la spesa grossa una volta a settimana con la lista, riduci gli acquisti d\'impulso.' }] };
+        { tipo: 'info', testo: 'Consiglio: fai la spesa grossa una volta a settimana con la lista, riduci gli acquisti d\'impulso.' }].map((p, i) => ({ ...p, area: ['Spesa alimentare', 'Abbonamenti', 'Bollette', 'Abitudini'][i], titolo: ['Spesa alimentare', 'Abbonamenti', 'Bollette', 'Abitudini di spesa'][i], impatto: [40, 14, 0, 30][i] }))
+        .concat([{ tipo: 'attenzione', area: 'Abitudini', titolo: 'Il weekend pesa', testo: 'Sabato e domenica concentrano il 38% delle spese variabili degli ultimi 3 mesi.', impatto: 20 }, { tipo: 'positivo', area: 'Risparmio', titolo: 'Tasso di risparmio', testo: 'Negli ultimi 12 mesi avete risparmiato il 41% delle entrate, sopra il 20% consigliato.', impatto: 0 }]) };
     }
     throw new Error('Nella demo questa funzione non è disponibile');
   }
@@ -4365,6 +4483,7 @@
       if (e.target.closest('#ai-save')) { const k = $('#ai-key').value.trim(); if (k) setAIKey(k); return; }
       if (e.target.closest('#ai-off')) { if (confirm('Disattivare l\'IA?')) setAIKey(''); return; }
       if (e.target.closest('#h-ai-btn')) { runInsights(); return; }
+      if (e.target.closest('#ins-all')) { insFull(); return; }
       if (e.target.closest('#bill-photo')) { aiBill(); return; }
       const lt = e.target.closest('[data-lstog]');
       if (lt) { lsToggle(lt.dataset.lstog); return; }
@@ -4432,6 +4551,8 @@
     });
     document.addEventListener('change', e => {
       if (e.target.id === 'bk-on') { bkApi(e.target.checked ? 'on' : 'off'); return; }
+      const idn = e.target.closest('[data-insdone]');
+      if (idn) { const k = 'sc_insdone_' + homeMonth, l = LS.get(k, []), i = Number(idn.dataset.insdone); LS.set(k, idn.checked ? [...new Set([...l, i])] : l.filter(x => x !== i)); idn.closest('.ins2-todo').classList.toggle('done', idn.checked); return; }
       const ds = e.target.closest('[data-dtset]');
       if (ds && ds.value) { const sp = db.spese.find(x => x.id === ds.dataset.dtset); if (sp) { write([{ action: 'upsert', sheet: 'Spese', row: { ...sp, detrazione: ds.value, personaId: sp.personaId || (dtWho !== 'all' ? dtWho : (personeAttive()[0] || {}).id || '') } }]); toast(ds.value === 'no' ? 'Segnata come non detraibile' : 'Aggiunta al riepilogo 730'); } }
     });

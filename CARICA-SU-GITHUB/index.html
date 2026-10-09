@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="style.css?v=27">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -112,6 +112,10 @@
               <div id="bud-status" class="bud-status"></div>
               <div id="bud-chart" class="bud-chart"></div>
             </div>
+            <div class="card ai-card c-ai" id="h-ai" hidden>
+              <div class="card-h"><h3 class="ai-title"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Analisi IA</h3><button class="btn sm" id="h-ai-btn">Analizza</button></div>
+              <div id="h-ai-body"></div>
+            </div>
             <div class="card c-chart">
               <div class="card-h"><h3>Ultimi 12 mesi</h3><span id="h-avg" class="muted small"></span></div>
               <div id="h-chart" class="chart"></div>
@@ -133,10 +137,6 @@
             <div class="card c-due">
               <div class="card-h"><h3>Prossime scadenze</h3><a href="#bollette" class="link">Tutte</a></div>
               <div id="h-due" class="list"></div>
-            </div>
-            <div class="card ai-card c-ai" id="h-ai" hidden>
-              <div class="card-h"><h3 class="ai-title"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Consigli IA</h3><button class="btn sm" id="h-ai-btn">Analizza</button></div>
-              <div id="h-ai-body"></div>
             </div>
             <div class="card c-cat">
               <div class="card-h"><h3>Per categoria</h3><button class="btn sm" id="h-catbud">Budget</button></div>
@@ -563,6 +563,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=27"></script>
 </body>
 </html>

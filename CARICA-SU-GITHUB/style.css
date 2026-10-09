@@ -1527,3 +1527,39 @@ body.is-locked #app, body.is-locked .sheet { visibility: hidden; }
 .nt-row b { font-size: 14px; font-weight: 600; }
 .nt-row small { font-size: 12.5px; color: var(--muted); }
 .nt-row .dot { width: 9px; height: 9px; }
+
+/* v27 — Analisi IA completa */
+.ins2-top { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+.ins-ring { position: relative; flex: none; }
+.ins-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ins-ring circle { fill: none; stroke-width: 6; }
+.ins-ring .bg { stroke: var(--bg); }
+.ins-ring .fg { stroke-linecap: round; transition: stroke-dasharray 1s var(--out); }
+.ins-ring.good .fg { stroke: var(--accent); } .ins-ring.mid .fg { stroke: #d97706; } .ins-ring.bad .fg { stroke: #dc2626; }
+.ins-ring b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 19px; font-weight: 700; }
+.ins2-sum { display: grid; gap: 2px; min-width: 0; }
+.ins2-sum .label { font-size: 12px; color: var(--muted); font-weight: 500; }
+.ins2-sum b { font-size: 15px; font-weight: 600; }
+.ins2-sum p { margin: 2px 0 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.45; }
+.ins2-kpis { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.ins2-kpis div { flex: 1; min-width: 130px; background: var(--bg); border-radius: 12px; padding: 10px 12px; display: grid; gap: 2px; }
+.ins2-kpis span { font-size: 12px; color: var(--muted); }
+.ins2-kpis b { font-size: 17px; font-weight: 700; }
+.ins2-list { display: grid; }
+.ins2-p { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.ins2-p:first-child { border-top: 0; }
+.ins2-a { width: 32px; height: 32px; border-radius: 10px; background: var(--bg); display: grid; place-items: center; font-size: 16px; flex: none; }
+.ins2-p.attenzione .ins2-a { background: var(--danger-soft); } .ins2-p.positivo .ins2-a { background: var(--accent-soft); }
+.ins2-p > div { display: grid; gap: 2px; min-width: 0; }
+.ins2-p b { font-size: 14px; font-weight: 600; }
+.ins2-p span { font-size: 13.5px; color: var(--ink-2); line-height: 1.45; }
+.ins2-imp { font-style: normal; font-size: 12px; font-weight: 600; color: var(--accent); }
+.ins2-h { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 6px; }
+.ins2-act { margin-top: 4px; border-top: 1px solid var(--line); }
+.ins2-todo { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; cursor: pointer; font-size: 14px; }
+.ins2-todo input { width: 18px; height: 18px; min-height: 0; margin-top: 2px; accent-color: var(--accent); flex: none; }
+.ins2-todo em { font-style: normal; color: var(--accent); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+.ins2-todo.done span { color: var(--muted); text-decoration: line-through; }
+.ins2-foot { margin: 8px 0 0; }
+#ins-all { margin-top: 8px; }
+.ins2-load { display: flex; gap: 12px; align-items: center; padding: 18px 0; color: var(--muted); font-size: 14px; }
