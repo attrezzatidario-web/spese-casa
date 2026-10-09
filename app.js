@@ -483,6 +483,36 @@
       : isDesk() ? speseTable(last) : last.map(speseItem).join('');
   }
 
+  // ---- motion grafici: partono quando la card entra nello schermo, una volta sola ----
+  function whenVisible(el, fn) {
+    if (el._io) { el._io.disconnect(); el._io = null; }
+    clearTimeout(el._wt);
+    const sp = $('#splash');
+    if (sp && !sp.classList.contains('out')) { el._wt = setTimeout(() => whenVisible(el, fn), 200); return; } // aspetta che sparisca lo splash
+    if (!('IntersectionObserver' in window)) return fn();
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); el._io = null; fn(); } }, { threshold: 0.3 });
+    io.observe(el); el._io = io;
+  }
+  // curva morbida che non "rimbalza" (monotona): elegante e fedele ai dati
+  function smoothPath(p) {
+    const f = q => q[0].toFixed(1) + ',' + q[1].toFixed(1);
+    if (p.length < 3) return p.map((q, i) => (i ? 'L' : 'M') + f(q)).join(' ');
+    const n = p.length, m = [], t = [];
+    for (let i = 0; i < n - 1; i++) m[i] = (p[i + 1][1] - p[i][1]) / ((p[i + 1][0] - p[i][0]) || 1);
+    t[0] = m[0]; t[n - 1] = m[n - 2];
+    for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+    for (let i = 0; i < n - 1; i++) {
+      if (!m[i]) { t[i] = t[i + 1] = 0; continue; }
+      const a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
+      if (s > 9) { const k = 3 / Math.sqrt(s); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
+    }
+    let d = 'M' + f(p[0]);
+    for (let i = 0; i < n - 1; i++) {
+      const dx = (p[i + 1][0] - p[i][0]) / 3;
+      d += ` C${(p[i][0] + dx).toFixed(1)},${(p[i][1] + t[i] * dx).toFixed(1)} ${(p[i + 1][0] - dx).toFixed(1)},${(p[i + 1][1] - t[i + 1] * dx).toFixed(1)} ${f(p[i + 1])}`;
+    }
+    return d;
+  }
   function renderChart() {
     const [y, m] = homeMonth.split('-').map(Number);
     const months = [];
@@ -494,55 +524,66 @@
     countTo($('#h-avg-big'), avg);
 
     const el = $('#h-chart');
-    const W = Math.max(280, el.clientWidth || 600), H = 180, pt = 14, pb = 22, pl = 0, pr = 48;
+    const W = Math.max(280, el.clientWidth || 600), H = 196, pt = 30, pb = 22, pl = 0, pr = 48;
     const max = Math.max(...vals, 1);
     const nice = niceMax(max);
     const bw = (W - pl - pr) / 12;
-    const barW = Math.min(28, bw * 0.6);
+    const barW = Math.min(26, bw * 0.58);
     const yS = v => H - pb - (v / nice) * (H - pb - pt);
-    let g = '';
+    const play = (animate || el._month !== homeMonth) && !reduced() && vals.some(v => v > 0);
+    el._month = homeMonth;
+    let g = `<defs><linearGradient id="m12-cur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--bar)"/><stop offset="1" stop-color="var(--bar)" stop-opacity=".62"/></linearGradient></defs>`;
     (vals.some(v => v > 0) ? [0.5, 1] : []).forEach(p => {
       const yy = yS(nice * p);
       g += `<line class="grid" x1="0" x2="${W - pr}" y1="${yy}" y2="${yy}"/><text class="axis" x="${W}" y="${yy + 4}" text-anchor="end">${eur0(nice * p)}</text>`;
     });
     g += `<line class="grid" x1="0" x2="${W - pr}" y1="${H - pb}" y2="${H - pb}"/>`;
     const barPath = (i, v) => {
-      const cx = pl + bw * i + bw / 2, top = yS(Math.min(v, nice)), h = Math.max(0, H - pb - top), r = Math.min(4, h), x = cx - barW / 2;
+      const cx = pl + bw * i + bw / 2, top = yS(Math.min(v, nice)), h = Math.max(0, H - pb - top), r = Math.min(5, h, barW / 2), x = cx - barW / 2;
       return h > 0 ? `M${x},${H - pb} V${top + r} Q${x},${top} ${x + r},${top} H${x + barW - r} Q${x + barW},${top} ${x + barW},${top + r} V${H - pb} Z` : '';
     };
-    const prevVals = renderChart._prev, morph = false;
-    renderChart._prev = vals.slice();
+    // colonna evidenziata dietro il mese selezionato
+    const last = 11, lcx = pl + bw * last + bw / 2;
     months.forEach((k, i) => {
       const cx = pl + bw * i + bw / 2;
-      const path = barPath(i, morph ? prevVals[i] : vals[i]);
-      g += `<rect class="hit" x="${pl + bw * i}" y="0" width="${bw}" height="${H}" data-i="${i}"/>`;
-      g += `<path class="b ${k === homeMonth ? 'cur' : ''}${animate && !reduced() ? ' grow' : ''}" style="animation-delay:${120 + i * 40}ms" d="${path}"/>`;
-      g += `<text class="axis" x="${cx}" y="${H - 6}" text-anchor="middle">${esc(monthShort(k))}</text>`;
+      g += `<path class="b${i === last ? ' cur' : ''}" style="--d:${i * 45}ms" d="${barPath(i, vals[i])}" ${i === last ? 'fill="url(#m12-cur)"' : ''}/>`;
+      g += `<text class="axis m12-x${i === last ? ' on' : ''}" x="${cx}" y="${H - 6}" text-anchor="middle">${esc(monthShort(k))}</text>`;
     });
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Spese ultimi 12 mesi">${g}</svg>`;
-    const svg = el.querySelector('svg');
-    if (morph) {
-      // le barre si trasformano dal mese precedente al nuovo
-      const bars = $$('.b', svg), t0 = performance.now();
-      const step = now => { const k = ease(Math.min(1, (now - t0) / 550)); bars.forEach((b, i) => b.setAttribute('d', barPath(i, prevVals[i] + (vals[i] - prevVals[i]) * k))); if (k < 1) requestAnimationFrame(step); };
-      requestAnimationFrame(step);
+    // media: linea tratteggiata che si stende
+    if (avg) g += `<g class="m12-avg"><line x1="0" x2="${W - pr}" y1="${yS(avg)}" y2="${yS(avg)}"/></g>`;
+    // etichetta valore del mese
+    if (vals[last] > 0) {
+      const lw = Math.max(58, String(eur0(vals[last])).length * 7.2 + 16), ly = Math.max(2, yS(vals[last]) - 28);
+      const lx = Math.min(W - pr - lw / 2 + 40, Math.max(lw / 2, lcx));
+      g += `<g class="m12-val" style="transform-origin:${lx}px ${ly + 22}px"><rect x="${lx - lw / 2}" y="${ly}" width="${lw}" height="22" rx="11"/><text x="${lx}" y="${ly + 15}" text-anchor="middle">${esc(eur0(vals[last]))}</text></g>`;
     }
-    let tip;
+    g += months.map((k, i) => `<rect class="hit" x="${pl + bw * i}" y="0" width="${bw}" height="${H}" data-i="${i}"/>`).join('');
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="m12${play ? ' pre' : ''}" role="img" aria-label="Spese ultimi 12 mesi">${g}</svg>`;
+    const svg = el.querySelector('svg');
+    if (play) whenVisible(el, () => {
+      svg.classList.add('play');
+      const t = svg.querySelector('.m12-val text');
+      if (t) { const to = vals[last], t0 = performance.now() + 520; const step = now => { const k = Math.max(0, Math.min(1, (now - t0) / 700)); t.textContent = eur0(to * ease(k)); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
+    });
+    let tip, cur = -1;
     const show = e => {
-      const i = +e.target.dataset.i;
+      const i = +e.target.dataset.i; if (i === cur) return; cur = i;
       if (!tip) { tip = document.createElement('div'); tip.className = 'tip'; el.appendChild(tip); }
-      tip.innerHTML = `${esc(monthName(months[i]))}<br><b>${eur(vals[i])}</b>`;
+      const prev = vals[i - 1], d = i > 0 && prev > 0 ? (vals[i] - prev) / prev * 100 : null;
+      tip.innerHTML = `${esc(monthName(months[i]))}<br><b>${eur(vals[i])}</b>${d != null && vals[i] ? `<br><span class="tip-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)}% sul mese prima</span>` : ''}`;
       const rect = svg.getBoundingClientRect();
       const sx = rect.width / W, sy = rect.height / H;
-      tip.style.left = Math.min(Math.max((pl + bw * i + bw / 2) * sx, 60), rect.width - 60) + 'px';
-      tip.style.top = yS(vals[i]) * sy + 'px';
-      $$('.b', svg).forEach((b, j) => b.classList.toggle('hover', j === i));
+      tip.style.left = Math.min(Math.max((pl + bw * i + bw / 2) * sx, 70), rect.width - 70) + 'px';
+      tip.style.top = Math.max(yS(vals[i]) - 6, 18) * sy + 'px';
+      svg.classList.add('focus');
+      $$('.b', svg).forEach((b, j) => b.classList.toggle('on', j === i));
+      $$('.m12-x', svg).forEach((b, j) => b.classList.toggle('hl', j === i));
     };
-    const hide = () => { tip && tip.remove(); tip = null; $$('.b', svg).forEach(b => b.classList.remove('hover')); };
+    const hide = () => { tip && tip.remove(); tip = null; cur = -1; svg.classList.remove('focus'); $$('.b.on', svg).forEach(b => b.classList.remove('on')); $$('.m12-x.hl', svg).forEach(b => b.classList.remove('hl')); };
     $$('.hit', svg).forEach(h => {
       h.addEventListener('mouseenter', show);
       h.addEventListener('mouseleave', hide);
-      h.addEventListener('click', e => { show(e); homeMonth = months[+e.target.dataset.i]; setTimeout(() => { hide(); renderHome(); }, 600); });
+      h.addEventListener('click', e => { cur = -1; show(e); const i = +e.target.dataset.i; if (i === last) { setTimeout(hide, 1500); return; } homeMonth = months[i]; setTimeout(() => { hide(); renderHome(); }, 600); });
     });
   }
   function niceMax(v) {
@@ -1405,44 +1446,76 @@
     const nice = niceMax(maxV);
     const X = d => pl + (d - 1) / Math.max(1, days - 1) * (W - pl - pr);
     const Y = v => H - pb - v / nice * (H - pb - pt);
+    const play = (animate || el._month !== homeMonth) && !reduced() && lastDay > 0;
+    el._month = homeMonth;
+    const over = lim && tot > lim;
     let g = '';
     [0.5, 1].forEach(p => { const yy = Y(nice * p); g += `<line class="grid" x1="0" x2="${W - pr}" y1="${yy}" y2="${yy}"/><text class="axis" x="${W}" y="${yy + 4}" text-anchor="end">${eur0(nice * p)}</text>`; });
     g += `<line class="grid" x1="0" x2="${W - pr}" y1="${H - pb}" y2="${H - pb}"/>`;
     [1, 8, 15, 22, days].forEach(d => { g += `<text class="axis" x="${X(d)}" y="${H - 6}" text-anchor="${d === 1 ? 'start' : d === days ? 'end' : 'middle'}">${d}</text>`; });
+    // spese del singolo giorno: barrette leggere sul fondo
+    const maxPer = Math.max(...per.slice(1, lastDay + 1), 0);
+    if (maxPer > 0) {
+      const dw = Math.max(2, Math.min(6, (W - pl - pr) / days * 0.42)), hMax = (H - pb - pt) * 0.26;
+      for (let d = 1; d <= lastDay; d++) if (per[d] > 0) {
+        const h = Math.max(2, per[d] / maxPer * hMax);
+        g += `<rect class="bud-day" style="--d:${Math.round(d / days * 700)}ms" x="${(X(d) - dw / 2).toFixed(1)}" y="${(H - pb - h).toFixed(1)}" width="${dw.toFixed(1)}" height="${h.toFixed(1)}" rx="${Math.min(2, dw / 2)}"/>`;
+      }
+    }
+    let lp = null;
     if (lastDay) {
       const pts = []; for (let d = 1; d <= lastDay; d++) pts.push([X(d), Y(cum[d])]);
-      const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+      const line = smoothPath(pts);
       const area = line + ` L${pts[pts.length - 1][0].toFixed(1)},${H - pb} L${pts[0][0].toFixed(1)},${H - pb} Z`;
       const ly = lim ? Y(lim) : -10;
       g += `<defs><clipPath id="bud-under"><rect x="0" y="${ly}" width="${W}" height="${H}"/></clipPath><clipPath id="bud-over"><rect x="0" y="0" width="${W}" height="${Math.max(0, ly)}"/></clipPath>
-        <linearGradient id="bud-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".28"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient>
+        <linearGradient id="bud-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".30"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient>
         <linearGradient id="bud-grad-r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dc2626" stop-opacity=".30"/><stop offset="1" stop-color="#dc2626" stop-opacity=".05"/></linearGradient></defs>`;
-      g += `<path class="bud-area" d="${area}" fill="url(#bud-grad)" ${lim ? 'clip-path="url(#bud-under)"' : ''}/>`;
+      g += `<g class="bud-areas"><path class="bud-area" d="${area}" fill="url(#bud-grad)" ${lim ? 'clip-path="url(#bud-under)"' : ''}/>`;
       if (lim) g += `<path class="bud-area" d="${area}" fill="url(#bud-grad-r)" clip-path="url(#bud-over)"/>`;
-      g += `<path class="bud-line" d="${line}" ${lim ? 'clip-path="url(#bud-under)"' : ''}/>`;
-      if (lim) g += `<path class="bud-line over" d="${line}" clip-path="url(#bud-over)"/>`;
-      if (isCur && lastDay < days && !(lim && tot > lim)) g += `<path class="bud-proj" d="M${X(lastDay)},${Y(tot)} L${X(days)},${Y(proj)}"/><circle class="bud-pd" cx="${X(days)}" cy="${Y(proj)}" r="3.5"/>`;
-      const lp = pts[pts.length - 1];
-      g += `<circle class="bud-dot${lim && tot > lim ? ' over' : ''}" cx="${lp[0]}" cy="${lp[1]}" r="5"/>`;
+      g += `</g><path class="bud-line" pathLength="1" d="${line}" ${lim ? 'clip-path="url(#bud-under)"' : ''}/>`;
+      if (lim) g += `<path class="bud-line over" pathLength="1" d="${line}" clip-path="url(#bud-over)"/>`;
+      if (isCur && lastDay < days && !over) g += `<path class="bud-proj" d="M${X(lastDay)},${Y(tot)} L${X(days)},${Y(proj)}"/><circle class="bud-pd" cx="${X(days)}" cy="${Y(proj)}" r="3.5"/>`;
+      lp = pts[pts.length - 1];
+      if (isCur) g += `<circle class="bud-pulse${over ? ' over' : ''}" cx="${lp[0]}" cy="${lp[1]}" r="5"/>`;
+      g += `<circle class="bud-dot${over ? ' over' : ''}" cx="${lp[0]}" cy="${lp[1]}" r="5"/>`;
+      if (play) g += `<circle class="bud-head${over ? ' over' : ''}" cx="${pts[0][0]}" cy="${pts[0][1]}" r="4.5"/>`;
     }
-    if (lim) g += `<line class="bud-lim" x1="0" x2="${W - pr}" y1="${Y(lim)}" y2="${Y(lim)}"/><rect class="bud-lim-tag" x="${W - pr + 4}" y="${Y(lim) - 10}" width="${pr - 4}" height="20" rx="6"/><text class="bud-lim-t" x="${W - pr / 2 + 2}" y="${Y(lim) + 4}" text-anchor="middle">${esc(fmtNum(lim, 0))}</text>`;
-    g += `<line class="bud-x" x1="0" x2="0" y1="${pt}" y2="${H - pb}" style="display:none"/><rect class="bud-hit" x="0" y="0" width="${W - pr}" height="${H}"/>`;
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="${animate && !reduced() ? 'anim' : ''}" role="img" aria-label="Spesa cumulativa del mese">${g}</svg><div class="tip" hidden></div>`;
-    const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), xl = svg.querySelector('.bud-x');
-    const hit = svg.querySelector('.bud-hit');
+    if (lim) g += `<g class="bud-limg"><line class="bud-lim" pathLength="1" x1="0" x2="${W - pr}" y1="${Y(lim)}" y2="${Y(lim)}"/><rect class="bud-lim-tag" x="${W - pr + 4}" y="${Y(lim) - 10}" width="${pr - 4}" height="20" rx="6"/><text class="bud-lim-t" x="${W - pr / 2 + 2}" y="${Y(lim) + 4}" text-anchor="middle">${esc(fmtNum(lim, 0))}</text></g>`;
+    // cursore: linea verticale + punto che scorre sulla curva
+    g += `<g class="bud-scrub"><line class="bud-x" x1="0" x2="0" y1="${pt}" y2="${H - pb}"/><circle class="bud-cur" cx="0" cy="0" r="5.5"/></g><rect class="bud-hit" x="0" y="0" width="${W - pr}" height="${H}"/>`;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="bud-svg${play ? ' pre' : ''}" role="img" aria-label="Spesa cumulativa del mese">${g}</svg><div class="tip" hidden></div>`;
+    const svg = el.querySelector('svg'), tip = el.querySelector('.tip');
+    if (play) whenVisible(el, () => {
+      svg.classList.add('play');
+      const lines = $$('.bud-line', svg), head = svg.querySelector('.bud-head'), L = lines[0].getTotalLength(), t0 = performance.now() + 150, dur = 1250;
+      const step = now => {
+        const k = ease(Math.max(0, Math.min(1, (now - t0) / dur)));
+        lines.forEach(l => (l.style.strokeDashoffset = 1 - k));
+        if (head) { const p = lines[0].getPointAtLength(L * k); head.setAttribute('cx', p.x); head.setAttribute('cy', p.y); }
+        if (k < 1) requestAnimationFrame(step); else { svg.classList.add('done'); head && head.remove(); }
+      };
+      requestAnimationFrame(step);
+    });
+    const hit = svg.querySelector('.bud-hit'), scrub = svg.querySelector('.bud-scrub'), xl = svg.querySelector('.bud-x'), cd = svg.querySelector('.bud-cur');
+    let lastD = 0;
     const move = ev => {
-      const r = svg.getBoundingClientRect(); const px = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) * (W / r.width);
-      const d = Math.max(1, Math.min(lastDay || 1, Math.round((px - pl) / (W - pl - pr) * (days - 1) + 1)));
       if (!lastDay) return;
-      xl.style.display = ''; xl.setAttribute('x1', X(d)); xl.setAttribute('x2', X(d));
+      const r = svg.getBoundingClientRect(); const px = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) * (W / r.width);
+      const d = Math.max(1, Math.min(lastDay, Math.round((px - pl) / (W - pl - pr) * (days - 1) + 1)));
+      if (d === lastD) return;
+      if (ev.touches && lastD) haptic(3);
+      lastD = d;
+      const x = X(d), yv = Y(cum[d]);
+      xl.style.transform = `translateX(${x}px)`; cd.style.transform = `translate(${x}px,${yv}px)`;
+      scrub.classList.add('on');
       tip.hidden = false; tip.innerHTML = `${d} ${esc(monthShort(homeMonth))}<br><b>${eur(cum[d])}</b>${per[d] ? `<br><span style="opacity:.7">+${eur(per[d])} quel giorno</span>` : ''}`;
-      tip.style.left = Math.min(Math.max(X(d) * r.width / W, 60), r.width - 60) + 'px'; tip.style.top = Y(cum[d]) * r.height / H + 'px';
+      tip.style.left = Math.min(Math.max(x * r.width / W, 60), r.width - 60) + 'px'; tip.style.top = (yv - 8) * r.height / H + 'px';
     };
-    const out = () => { xl.style.display = 'none'; tip.hidden = true; };
+    const out = () => { scrub.classList.remove('on'); tip.hidden = true; lastD = 0; };
     hit.addEventListener('mousemove', move); hit.addEventListener('touchmove', move, { passive: true }); hit.addEventListener('touchstart', move, { passive: true });
     hit.addEventListener('mouseleave', out); hit.addEventListener('touchend', () => setTimeout(out, 1500));
   }
-
   function formBudget() {
     const b = { limite: '', email: true, escludiAffitto: false, ...budgetCfg() };
     openSheet('Limite di spesa mensile', `

@@ -614,7 +614,6 @@ label.f > span { font-size: 12.5px; color: var(--ink-2); font-weight: 600; margi
 @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
 
 /* barre del grafico che crescono */
-.chart .b.grow { transform-box: fill-box; transform-origin: 50% 100%; animation: grow .7s var(--out) both; }
 @keyframes grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .chart .b { transition: fill .2s; }
 .bar-fill { transition: width .9s var(--out); }
@@ -1058,13 +1057,7 @@ i.opt { font-style: normal; font-weight: 500; color: var(--muted); font-size: 11
 .bud-lim-t { fill: #fff; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .bud-x { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 2 3; }
 .bud-hit { fill: transparent; cursor: crosshair; }
-svg.anim .bud-line { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: dashin 1.4s .15s var(--out) forwards; }
-svg.anim .bud-area { animation: fadein 1s .5s both; }
-svg.anim .bud-lim { stroke-dasharray: 1200; stroke-dashoffset: 1200; animation: dashin .9s var(--out) forwards; }
-svg.anim .bud-dot { animation: popdot .5s 1.2s var(--spring) both; transform-box: fill-box; transform-origin: center; }
-svg.anim .bud-proj, svg.anim .bud-pd { animation: fadein .6s 1.3s both; }
 @keyframes dashin { to { stroke-dashoffset: 0; } }
-@keyframes popdot { from { transform: scale(0); } }
 .toast.alert { background: #dc2626; color: #fff; }
 .toast.alert .t-ic { stroke: #fff; }
 @media (min-width: 900px) { .bs-top b { font-size: 24px; } }
@@ -1647,3 +1640,68 @@ body.is-locked #app, body.is-locked .sheet { visibility: hidden; }
 .setup.code-mode .setup-card:not(.code-card) { display: none; }
 .setup.code-mode .code-card { display: grid; }
 .code-in { text-align: center; font-size: 22px; letter-spacing: .3em; height: 56px; }
+
+/* =========================================================
+   v31 — motion grafici (leggera: una volta sola, quando si vede)
+   ========================================================= */
+/* --- Andamento del mese --- */
+.bud-day { fill: var(--accent); opacity: .22; transform-box: fill-box; transform-origin: 50% 100%; }
+.bud-head { fill: var(--surface); stroke: var(--accent); stroke-width: 3; }
+.bud-head.over { stroke: #dc2626; }
+.bud-pulse { fill: none; stroke: var(--accent); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.bud-pulse.over { stroke: #dc2626; }
+.bud-svg.done .bud-pulse, .bud-svg:not(.pre) .bud-pulse { animation: budpulse 2.4s .2s cubic-bezier(.2,.6,.3,1) 3; }
+@keyframes budpulse { 0% { opacity: .55; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(3.4); } }
+.bud-scrub { opacity: 0; transition: opacity .18s; pointer-events: none; }
+.bud-scrub.on { opacity: 1; }
+.bud-x { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 2 3; transition: transform .14s var(--out); }
+.bud-cur { fill: var(--surface); stroke: var(--ink); stroke-width: 2.5; transition: transform .14s var(--out); }
+.bud-chart .tip { transition: left .14s var(--out), top .14s var(--out); }
+/* stato iniziale (prima che la card entri nello schermo) */
+.bud-svg.pre .bud-line { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.bud-svg.pre .bud-areas { opacity: 0; transform: translateY(10px); }
+.bud-svg.pre .bud-day { transform: scaleY(0); }
+.bud-svg.pre .bud-lim { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.bud-svg.pre .bud-lim-tag, .bud-svg.pre .bud-lim-t { opacity: 0; }
+.bud-svg.pre .bud-dot, .bud-svg.pre .bud-pd { transform: scale(0); transform-box: fill-box; transform-origin: center; }
+.bud-svg.pre .bud-proj { opacity: 0; }
+/* in scena */
+.bud-svg.play .bud-day { animation: barup .6s var(--d, 0ms) var(--out) forwards; }
+.bud-svg.play .bud-areas { transition: opacity .9s .45s, transform .9s .45s var(--out); opacity: 1; transform: none; }
+.bud-svg.play .bud-lim { animation: dashin .8s .1s var(--out) forwards; }
+.bud-svg.play .bud-lim-tag, .bud-svg.play .bud-lim-t { transition: opacity .4s .7s; opacity: 1; }
+.bud-svg.done .bud-dot { animation: popdot .55s cubic-bezier(.34,1.56,.64,1) forwards; }
+.bud-svg.done .bud-proj { transition: opacity .5s .15s; opacity: 1; }
+.bud-svg.done .bud-pd { animation: popdot .45s .45s cubic-bezier(.34,1.56,.64,1) forwards; }
+@keyframes popdot { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes barup { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+/* --- Ultimi 12 mesi --- */
+.m12 .b { fill: var(--bar-dim); transform-box: fill-box; transform-origin: 50% 100%; transition: fill .2s, opacity .25s; }
+.m12 .b.cur { fill: url(#m12-cur); }
+.m12-col { fill: var(--accent); opacity: .07; }
+.m12-x.on { fill: var(--ink); font-weight: 700; }
+.m12-x { transition: fill .2s; }
+.m12-x.hl { fill: var(--ink); }
+.m12.focus .b { opacity: .38; }
+.m12.focus .b.on { opacity: 1; fill: var(--bar); }
+.m12-avg line { stroke: var(--ink-2); stroke-width: 1.3; stroke-dasharray: 3 4; opacity: .55; }
+.m12-avg rect { fill: var(--bg); stroke: var(--line); }
+.m12-avg text { fill: var(--muted); font-size: 10.5px; font-weight: 600; }
+.m12-avg { transform-box: fill-box; transform-origin: 0 50%; }
+.m12-val rect { fill: var(--ink); }
+.m12-val text { fill: var(--bg); font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tip-d { font-size: 11px; font-weight: 600; }
+.tip-d.up { color: #f87171; } .tip-d.down { color: #4ade80; }
+/* stato iniziale */
+.m12.pre .b { transform: scaleY(0); }
+.m12.pre .m12-avg { transform: scaleX(0); opacity: 0; }
+.m12.pre .m12-val { transform: translateY(8px) scale(.85); opacity: 0; }
+.m12.pre .m12-col { opacity: 0; }
+/* in scena */
+.m12.play .b { animation: m12up .75s var(--d, 0ms) cubic-bezier(.34,1.4,.64,1) forwards; }
+.m12.play .m12-avg { transition: transform .8s .75s var(--out), opacity .3s .75s; transform: none; opacity: 1; }
+.m12.play .m12-val { transition: transform .5s .55s cubic-bezier(.34,1.56,.64,1), opacity .3s .55s; transform: none; opacity: 1; }
+.m12.play .m12-col { transition: opacity .6s .5s; opacity: .07; }
+@keyframes m12up { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .bud-pulse { display: none; } .bud-x, .bud-cur, .bud-chart .tip { transition: none; } }
