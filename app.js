@@ -23,10 +23,10 @@
   let tok = LS.get('sc_tok', '');
   // ogni richiesta allo script porta il "token" del dispositivo
   function sfetch(u, o) {
-    o = o || {};
+    o = o || {}; const used = tok;
     if (!o.method || o.method === 'GET') u += (u.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(tok);
     else { try { const b = JSON.parse(o.body); b.k = tok; o = { ...o, body: JSON.stringify(b) }; } catch {} }
-    return fetch(u, o).then(r => r.clone().json().then(j => { if (j && j.ok === false && j.error === 'AUTH') { showLogin(); throw new Error('AUTH_REQ'); } return r; }, () => r));
+    return fetch(u, o).then(r => r.clone().json().then(j => { if (j && j.ok === false && j.error === 'AUTH') { if (used === tok) showLogin(); throw new Error('AUTH_REQ'); } return r; }, () => r));
   }
   let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
   if (!db.estratti) db.estratti = [];
@@ -510,7 +510,7 @@
       const cx = pl + bw * i + bw / 2, top = yS(Math.min(v, nice)), h = Math.max(0, H - pb - top), r = Math.min(4, h), x = cx - barW / 2;
       return h > 0 ? `M${x},${H - pb} V${top + r} Q${x},${top} ${x + r},${top} H${x + barW - r} Q${x + barW},${top} ${x + barW},${top + r} V${H - pb} Z` : '';
     };
-    const prevVals = renderChart._prev, morph = !animate && !reduced() && prevVals && prevVals.join() !== vals.join();
+    const prevVals = renderChart._prev, morph = false;
     renderChart._prev = vals.slice();
     months.forEach((k, i) => {
       const cx = pl + bw * i + bw / 2;
@@ -4031,9 +4031,6 @@
     const next = (location.hash || '#home').slice(1).split('?')[0];
     const a = NAV_ORDER.indexOf(view), b = NAV_ORDER.indexOf(next);
     document.documentElement.dataset.dir = b >= a ? 'fwd' : 'back';
-    if (routedOnce && document.startViewTransition && !reduced() && next !== view) {
-      try { document.startViewTransition(() => apply(true)); return; } catch {}
-    }
     routedOnce = true;
     apply(false);
   }
@@ -4098,11 +4095,12 @@
       if (!touchUI() || e.touches.length !== 1 || e.target.closest('button, input, select, textarea, a')) return;
       const t = swipeTarget(e.target); if (!t) return;
       st = { ...t, x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, lock: null, t0: Date.now() };
+      st.el.addEventListener('touchmove', onMove, { passive: false });
     }, { passive: true });
-    document.addEventListener('touchmove', e => {
-      if (!st) return;
+    function onMove(e) {
+      if (!st) { this.removeEventListener('touchmove', onMove); return; }
       const dx = e.touches[0].clientX - st.x, dy = e.touches[0].clientY - st.y;
-      if (!st.lock) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; st.lock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y'; if (st.lock === 'y') { st = null; return; } swipeStart(st); }
+      if (!st.lock) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; st.lock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y'; if (st.lock === 'y') { st.el.removeEventListener('touchmove', onMove); st = null; return; } swipeStart(st); }
       e.preventDefault();
       const side = dx < 0 ? st.left : st.right;
       let d = side ? dx : dx * 0.15;                       // resistenza se non c'è azione
@@ -4113,8 +4111,9 @@
       st.bg.innerHTML = side ? `<span>${side.ico}${esc(side.txt)}</span>` : '';
       if (arm && !st.armed) haptic(6);
       st.armed = arm;
-    }, { passive: false });
+    }
     const end = () => {
+      if (st) st.el.removeEventListener('touchmove', onMove);
       if (!st || !st.bg) { st = null; return; }
       const s = st; st = null; swipeJust = Date.now();
       const side = s.dx < 0 ? s.left : s.right;
@@ -4228,7 +4227,7 @@
   }
   function themeSet(t, ev) {
     if (t === themeGet()) return;
-    if (!document.startViewTransition || reduced()) { themeApply(t); renderTheme(); return; }
+    themeApply(t); renderTheme(); return;
     const x = ev ? ev.clientX : innerWidth / 2, y = ev ? ev.clientY : innerHeight / 2;
     const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
     document.documentElement.classList.add('theme-vt');
@@ -4247,11 +4246,8 @@
   const skelLines = (n = 3) => `<div class="skel-wrap">${Array.from({ length: n }, (_, i) => `<div class="skel" style="width:${[92, 76, 84, 60, 70][i % 5]}%"></div>`).join('')}</div>`;
 
   function motionInit() {
-    navInit(); scrollInit(); swipeInit(); sheetDragInit(); ptrInit();
+    swipeInit(); sheetDragInit(); ptrInit();
     document.addEventListener('click', e => { const t = e.target.closest('[data-themeset]'); if (t) themeSet(t.dataset.themeset, e); });
-    // icone degli stati vuoti: si disegnano
-    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) $$('.es-ic svg *', n).forEach(x => x.setAttribute('pathLength', '1')); }))).observe(document.body, { childList: true, subtree: true });
-    $$('.es-ic svg *').forEach(x => x.setAttribute('pathLength', '1'));
     // maniglia dei pannelli
     const h = $('#sheet-form .sheet-h'); if (h && !$('.sheet-grab')) { const g = document.createElement('div'); g.className = 'sheet-grab'; h.parentNode.insertBefore(g, h); }
   }
@@ -4888,6 +4884,7 @@
     $('#btn-sync').onclick = () => pull(true);
     $('#btn-conn').onclick = () => {
       if (queue.length && !confirm(`Ci sono ${queue.length} modifiche non ancora inviate. Cambiare comunque?`)) return;
+      if (HAS_DEFAULT && !confirm('Scollegare questo dispositivo? Servirà di nuovo il codice.')) return;
       showSetup();
     };
 
@@ -4903,6 +4900,7 @@
   const DEFAULT_CATS = ['Spesa alimentare', 'Luce', 'Gas', 'Acqua', 'Internet e telefono', 'Affitto / Mutuo', 'Condominio', 'Tasse e tributi', 'Assicurazioni', 'Manutenzione', 'Arredamento', 'Elettrodomestici', 'Pulizia e casa', 'Auto e trasporti', 'Salute', 'Animali', 'Altro'];
 
   function showSetup() {
+    if (HAS_DEFAULT && !DEMO) return showLogin();
     hideSplash();
     $('#app').hidden = true; $('#setup').hidden = false;
     $('#setup').classList.toggle('code-mode', false);
@@ -4911,6 +4909,11 @@
   // nuovo dispositivo (o codice cambiato): basta il codice di accesso
   function showLogin() {
     if (DEMO || !$('#setup')) return;
+    // codice richiesto: nessun dato resta visibile su questo dispositivo
+    tok = ''; LS.set('sc_tok', '');
+    db = { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [], persone: [], entrate: [], entrateFisse: [], obiettivi: [], lista: [], documenti: [], manutenzioni: [], progetti: [], faccende: [] };
+    try { localStorage.removeItem('sc_data'); } catch {}
+    if (!$('#sheet').hidden) closeSheet();
     hideSplash();
     $('#app').hidden = true; $('#setup').hidden = false;
     $('#setup').classList.add('code-mode');
@@ -4971,8 +4974,7 @@
     $('#setup-demo').onclick = () => { location.href = location.pathname + '?demo'; };
     $('#code-go').onclick = doLogin;
     $('#setup-code').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-    $('#code-adv').onclick = () => $('#setup').classList.remove('code-mode');
-    $('#code-demo').onclick = () => { location.href = location.pathname + '?demo'; };
+
     $('#setup-local').onclick = () => {
       url = 'local'; LS.set('sc_url', url); queue = [];
       if (!db.categorie.length) db.categorie = DEFAULT_CATS.slice();
