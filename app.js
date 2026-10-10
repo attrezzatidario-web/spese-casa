@@ -20,6 +20,12 @@
   const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzYhgylTZQvP8PKZwSDbK7nOCqx-BL8iXjZPUwq7CvRvA5SNxc4RSvzhcXA3KZf0wXZ/exec';
   const HAS_DEFAULT = /^https:\/\/script\.google\.com\//.test(DEFAULT_URL);
   let url = LS.get('sc_url', '') || (HAS_DEFAULT && !DEMO ? DEFAULT_URL : '');
+  // se questo dispositivo era rimasto in modalità "solo dispositivo", lo ricollego al Foglio Google
+  // (i dati locali restano salvati a parte in sc_local_backup, per sicurezza)
+  if (url === 'local' && HAS_DEFAULT && !DEMO) {
+    try { const old = localStorage.getItem('sc_data'); if (old) localStorage.setItem('sc_local_backup', old); localStorage.removeItem('sc_data'); localStorage.removeItem('sc_queue'); } catch {}
+    url = DEFAULT_URL; LS.set('sc_url', url);
+  }
   let tok = LS.get('sc_tok', '');
   // ogni richiesta allo script porta il "token" del dispositivo
   function sfetch(u, o) {
