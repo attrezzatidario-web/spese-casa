@@ -2021,3 +2021,13 @@ label.f > span { font-size: 11.5px; font-weight: 650; text-transform: uppercase;
 .auto-body .kpis .kpi:nth-child(3) { display: none; }
 @media (min-width: 640px) { .auto-body .kpis { grid-template-columns: 1fr 1fr 1.1fr; } }
 @media (min-width: 900px) { .donut { grid-template-columns: 112px minmax(0, 1fr); gap: 14px; } .dn-c { width: 112px; height: 112px; } .dn-t b { font-size: 15px; } .dn-r b { min-width: 0; } }
+
+/* v36 — telefono: intestazione a tutta larghezza con sfumatura morbida, niente tagli dritti */
+@media (max-width: 899px) {
+  .top { margin: 0 -16px; padding-left: 16px; padding-right: 16px; background: var(--bg); z-index: 8; }
+  .top::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 22px; background: linear-gradient(var(--bg), color-mix(in srgb, var(--bg) 0%, transparent)); pointer-events: none; opacity: 0; transition: opacity .2s; }
+  body.scr .top::after { opacity: 1; }
+}
+/* schede veicolo: niente ombra scura (veniva tagliata in un riquadro) */
+.veh-tab.on { box-shadow: none; }
+.veh-tabs { padding: 2px 0; }

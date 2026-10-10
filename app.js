@@ -5058,6 +5058,8 @@
     } catch (e) { err.textContent = e.message === 'Failed to fetch' ? 'Connessione assente, riprova' : e.message; err.hidden = false; $('#setup-code').select(); }
     btn.disabled = false; btn.textContent = 'Entra';
   }
+  // sfumatura sotto l'intestazione solo quando la pagina è scorsa
+  { let on = false; addEventListener('scroll', () => { const v = scrollY > 6; if (v !== on) { on = v; document.body.classList.toggle('scr', v); } }, { passive: true }); }
   function hideSplash() {
     const sp = $('#splash'); if (!sp) return;
     setTimeout(() => { sp.classList.add('out'); setTimeout(() => sp.remove(), 450); }, reduced() ? 0 : Math.max(250, 2150 - performance.now()));
