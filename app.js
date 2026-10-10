@@ -2027,6 +2027,14 @@
     Multa: '<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
     Altro: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>'
   };
+  const CAR_ART = `<svg viewBox="0 0 320 124" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 88 V78 C14 69 21 63 34 61 L98 52 L134 30 C143 25 153 22 166 22 H222 C236 22 246 27 256 37 L276 56 L298 61 C307 63 312 70 312 80 V88 H268 M216 88 H106 M54 88 H14" stroke-width="3"/>
+    <path d="M112 52 L140 34 C146 30 154 28 162 28 H186 V52 Z M194 28 H220 C229 28 237 32 244 39 L258 52 H194 Z" stroke-width="2.4"/>
+    <path d="M190 56 V84 M206 63 H218 M296 67 H306 M20 72 H30" stroke-width="2.4"/>
+    <circle cx="80" cy="88" r="22" stroke-width="3"/><circle cx="80" cy="88" r="8" stroke-width="2.4"/>
+    <circle cx="242" cy="88" r="22" stroke-width="3"/><circle cx="242" cy="88" r="8" stroke-width="2.4"/>
+    <path d="M4 114 H316" stroke-width="2" stroke-dasharray="2 8"/></svg>`;
+  const AUTO_COL = ['#17795a', '#2fb381', '#e0a43a', '#5b8def', '#9a7fd1', '#d9707a', '#8fa39a', '#3fb8c4'];
   const SCAD = [['Assicurazione', 'scadAssicurazione', 'impAssicurazione', 12], ['Bollo', 'scadBollo', 'impBollo', 12], ['Revisione', 'scadRevisione', '', 24], ['Tagliando', 'scadTagliando', '', 12]];
   const ALIM = ['Gasolio', 'Benzina', 'GPL', 'Metano', 'Ibrida', 'Elettrica'];
   const AUTO_CAT = 'Auto e trasporti';
@@ -2105,12 +2113,23 @@
     const v = curVeh(); autoVid = v.id;
     $('#veh-tabs').innerHTML = list.map(x => `<button class="veh-tab${x.id === v.id ? ' on' : ''}" data-veh="${esc(x.id)}">${ICO_CAR}<span>${esc(x.nome)}</span></button>`).join('') + `<button class="veh-tab add" data-autoact="newveh">+ Veicolo</button>`;
     const st = autoStats(v);
+    // prossima scadenza
+    const nx = SCAD.filter(([, k]) => v[k]).map(([voce, k]) => ({ voce, d: String(v[k]).slice(0, 10), n: daysTo(String(v[k]).slice(0, 10)) })).sort((a, b) => a.n - b.n)[0];
+    const nxTxt = nx ? (nx.n < 0 ? `scaduta da ${-nx.n} gg` : nx.n === 0 ? 'oggi' : `tra ${nx.n} gg`) : '';
     $('#veh-hero').innerHTML = `
-      <div class="vh-ic">${ICO_CAR}</div>
-      <div class="vh-main"><h3>${esc(v.nome)}</h3>
-        <div class="vh-sub">${v.targa ? `<span class="plate"><i>I</i>${esc(v.targa)}</span>` : ''}<span>${esc([v.alimentazione, v.anno].filter(Boolean).join(' · '))}</span></div></div>
-      <div class="vh-km"><span>Contachilometri</span><b>${st.km ? fmtNum(st.km, 0) + ' km' : '—'}</b></div>
-      <button class="btn sm" data-autoact="editveh">Modifica</button>`;
+      <div class="vh-art" aria-hidden="true">${CAR_ART}</div>
+      <div class="vh-top">
+        <div class="vh-ic">${ICO_CAR}</div>
+        <div class="vh-main"><span class="vh-k">Il tuo veicolo</span><h3>${esc(v.nome)}</h3>
+          <div class="vh-sub">${v.targa ? `<span class="plate"><i><b>★</b>I</i>${esc(String(v.targa).toUpperCase())}</span>` : ''}${[v.alimentazione, v.anno].filter(Boolean).map(t => `<span class="vh-tag">${esc(t)}</span>`).join('')}</div></div>
+        <button class="btn sm" data-autoact="editveh">Modifica</button>
+      </div>
+      <div class="vh-stats">
+        <div><span>Contachilometri</span><b>${st.km ? esc(fmtNum(st.km, 0)) + ' <small>km</small>' : '—'}</b></div>
+        <div><span>Consumo medio</span><b>${st.kml ? esc(fmtNum(st.kml, 1)) + ' <small>km/l</small>' : '—'}</b></div>
+        <div><span>Costo al km</span><b>${st.ckm ? esc(fmtNum(st.ckm, 3)) + ' <small>€</small>' : '—'}</b></div>
+        <div class="${nx && nx.n <= 30 ? (nx.n < 0 ? 'late' : 'soon') : ''}"><span>Prossima scadenza</span><b>${nx ? esc(nx.voce) + ` <small>${esc(nxTxt)}</small>` : '—'}</b></div>
+      </div>`;
     countTo($('#au-year'), st.year);
     countTo($('#au-fuel'), st.fuelMonth);
     $('#au-kml').textContent = st.kml ? fmtNum(st.kml, 1) + ' km/l' : '—';
@@ -2118,14 +2137,18 @@
     $('#au-price').textContent = st.priceL ? fmtNum(st.priceL, 3) + ' €/l' : '—';
 
     // scadenze
-    $('#au-scad').innerHTML = SCAD.map(([voce, k, ki]) => {
-      const d = v[k];
-      const ch = d ? autoChip(String(d).slice(0, 10)) : null;
-      return `<div class="sc ${ch ? ch.cls : 'none'}">
-        ${voceIcon(voce)}
-        <div class="sc-main"><b>${voce}</b><span>${d ? esc(shortDate(String(d).slice(0, 10))) : 'Non impostata'}${voce === 'Tagliando' && v.kmTagliando ? ' · ' + esc(fmtNum(v.kmTagliando, 0)) + ' km' : ''}</span></div>
-        ${ch ? `<span class="chip ${ch.cls}">${esc(ch.txt.startsWith('Tra') || ch.cls ? ch.txt : 'OK')}</span>` : ''}
-        <button class="btn sm" data-autoact="${d ? 'scad:' + voce : 'editveh'}">${d ? 'Fatto' : 'Imposta'}</button></div>`;
+    $('#au-scad').innerHTML = SCAD.map(([voce, k, ki, mesi]) => {
+      const d = v[k] ? String(v[k]).slice(0, 10) : '';
+      const ch = d ? autoChip(d) : null, n = d ? daysTo(d) : 0;
+      const cyc = (mesi || 12) * 30.4, left = Math.max(0, Math.min(1, n / cyc));
+      const cls = ch ? (ch.cls || 'ok') : 'none';
+      const when = !d ? 'Non impostata' : n < 0 ? `Scaduta da ${-n} giorni` : n === 0 ? 'Scade oggi' : `Tra ${n} giorni`;
+      return `<div class="sc2 ${cls}">
+        <div class="sc2-ring" style="--p:${d ? Math.round(left * 100) : 0}">${voceIcon(voce)}</div>
+        <div class="sc2-main"><div class="sc2-top"><b>${voce}</b><span class="sc2-d">${d ? esc(shortDate(d)) : ''}</span></div>
+          <span class="sc2-w">${when}${voce === 'Tagliando' && v.kmTagliando ? ' · a ' + esc(fmtNum(v.kmTagliando, 0)) + ' km' : ''}</span>
+          ${d ? `<div class="sc2-bar"><i style="width:${Math.max(3, left * 100).toFixed(1)}%"></i></div>` : ''}</div>
+        <button class="btn sm" data-autoact="${d ? 'scad:' + voce : 'editveh'}">${d ? 'Rinnovato' : 'Imposta'}</button></div>`;
     }).join('');
 
     // per voce
@@ -2133,8 +2156,14 @@
     st.sp.filter(x => x.data.startsWith(String(new Date().getFullYear()))).forEach(x => { const k = autoVoce(x); byV[k] = (byV[k] || 0) + (Number(x.importo) || 0); });
     const rows = Object.entries(byV).sort((a, b) => b[1] - a[1]);
     const max = rows[0] ? rows[0][1] : 1, tot = rows.reduce((a, r) => a + r[1], 0);
-    $('#au-voci').innerHTML = rows.map(([k, val]) => `<div class="bar-row"><div class="bar-top"><span>${esc(k)} <span class="muted">${Math.round(val / tot * 100)}%</span></span><span>${eur(val)}</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, val / max * 100)}%"></div></div></div>`).join('') || '<div class="empty">Nessuna spesa quest\'anno</div>';
+    if (!rows.length) $('#au-voci').innerHTML = '<div class="empty">Nessuna spesa quest\'anno</div>';
+    else {
+      let off = 0;
+      const segs = rows.map(([k, val], i) => { const len = val / tot * 100, g = rows.length > 1 ? Math.min(1.2, len / 3) : 0; const seg = `<circle class="dn-s" cx="60" cy="60" r="48" pathLength="100" stroke="${AUTO_COL[i % AUTO_COL.length]}" stroke-dasharray="${Math.max(0.1, len - g).toFixed(2)} ${(100 - len + g).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" style="--d:${i * 90}ms"/>`; off += len; return seg; }).join('');
+      $('#au-voci').innerHTML = `<div class="donut"><div class="dn-c"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="48" class="dn-bg"/>${segs}</svg>
+        <div class="dn-t"><b>${esc(eur0(tot))}</b><span>${new Date().getFullYear()}</span></div></div>
+        <div class="dn-l">${rows.map(([k, val], i) => `<div class="dn-r"><i style="background:${AUTO_COL[i % AUTO_COL.length]}"></i><span>${esc(k)}</span><em>${Math.round(val / tot * 100)}%</em><b>${esc(eur0(val))}</b></div>`).join('')}</div></div>`;
+    }
 
     // grafico 12 mesi
     const now = new Date(), months = [];
