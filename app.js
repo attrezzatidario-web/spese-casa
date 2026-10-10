@@ -5010,7 +5010,7 @@
   }
   function hideSplash() {
     const sp = $('#splash'); if (!sp) return;
-    setTimeout(() => { sp.classList.add('out'); setTimeout(() => sp.remove(), 450); }, reduced() ? 0 : 1050);
+    setTimeout(() => { sp.classList.add('out'); setTimeout(() => sp.remove(), 450); }, reduced() ? 0 : Math.max(250, 2150 - performance.now()));
   }
   function startApp() {
     $('#setup').hidden = true; $('#app').hidden = false;

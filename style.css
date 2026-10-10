@@ -681,12 +681,26 @@ label.f > span { font-size: 12.5px; color: var(--ink-2); font-weight: 600; margi
 .splash { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: grid; place-content: center; justify-items: center; gap: 18px; }
 .splash.out { animation: splashout .45s ease-in forwards; }
 @keyframes splashout { to { opacity: 0; transform: scale(1.04); visibility: hidden; } }
-.sp-logo { width: 92px; height: 92px; }
-.sp-bg { fill: #17795a; transform-origin: center; animation: spbg .55s var(--spring) both; }
-@keyframes spbg { from { transform: scale(.6); opacity: 0; border-radius: 50%; } }
-.sp-d { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .5s ease-out forwards; }
-.sp-1 { animation-delay: .25s; } .sp-2 { animation-delay: .4s; } .sp-3 { animation-delay: .62s; } .sp-4 { animation-delay: .75s; }
-.sp-name { font-weight: 700; font-size: 20px; letter-spacing: -.02em; color: var(--ink); animation: rise .5s .55s var(--out) both; }
+.sp-mark { width: 104px; height: 104px; border-radius: 24px; box-shadow: 0 22px 44px -16px rgba(10, 74, 52, .55), 0 2px 6px rgba(10, 74, 52, .18); animation: spmark .8s cubic-bezier(.34, 1.45, .64, 1) both; }
+.sp-logo { width: 104px; height: 104px; display: block; overflow: visible; }
+@keyframes spmark { from { opacity: 0; transform: scale(.62) rotate(-10deg); } }
+.sp-logo * { transform-box: fill-box; }
+.sp-roof { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .45s .3s cubic-bezier(.65, 0, .35, 1) forwards; }
+.sp-house { transform-origin: 50% 100%; animation: sphouse .55s .58s cubic-bezier(.34, 1.3, .64, 1) both; }
+@keyframes sphouse { from { transform: scaleY(0); } }
+.sp-chim { transform-origin: 50% 100%; animation: spchim .4s .95s cubic-bezier(.34, 1.6, .64, 1) both; }
+@keyframes spchim { from { transform: translateY(46px); opacity: 0; } }
+.sp-shadow { opacity: 0; transform: translateY(14px); animation: spshadow .6s .9s ease-out forwards; }
+@keyframes spshadow { to { opacity: .38; } }
+.sp-eur { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .5s 1s cubic-bezier(.65, 0, .35, 1) forwards; }
+.sp-bar { transform-origin: 0 50%; animation: spbar .35s cubic-bezier(.34, 1.5, .64, 1) both; }
+.sp-b1 { animation-delay: 1.28s; } .sp-b2 { animation-delay: 1.36s; }
+@keyframes spbar { from { transform: scaleX(0); opacity: 0; } }
+.sp-sheen { transform: skewX(-20deg); animation: spsheen .8s 1.5s cubic-bezier(.45, 0, .2, 1) both; }
+@keyframes spsheen { from { transform: skewX(-20deg) translateX(0); } to { transform: skewX(-20deg) translateX(1000px); } }
+.sp-name { font-weight: 700; font-size: 22px; letter-spacing: -.02em; color: var(--ink); margin-top: 6px; animation: spname .7s .75s var(--out) both; }
+@keyframes spname { from { opacity: 0; transform: translateY(10px); letter-spacing: .12em; } }
+.sp-tag { font-size: 13px; color: var(--muted); margin-top: -12px; animation: rise .6s 1.1s var(--out) both; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; }
