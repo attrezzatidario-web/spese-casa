@@ -411,11 +411,26 @@
   }
 
   /* ================= HOME ================= */
+  // curva decorativa nella card principale: spesa cumulata giorno per giorno
+  function heroSpark(ms) {
+    const el = $('#h-spark'); if (!el) return;
+    const [y, m] = homeMonth.split('-').map(Number), days = new Date(y, m, 0).getDate();
+    const isCur = homeMonth === ymOf(new Date()), last = isCur ? new Date().getDate() : days;
+    const per = Array(days + 1).fill(0); ms.forEach(s => { per[Number(s.data.slice(8, 10))] += Number(s.importo) || 0; });
+    let acc = 0; const cum = []; for (let d = 1; d <= last; d++) { acc += per[d]; cum.push(acc); }
+    if (!acc || cum.length < 2) { el.innerHTML = ''; return; }
+    const W = 300, H = 90, X = i => i / (days - 1) * W, Y = v => H - 6 - v / acc * (H - 18);
+    const line = smoothPath(cum.map((v, i) => [X(i), Y(v)]));
+    const lx = X(cum.length - 1), ly = Y(acc);
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><linearGradient id="hs-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+      <path d="${line} L${lx.toFixed(1)},${H} L0,${H} Z" fill="url(#hs-g)"/><path d="${line}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+  }
   function renderHome() {
     $('.month-label').textContent = monthName(homeMonth);
     const ms = db.spese.filter(s => ym(s.data) === homeMonth);
     const tot = sum(ms);
     countTo($('#h-total'), tot);
+    heroSpark(ms);
 
     const [y, m] = homeMonth.split('-').map(Number);
     const prevKey = ymOf(new Date(y, m - 2, 1));
