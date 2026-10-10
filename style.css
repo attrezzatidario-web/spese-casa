@@ -2031,3 +2031,28 @@ label.f > span { font-size: 11.5px; font-weight: 650; text-transform: uppercase;
 /* schede veicolo: niente ombra scura (veniva tagliata in un riquadro) */
 .veh-tab.on { box-shadow: none; }
 .veh-tabs { padding: 2px 0; }
+
+/* v37 — pulsanti principali: colore pieno e pulito (niente sfumatura diagonale, niente bordo scuro) */
+:root { --btn: #17795a; --btn-h: #136a4e; }
+:root[data-theme="dark"] { --btn: #1f8f64; --btn-h: #23a271; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --btn: #1f8f64; --btn-h: #23a271; } }
+.btn.primary, .fab {
+  background: var(--btn); background-image: none; color: #fff; border: 1px solid var(--btn); filter: none;
+  box-shadow: 0 1px 2px rgba(12, 80, 57, .18), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.btn.primary:hover { background: var(--btn-h); border-color: var(--btn-h); filter: none; box-shadow: 0 4px 12px -4px rgba(12, 80, 57, .35), inset 0 1px 0 rgba(255, 255, 255, .12); }
+.btn.primary:active { transform: scale(.98); }
+.btn.primary:focus-visible { outline: none; box-shadow: var(--ring); }
+.btn.primary.only-desk { padding: 10px 18px; border-radius: 12px; }
+.sheet-f .primary { min-width: 140px; height: 46px; border-radius: 13px; font-size: 15px; }
+@media (max-width: 899px) { .fab { border: 0; box-shadow: 0 10px 22px -8px rgba(12, 80, 57, .55), inset 0 1px 0 rgba(255, 255, 255, .14); } }
+.kpi-act .btn { height: 44px; border-radius: 12px; }
+
+/* "Pagata da": stessa etichetta degli altri campi e scelta a segmenti */
+div.f { margin-bottom: 14px; }
+.f-l { font-size: 11.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+#sp-who .who-pick { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; }
+#sp-who .wp { display: block; min-width: 0; }
+#sp-who .wp > span { width: 100%; justify-content: center; height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#sp-who .wp input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(14,26,21,.08), 0 4px 10px -4px rgba(14,26,21,.14); }
+.att.add { min-height: 48px; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--surface-2); }
