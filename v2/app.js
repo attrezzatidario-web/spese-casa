@@ -32,7 +32,7 @@
   const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzYhgylTZQvP8PKZwSDbK7nOCqx-BL8iXjZPUwq7CvRvA5SNxc4RSvzhcXA3KZf0wXZ/exec';
   let gas = LS.get('sc_gas', '');
   let tok = LS.get('sc_tok', '');
-  const SOON = 'Questa funzione arriva con il prossimo aggiornamento. Intanto puoi collegare il Foglio Google da Altro → Account.';
+  const SOON = 'Funzione non disponibile.';
   function sfetch(u, o) {
     o = o || {};
     if (!o.method || o.method === 'GET') u += (u.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(tok);
@@ -40,7 +40,7 @@
     return fetch(u, o).then(r => r.clone().json().then(j => {
       if (j && j.ok === false && j.error === 'AUTH') {
         gas = ''; tok = ''; LS.set('sc_gas', ''); LS.set('sc_tok', '');
-        throw new Error('Il collegamento al Foglio Google è scaduto: ricollegalo da Altro → Account.');
+        throw new Error('Funzione non disponibile.');
       }
       return r;
     }, () => r));
@@ -779,15 +779,7 @@
   function renderAccount() {
     const box = $('#acct-set'); if (!box) return;
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
-    box.innerHTML = `
-      <div class="nt-status"><div class="nt-row"><i class="dot ${gas ? 'paid' : 'late'}"></i><div><b>Foglio Google ${gas ? 'collegato' : 'non collegato'}</b><small>${gas ? 'Le modifiche vengono copiate anche sul Foglio, così la versione precedente resta aggiornata.' : 'Se usavi già Spese Casa, importa qui i tuoi dati.'}</small></div></div></div>
-      ${!gas ? `<p class="muted small" style="margin:12px 0 8px">Hai già i tuoi dati qui e vuoi solo recuperare i vecchi file su Google Drive? Collega il Foglio senza toccare i dati.</p><button class="btn primary" id="acct-link">Collega il Foglio per i vecchi file</button>` : ''}
-      <div class="row-btns" style="margin-top:8px">
-        <button class="btn ${gas ? '' : 'ghost'}" id="acct-import">${gas ? 'Importa di nuovo dal Foglio' : 'Importa dal Foglio Google'}</button>
-        ${gas ? '<button class="btn ghost" id="acct-unlink">Scollega il Foglio</button>' : ''}
-      </div>
-      ${gas && driveJobs().length ? `<p class="muted small" style="margin:12px 0 8px">Hai <b>${driveJobs().length} file</b> ancora su Google Drive: copiali nel tuo archivio per aprirli da qualsiasi dispositivo.</p><button class="btn primary" id="acct-drive">Sposta i file da Google Drive</button>` : ''}
-      <div class="row-btns" style="margin-top:8px">
+    box.innerHTML = `<div class="row-btns">
         <button class="btn ghost" id="acct-out">Esci</button>
         <button class="btn danger-ghost" id="acct-del">Elimina account</button>
       </div>`;
@@ -853,7 +845,7 @@
     busy(); toast(`Importati ${rows.length} elementi`);
   }
   async function deleteAccount() {
-    if (!confirm('Eliminare definitivamente l\'account e tutti i dati salvati qui? Il Foglio Google non viene toccato.')) return;
+    if (!confirm('Eliminare definitivamente l\'account e tutti i tuoi dati?')) return;
     if (prompt('Per confermare scrivi ELIMINA') !== 'ELIMINA') return toast('Eliminazione annullata');
     busy('Elimino l\'account…');
     try {
@@ -2282,7 +2274,7 @@
     try {
       const x = (db.estratti || []).find(e => e.id === id) || {};
       if (String(x.fileUrl || '').startsWith('sb:')) { const f = await sbFile(x.fileUrl); busy(); return saveBlob(f.blob, f.name); }
-      if (!gas) throw new Error('il file è sul Google Drive della versione precedente: collega il Foglio da Altro → Account');
+      if (!gas) throw new Error('il file non è più disponibile');
       const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
       const j = await r.json(); if (!j.ok) throw new Error(j.error);
       busy(); saveBlob(b64Blob(j.data.b64, j.data.mime), j.data.name);
@@ -2300,7 +2292,7 @@
         if (data && data.length) d = { ...meta, ...data[0].data };
       }
       if (!d) {
-        if (!gas) throw new Error('il dettaglio è sul Foglio Google della versione precedente: collegalo da Altro → Account');
+        if (!gas) throw new Error('il dettaglio non è più disponibile');
         const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
         const j = await r.json(); if (!j.ok) throw new Error(j.error);
         d = j.data;
@@ -3458,7 +3450,7 @@
         <button class="btn ghost" id="ai-off">Rimuovi chiave</button>`;
       return;
     }
-    box.innerHTML = `${gas && db.ai ? '<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Ora l\'IA passa dal Foglio Google. Inserisci la chiave per usarla direttamente su questo dispositivo.</p>' : ''}
+    box.innerHTML = `
       <p class="muted small" style="margin:0 0 10px">Usa la tua chiave gratuita di Google Gemini: resta solo su questo dispositivo e le foto vanno direttamente a Google, senza passare da noi.</p>
       <div class="inline-add"><input id="ai-key" type="password" placeholder="Chiave API Gemini" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" id="ai-save">Attiva</button></div>
       <details class="ai-howto"><summary class="link">Come ottengo la chiave? (1 minuto)</summary>
@@ -3791,7 +3783,7 @@
       try { const c = await caches.open('sc-docs'); await c.put(key, new Response(f.blob, { headers: { 'content-type': f.mime, 'x-name': encodeURIComponent(f.name) } })); } catch {}
       return f;
     }
-    if (!gas) throw new Error('Questo file è sul Google Drive della versione precedente: collega il Foglio da Altro → Account per aprirlo.');
+    if (!gas) throw new Error('Questo file non è più disponibile.');
     const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
     const j = await r.json(); if (!j.ok) throw new Error(j.error);
     const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
