@@ -2063,3 +2063,6 @@ div.f { margin-bottom: 14px; }
 .res-t { font-size: 14px; line-height: 1.55; color: var(--ink-2); }
 .c-res { order: -1; }
 .invite-code { text-align: center; font-size: 34px; font-weight: 700; letter-spacing: .12em; font-variant-numeric: tabular-nums; padding: 14px 0; border-radius: 14px; background: var(--bg); }
+/* pulsante quadrato "+": icona esattamente al centro */
+.btn.ls-btn { padding: 0; display: grid; place-items: center; }
+.btn.ls-btn svg { display: block; }
