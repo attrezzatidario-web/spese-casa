@@ -1119,7 +1119,7 @@
     await pull();
     // notifiche e resoconto seguono la casa nuova
     if (LS.get('sc_push', '') && pushSupported() && Notification.permission === 'granted') { try { await pushEnable(); } catch {} }
-    if (resCfg().attivo && aiKey()) sb.rpc('set_ai_key', { k: aiKey() }).then(() => {}, () => {});
+    try { const { data: k } = await sb.rpc('get_ai_key'); if (k) LS.set('sc_aikey', k); else if (aiKey()) await sb.rpc('set_ai_key', { k: aiKey() }); } catch {}
     route();
   }
   // link d'invito: ?invito=123456
@@ -1131,6 +1131,17 @@
     casaEntra(c);
   }
 
+  // la chiave IA è della casa: la prendo dal server (o la carico se era solo su questo dispositivo)
+  async function syncAIKey() {
+    if (DEMO || !sb || !hh) return;
+    try {
+      const { data: k, error } = await sb.rpc('get_ai_key');
+      if (error) return;
+      if (k && k !== aiKey()) { LS.set('sc_aikey', k); if (window.SC_AI) window.SC_AI.resetModel(); render(); }
+      else if (!k && aiKey()) await sb.rpc('set_ai_key', { k: aiKey() });
+      else if (!k && !aiKey()) {}
+    } catch {}
+  }
   /* ================= RESOCONTO IA (notifica + Home) ================= */
   const resCfg = () => ((db.config.notifiche || {}).resoconto) || {};
   function renderResoconto() {
@@ -1156,7 +1167,7 @@
     openSheet('Resoconto IA', `
       <p class="muted small" style="margin:0 0 12px">L'IA analizza spese, entrate, scadenze e budget e ti manda un resoconto con consigli pratici.</p>
       <label class="sw"><input type="checkbox" name="attivo" ${c.attivo ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Attiva il resoconto</b><small>Per scriverlo mentre il telefono è in pausa, la tua chiave Gemini viene salvata sul server in modo che solo il servizio notifiche possa usarla. Spegnendo il resoconto viene cancellata.</small></span></label>
+        <span class="sw-t"><b>Attiva il resoconto</b><small>Usa la chiave IA della casa. Arriva anche a chi fa parte della casa e ha attivato le notifiche.</small></span></label>
       <div class="f-row" style="margin-top:6px">
         <label class="f"><span>Quando</span><select name="freq"><option value="giornaliero"${c.freq !== 'settimanale' ? ' selected' : ''}>Ogni mattina</option><option value="settimanale"${c.freq === 'settimanale' ? ' selected' : ''}>Ogni lunedì</option></select></label>
         <label class="f"><span>Orario</span><select name="ora">${hours.map(h => `<option value="${h}"${Number(c.ora) === h ? ' selected' : ''}>${pad(h)}:00</option>`).join('')}</select></label>
@@ -1166,9 +1177,9 @@
         busy(v.attivo ? 'Attivo il resoconto…' : 'Salvo…');
         try {
           if (v.attivo) {
-            if (!aiKey()) throw new Error('Inserisci prima la chiave IA su questo dispositivo (Altro → Intelligenza artificiale)');
+            if (!aiKey()) throw new Error('Inserisci prima la chiave IA (Altro → Intelligenza artificiale)');
             const { error } = await sb.rpc('set_ai_key', { k: aiKey() }); sbErr(error);
-          } else { const { error } = await sb.rpc('delete_ai_key'); sbErr(error); }
+          }
           setConfig('notifiche', { ...(db.config.notifiche || {}), resoconto: v });
           await syncNow();
           busy(); closeSheet(); toast(v.attivo ? 'Resoconto attivo' : 'Resoconto spento'); render();
@@ -3526,12 +3537,12 @@
     const box = $('#ai-set');
     if (DEMO) { box.innerHTML = '<p class="small" style="margin:0"><span class="chip paid">Attiva</span> Nella demo l\'IA risponde con esempi.</p>'; return; }
     if (aiKey()) {
-      box.innerHTML = `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati su questo dispositivo.</p>
+      box.innerHTML = `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati per tutta la casa.</p>
         <button class="btn ghost" id="ai-off">Rimuovi chiave</button>`;
       return;
     }
     box.innerHTML = `
-      <p class="muted small" style="margin:0 0 10px">Usa la tua chiave gratuita di Google Gemini: resta solo su questo dispositivo e le foto vanno direttamente a Google, senza passare da noi.</p>
+      <p class="muted small" style="margin:0 0 10px">Usa la tua chiave gratuita di Google Gemini. Vale per tutta la casa: chi entra con un invito la trova già attiva. Le foto vanno direttamente a Google.</p>
       <div class="inline-add"><input id="ai-key" type="password" placeholder="Chiave API Gemini" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" id="ai-save">Attiva</button></div>
       <details class="ai-howto"><summary class="link">Come ottengo la chiave? (1 minuto)</summary>
         <ol class="small muted" style="margin:8px 0 0;padding-left:18px">
@@ -3552,13 +3563,14 @@
         if (!window.SC_AI) throw new Error('IA non caricata: ricarica la pagina');
         await window.SC_AI.run(key, { task: 'test' }, null, 25000);
         LS.set('sc_aikey', key);
-        if (resCfg().attivo && sb) sb.rpc('set_ai_key', { k: key }).then(() => {}, () => {});
+        if (sb && hh) { const { error } = await sb.rpc('set_ai_key', { k: key }); if (error) console.warn(error); }
       } else {
+        if (sb && hh) { const { error } = await sb.rpc('delete_household_ai_key'); if (error && !netErr(error)) console.warn(error); }
         try { localStorage.removeItem(LK('sc_aikey')); } catch {}
         if (window.SC_AI) window.SC_AI.resetModel();
       }
       render();
-      toast(key ? 'IA attivata' : 'IA disattivata su questo dispositivo');
+      toast(key ? 'IA attivata per tutta la casa' : 'IA disattivata per tutta la casa');
     } catch (e) { toast(e.message || 'Errore'); }
     busy();
   }
@@ -5327,7 +5339,7 @@
       const ai = e.target.closest('[data-ai]');
       if (ai) { ai.dataset.ai === 'receipt' ? aiReceipt() : aiTextForm(); return; }
       if (e.target.closest('#ai-save')) { const k = $('#ai-key').value.trim(); if (k) setAIKey(k); return; }
-      if (e.target.closest('#ai-off')) { if (confirm('Disattivare l\'IA?')) setAIKey(''); return; }
+      if (e.target.closest('#ai-off')) { if (confirm('Rimuovere la chiave IA per tutta la casa? Anche gli altri membri non potranno più usare l\'IA.')) setAIKey(''); return; }
       if (e.target.closest('#h-ai-btn')) { runInsights(); return; }
       if (e.target.closest('#ins-all')) { insFull(); return; }
       if (e.target.closest('#bill-photo')) { aiBill(); return; }
@@ -5539,6 +5551,7 @@
     if (!locked) handleLaunch();
     setTimeout(monthCelebrate, 800);
     setTimeout(invitoInSospeso, 1500);
+    setTimeout(syncAIKey, 1200);
   }
 
   function setupBind() {
