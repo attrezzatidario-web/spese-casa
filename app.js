@@ -5,7 +5,7 @@
   /* ================= Storage ================= */
   // ?demo nell'indirizzo = modalità demo, con uno spazio di memoria separato dai dati veri
   const DEMO = /[?&]demo\b/.test(location.search);
-  const LK = k => (DEMO ? 'demo_' : '') + k;
+  const LK = k => (DEMO ? 'demo_' : 'v2_') + k;
   const LS = {
     get(k, d) { try { const v = localStorage.getItem(LK(k)); return v ? JSON.parse(v) : d; } catch { return d; } },
     set(k, v) { try { localStorage.setItem(LK(k), JSON.stringify(v)); } catch {} }
@@ -16,23 +16,34 @@
     mensile: 1, bimestrale: 2, trimestrale: 3, quadrimestrale: 4, semestrale: 6, annuale: 12, 'una tantum': 0
   };
 
-  // indirizzo del tuo script: i nuovi dispositivi si collegano da soli e chiedono solo il codice
+  /* ---------- Supabase: dati e account ---------- */
+  const SB_URL = 'https://yxfrevixckortffogmbb.supabase.co';
+  const SB_KEY = 'sb_publishable_yDpVXV9QcjHRsmmBKMTj9A_BhCnB0Wh';
+  const sb = window.supabase && !DEMO ? window.supabase.createClient(SB_URL, SB_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'v2_sc_auth' }
+  }) : null;
+  let hh = LS.get('sc_hh', '');            // la "casa" dell'utente su Supabase
+  // url: 'cloud' = collegato a Supabase, 'demo' = demo, '' = da accedere
+  let url = DEMO ? '' : (hh ? 'cloud' : '');
+
+  /* ---------- Ponte temporaneo verso Google Apps Script ----------
+     Serve solo per le funzioni non ancora spostate (IA, Telegram, notifiche, file su Drive)
+     e si attiva quando si importano i dati dal Foglio Google. */
   const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzYhgylTZQvP8PKZwSDbK7nOCqx-BL8iXjZPUwq7CvRvA5SNxc4RSvzhcXA3KZf0wXZ/exec';
-  const HAS_DEFAULT = /^https:\/\/script\.google\.com\//.test(DEFAULT_URL);
-  let url = LS.get('sc_url', '') || (HAS_DEFAULT && !DEMO ? DEFAULT_URL : '');
-  // se questo dispositivo era rimasto in modalità "solo dispositivo", lo ricollego al Foglio Google
-  // (i dati locali restano salvati a parte in sc_local_backup, per sicurezza)
-  if (url === 'local' && HAS_DEFAULT && !DEMO) {
-    try { const old = localStorage.getItem('sc_data'); if (old) localStorage.setItem('sc_local_backup', old); localStorage.removeItem('sc_data'); localStorage.removeItem('sc_queue'); } catch {}
-    url = DEFAULT_URL; LS.set('sc_url', url);
-  }
+  let gas = LS.get('sc_gas', '');
   let tok = LS.get('sc_tok', '');
-  // ogni richiesta allo script porta il "token" del dispositivo
+  const SOON = 'Questa funzione arriva con il prossimo aggiornamento. Intanto puoi collegare il Foglio Google da Altro → Account.';
   function sfetch(u, o) {
-    o = o || {}; const used = tok;
+    o = o || {};
     if (!o.method || o.method === 'GET') u += (u.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(tok);
     else { try { const b = JSON.parse(o.body); b.k = tok; o = { ...o, body: JSON.stringify(b) }; } catch {} }
-    return fetch(u, o).then(r => r.clone().json().then(j => { if (j && j.ok === false && j.error === 'AUTH') { if (used === tok) showLogin(); throw new Error('AUTH_REQ'); } return r; }, () => r));
+    return fetch(u, o).then(r => r.clone().json().then(j => {
+      if (j && j.ok === false && j.error === 'AUTH') {
+        gas = ''; tok = ''; LS.set('sc_gas', ''); LS.set('sc_tok', '');
+        throw new Error('Il collegamento al Foglio Google è scaduto: ricollegalo da Altro → Account.');
+      }
+      return r;
+    }, () => r));
   }
   let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
   if (!db.estratti) db.estratti = [];
@@ -237,24 +248,69 @@
   }
   async function api(action, extra) {
     if (DEMO) throw new Error('Nella demo questa funzione non è disponibile');
-    const r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...extra }) });
+    if (!gas) throw new Error(SOON);
+    const r = await sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...extra }) });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || 'Errore');
     return j.result;
   }
 
+  const emptyDb = () => ({ spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [], persone: [], entrate: [], entrateFisse: [], obiettivi: [], lista: [], documenti: [], manutenzioni: [], progetti: [], faccende: [] });
+  const recId = op => op.sheet === 'Config' ? String(op.row.chiave) : op.sheet === 'Categorie' ? String(op.row.nome) : String(op.row.id);
+  const netErr = e => e instanceof TypeError || /fetch|network|load failed/i.test(String(e && e.message));
+  const chunks = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
+  function sbErr(error) {
+    if (!error) return;
+    if (error.code === 'PGRST301' || /JWT|not authenticated/i.test(error.message)) { setTimeout(showLogin, 0); throw new Error('AUTH_REQ'); }
+    const e = new Error(error.message || 'Errore'); if (netErr(error)) e.net = true; throw e;
+  }
+
+  // scrive su Supabase un gruppo di modifiche (vale l'ultima per ogni riga)
+  async function sbWrite(ops) {
+    const fin = new Map();
+    ops.forEach(op => { const id = op.action === 'upsert' ? recId(op) : String(op.id); fin.delete(op.sheet + '\u0001' + id); fin.set(op.sheet + '\u0001' + id, { sheet: op.sheet, id, op }); });
+    const ups = [], dels = {};
+    fin.forEach(({ sheet, id, op }) => {
+      if (op.action === 'upsert') ups.push({ household_id: hh, sheet, id, data: op.row });
+      else (dels[sheet] = dels[sheet] || []).push(id);
+    });
+    for (const c of chunks(ups, 500)) { const { error } = await sb.from('records').upsert(c, { onConflict: 'household_id,sheet,id' }); sbErr(error); }
+    for (const sheet of Object.keys(dels)) for (const c of chunks(dels[sheet], 200)) {
+      const { error } = await sb.from('records').delete().eq('household_id', hh).eq('sheet', sheet).in('id', c); sbErr(error);
+    }
+  }
+  // legge tutti i dati della casa (a pagine da 1000)
+  async function sbReadAll() {
+    const out = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from('records').select('sheet,id,data').eq('household_id', hh).order('seq', { ascending: true }).range(from, from + 999);
+      sbErr(error); out.push(...data);
+      if (data.length < 1000) return out;
+    }
+  }
+  function dbFromRecords(rows) {
+    const n = emptyDb();
+    rows.forEach(r => {
+      if (r.sheet === 'Config') { try { n.config[r.id] = JSON.parse(r.data.valore); } catch { n.config[r.id] = r.data.valore; } }
+      else if (r.sheet === 'Categorie') n.categorie.push(r.id);
+      else { const k = KEY[r.sheet]; if (k) n[k].push(r.data); }
+    });
+    return n;
+  }
+
   async function flush() {
-    if (isLocal() || syncing || !queue.length || !url) return setSync();
+    if (isLocal() || syncing || !queue.length || !url || !sb) return setSync();
     syncing = true; setSync();
     const batch = queue.slice();
     try {
-      const r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: batch }) });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error || 'Errore');
+      await sbWrite(batch);
       queue = queue.slice(batch.length); save();
       online = true;
+      // fase di passaggio: copia anche sul Foglio Google, così IA, Telegram e notifiche restano aggiornati
+      if (gas && tok) sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: batch }) }).catch(() => {});
     } catch (e) {
-      if (e instanceof TypeError) online = false;
+      if (e.message === 'AUTH_REQ') { /* serve di nuovo l'accesso */ }
+      else if (e.net || !navigator.onLine) online = false;
       else toast('Errore salvataggio: ' + e.message);
     } finally {
       syncing = false; setSync();
@@ -262,17 +318,37 @@
     if (queue.length && online) setTimeout(flush, 4000);
   }
 
+  // stato di IA/Telegram/backup dal Foglio Google (solo nella fase di passaggio)
+  let gasFlagsAt = 0;
+  async function pullGasFlags(force) {
+    if (!gas || !tok || (!force && Date.now() - gasFlagsAt < 600000)) return;
+    gasFlagsAt = Date.now();
+    try {
+      const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
+      const j = await r.json(); if (!j.ok) return;
+      db.tg = j.data.tg || {}; db.backup = j.data.backup || {}; db.ai = !!j.data.ai;
+      LS.set('sc_gasflags', { tg: db.tg, backup: db.backup, ai: db.ai });
+      save(); render();
+    } catch {}
+  }
+
   async function pull(showToast) {
     if (isLocal()) { if (showToast) toast('Modalità solo dispositivo'); return; }
+    if (!sb || !hh) return;
     try {
       setSync('Aggiorno…');
-      const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], progetti: j.data.progetti || [], faccende: j.data.faccende || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
+      const rows = await sbReadAll();
+      const flags = LS.get('sc_gasflags', {});
+      db = { ...dbFromRecords(rows), tg: db.tg || flags.tg || {}, backup: db.backup || flags.backup || {}, ai: gas ? (db.ai != null ? db.ai : !!flags.ai) : false };
+      if (!rows.length && !queue.length && !LS.get('sc_seeded', false)) {
+        // primo accesso: categorie di partenza
+        LS.set('sc_seeded', true);
+        write(DEFAULT_CATS.map(nome => ({ action: 'upsert', sheet: 'Categorie', row: { nome } })));
+      }
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
+      pullGasFlags(showToast);
     } catch (e) {
       if (e.message === 'AUTH_REQ') return;
       online = false;
@@ -673,11 +749,11 @@
 
   /* ================= IMPOSTAZIONI ================= */
   function renderSettings() {
-    $('#btn-conn').hidden = DEMO;
-    $('#conn-info').textContent = DEMO ? 'Stai guardando la demo con dati di esempio. Le modifiche restano solo finché non chiudi o ricarichi la pagina.' : isLocal()
-      ? 'Modalità solo dispositivo: i dati restano su questo browser e non sono condivisi.'
-      : `Collegato al Foglio Google. ${db.spese.length} spese, ${db.bollette.length} bollette.`;
+    $('#btn-conn').hidden = true;
+    $('#conn-info').textContent = DEMO ? 'Stai guardando la demo con dati di esempio. Le modifiche restano solo finché non chiudi o ricarichi la pagina.'
+      : `Accesso con ${LS.get('sc_email', '')}. ${db.spese.length} spese, ${db.bollette.length} bollette.`;
     $('#btn-sync').hidden = isLocal();
+    renderAccount();
     renderAISettings();
     renderLockSettings();
     renderTheme();
@@ -692,6 +768,79 @@
       <button class="icon-btn" data-delshop="${i}" aria-label="Rimuovi">✕</button></div>`).join('') || '<p class="muted small" style="margin:0">Nessun negozio aggiunto.</p>';
     $('#shop-cat').innerHTML = '<option value="">Categoria</option>' + cats().map(c => `<option>${esc(c)}</option>`).join('');
     $('#cat-list').innerHTML = cats().map(c => `<span class="chip">${esc(c)}<button data-delcat="${esc(c)}" aria-label="Elimina ${esc(c)}">✕</button></span>`).join('');
+  }
+
+  /* ================= ACCOUNT (Supabase) ================= */
+  function renderAccount() {
+    const box = $('#acct-set'); if (!box) return;
+    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
+    box.innerHTML = `
+      <div class="nt-status"><div class="nt-row"><i class="dot ${gas ? 'paid' : 'late'}"></i><div><b>Foglio Google ${gas ? 'collegato' : 'non collegato'}</b><small>${gas ? 'IA, Telegram, notifiche e file passano ancora dal Foglio. Le modifiche vengono copiate anche lì.' : 'Se usavi già Spese Casa, importa qui i tuoi dati.'}</small></div></div></div>
+      <div class="row-btns">
+        <button class="btn ${gas ? '' : 'primary'}" id="acct-import">${gas ? 'Importa di nuovo dal Foglio' : 'Importa dal Foglio Google'}</button>
+        ${gas ? '<button class="btn ghost" id="acct-unlink">Scollega il Foglio</button>' : ''}
+      </div>
+      <div class="row-btns" style="margin-top:8px">
+        <button class="btn ghost" id="acct-out">Esci</button>
+        <button class="btn danger-ghost" id="acct-del">Elimina account</button>
+      </div>`;
+  }
+  function formImport() {
+    openSheet('Importa dal Foglio Google', `
+      <p class="muted small" style="margin:0 0 12px">Copio qui tutti i dati del tuo Foglio Google. <b>I dati attuali di questo account vengono sostituiti</b>; il Foglio non viene toccato.</p>
+      <label class="f"><span>Codice di accesso della versione attuale</span><input name="code" type="password" autocomplete="off" required data-focus></label>`,
+      async fd => {
+        const code = String(fd.get('code') || '').trim(); if (!code) return;
+        try { await importFromSheet(code); closeSheet(); }
+        catch (e) { busy(); toast(e.message || 'Importazione non riuscita'); }
+      }, null, 'Importa');
+  }
+  async function importFromSheet(code) {
+    busy('Mi collego al Foglio Google…');
+    const target = gas || DEFAULT_URL;
+    let r = await fetch(target, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'login', code, device: 'Spese Casa v2' }) });
+    let j = await r.json(); if (!j.ok) throw new Error(j.error === 'AUTH' ? 'Codice non valido' : (j.error || 'Codice non valido'));
+    const t = j.result.token || '';
+    busy('Leggo i dati…');
+    r = await fetch(target + (target.includes('?') ? '&' : '?') + 'action=all&k=' + encodeURIComponent(t) + '&t=' + Date.now());
+    j = await r.json(); if (!j.ok) throw new Error(j.error || 'Lettura non riuscita');
+    const d = j.data, rows = [];
+    Object.entries(KEY).forEach(([sheet, k]) => {
+      if (sheet === 'Categorie') (d.categorie || []).forEach(nome => rows.push({ household_id: hh, sheet, id: String(nome), data: { nome } }));
+      else (d[k] || []).forEach(row => { if (row && row.id != null && row.id !== '') rows.push({ household_id: hh, sheet, id: String(row.id), data: row }); });
+    });
+    Object.entries(d.config || {}).forEach(([chiave, v]) => rows.push({ household_id: hh, sheet: 'Config', id: chiave, data: { chiave, valore: JSON.stringify(v) } }));
+    if (!confirm(`Trovati ${rows.length} elementi (${(d.spese || []).length} spese, ${(d.bollette || []).length} bollette). Sostituisco i dati di questo account?`)) { busy(); return; }
+    busy('Copio i dati… 0%');
+    { const { error } = await sb.from('records').delete().eq('household_id', hh); sbErr(error); }
+    const cs = chunks(rows, 400);
+    for (let i = 0; i < cs.length; i++) {
+      const { error } = await sb.from('records').upsert(cs[i], { onConflict: 'household_id,sheet,id' }); sbErr(error);
+      busy(`Copio i dati… ${Math.round((i + 1) / cs.length * 100)}%`);
+    }
+    gas = target; tok = t; LS.set('sc_gas', gas); LS.set('sc_tok', tok); LS.set('sc_seeded', true);
+    db.tg = d.tg || {}; db.backup = d.backup || {}; db.ai = !!d.ai;
+    LS.set('sc_gasflags', { tg: db.tg, backup: db.backup, ai: db.ai });
+    queue = []; save();
+    await pull();
+    busy(); toast(`Importati ${rows.length} elementi`);
+  }
+  async function deleteAccount() {
+    if (!confirm('Eliminare definitivamente l\'account e tutti i dati salvati qui? Il Foglio Google non viene toccato.')) return;
+    if (prompt('Per confermare scrivi ELIMINA') !== 'ELIMINA') return toast('Eliminazione annullata');
+    busy('Elimino l\'account…');
+    try {
+      const { error } = await sb.rpc('delete_my_account'); sbErr(error);
+      await sb.auth.signOut().catch(() => {});
+      Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
+      busy(); location.reload();
+    } catch (e) { busy(); toast(e.message); }
+  }
+  async function signOut() {
+    if (queue.length && !confirm(`Ci sono ${queue.length} modifiche non ancora salvate. Uscire comunque?`)) return;
+    if (sb) await sb.auth.signOut().catch(() => {});
+    Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
+    location.reload();
   }
 
   function exportCSV() {
@@ -1935,7 +2084,8 @@
   async function downloadSavedFile(id) {
     busy('Scarico il file…');
     try {
-      const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+      if (!gas) throw new Error(SOON);
+      const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
       const j = await r.json(); if (!j.ok) throw new Error(j.error);
       const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -1946,7 +2096,8 @@
   async function openSavedStatement(id) {
     busy('Apro l\'analisi…');
     try {
-      const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+      if (!gas) throw new Error(SOON);
+      const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
       const j = await r.json(); if (!j.ok) throw new Error(j.error);
       const d = j.data;
       let only = []; try { only = JSON.parse(d.onlyApp || '[]'); } catch {}
@@ -2839,9 +2990,11 @@
     const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 100000);
     let r;
     try {
-      r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal,
+      if (!gas) throw new Error(SOON);
+      r = await sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal,
         body: JSON.stringify({ action: 'ai', task, categorie: cats(), oggi: today(), ...extra }) });
     } catch (e) {
+      if (e.message === SOON) throw e;
       throw new Error(e.name === 'AbortError' ? 'L\'IA non ha risposto in tempo. Riprova tra poco o compila a mano: l\'allegato resta salvato.' : 'Connessione assente, riprova');
     } finally { clearTimeout(tm); }
     let j; try { j = await r.json(); } catch { throw new Error('Risposta non valida dallo script: hai creato la Nuova versione del deployment?'); }
@@ -3089,7 +3242,7 @@
   function renderAISettings() {
     const box = $('#ai-set');
     if (DEMO) { box.innerHTML = '<p class="small" style="margin:0"><span class="chip paid">Attiva</span> Nella demo l\'IA risponde con esempi.</p>'; return; }
-    if (isLocal()) { box.innerHTML = '<p class="muted small" style="margin:0">Disponibile solo con il collegamento al Foglio Google.</p>'; return; }
+    if ((isLocal() || !gas)) { box.innerHTML = '<p class="muted small" style="margin:0">Per ora funziona con il Foglio Google collegato (Altro → Account).</p>'; return; }
     box.innerHTML = db.ai
       ? `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati.</p>
          <button class="btn ghost" id="ai-off">Rimuovi chiave</button>`
@@ -3101,7 +3254,8 @@
   async function setAIKey(key) {
     busy(key ? 'Verifico la chiave…' : 'Rimuovo…');
     try {
-      const r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'setKey', key }) });
+      if (!gas) throw new Error(SOON);
+      const r = await sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'setKey', key }) });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
       db.ai = !!key; save(); render();
@@ -3161,8 +3315,9 @@
   function lockBind() {
     $('#lock-go').onclick = unlock;
     $('#lock-reset').onclick = () => {
-      if (!confirm('Scollego questo dispositivo: i dati restano al sicuro sul Foglio Google e potrai ricollegarti incollando di nuovo l\'URL dello script. Continuare?')) return;
-      Object.keys(localStorage).filter(k => k.startsWith('sc_')).forEach(k => localStorage.removeItem(k));
+      if (!confirm('Esco dall\'account su questo dispositivo: i dati restano al sicuro e potrai rientrare con la tua email. Continuare?')) return;
+      if (sb) sb.auth.signOut().catch(() => {});
+      Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
       location.reload();
     };
     document.addEventListener('visibilitychange', () => {
@@ -3186,7 +3341,7 @@
       const on = e.target.checked;
       try {
         if (on) { pauseLock(60000); const id = await bioCreate(); pauseLock(2500); LS.set('sc_lock', { id, dopo: 60 }); toast('Blocco attivato'); }
-        else { if (!(await bioVerify())) throw new Error('verifica'); localStorage.removeItem('sc_lock'); toast('Blocco disattivato'); }
+        else { if (!(await bioVerify())) throw new Error('verifica'); localStorage.removeItem(LK('sc_lock')); toast('Blocco disattivato'); }
       } catch (er) { e.target.checked = !on; toast(on ? 'Attivazione annullata' : 'Verifica non riuscita'); }
       renderLockSettings();
     };
@@ -3403,7 +3558,8 @@
     if (DEMO) { if (!demoFiles[id]) demoFiles[id] = { blob: await demoDocBlob(id), name: ((demoMeta[id] || {}).title || 'documento') + '.png', mime: 'image/png' }; return demoFiles[id]; }
     const key = new URL('__doc/' + encodeURIComponent(id), location.href).href;
     try { const c = await caches.open('sc-docs'); const hit = await c.match(key); if (hit) { const blob = await hit.blob(); return { blob, name: decodeURIComponent(hit.headers.get('x-name') || 'documento'), mime: blob.type }; } } catch {}
-    const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+    if (!gas) throw new Error(SOON);
+    const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
     const j = await r.json(); if (!j.ok) throw new Error(j.error);
     const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -3870,7 +4026,7 @@
   let acStatus = null;
   async function renderAccess(force) {
     const box = $('#ac-set'); if (!box) return;
-    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Non disponibile nella demo.' : 'Disponibile solo con il collegamento al Foglio Google.'}</p>`; return; }
+    if (DEMO || (isLocal() || !gas)) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Non disponibile nella demo.' : 'Per ora funziona con il Foglio Google collegato (Altro → Account).'}</p>`; return; }
     const st = acStatus;
     box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Sui nuovi dispositivi basta aprire l'app e inserire il codice una sola volta. Senza codice nessuno può vedere i vostri dati.</p>
       ${st ? `<div class="nt-status"><div class="nt-row"><i class="dot ${st.attivo ? 'paid' : 'late'}"></i><div><b>${st.attivo ? 'Codice attivo' : 'Codice non impostato'}</b><small>${st.attivo ? st.dispositivi + ' dispositiv' + (st.dispositivi === 1 ? 'o collegato' : 'i collegati') : 'Impostalo subito: l\'app è pubblica'}</small></div></div></div>` : ''}
@@ -3895,7 +4051,7 @@
   let ntStatus = null, ntLoading = false;
   async function renderNotifyCard(force) {
     const box = $('#nt-set'); if (!box) return;
-    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Nella demo le notifiche non sono attive.' : 'Le notifiche richiedono il collegamento al Foglio Google.'}</p>`; return; }
+    if (DEMO || (isLocal() || !gas)) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Nella demo le notifiche non sono attive.' : 'Per ora le notifiche funzionano con il Foglio Google collegato (Altro → Account).'}</p>`; return; }
     const st = ntStatus;
     const row = (on, t, sub) => `<div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${t}</b><small>${sub}</small></div></div>`;
     box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Promemoria di affitto, bollette, spese fisse, auto, manutenzioni e cose da fare, più il buongiorno del mattino.</p>
@@ -3930,7 +4086,7 @@
   function renderTg() {
     const box = $('#tg-set'); if (!box) return;
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
-    if (isLocal()) { box.innerHTML = '<p class="muted small" style="margin:0">Disponibile solo con il collegamento al Foglio Google.</p>'; return; }
+    if ((isLocal() || !gas)) { box.innerHTML = '<p class="muted small" style="margin:0">Per ora funziona con il Foglio Google collegato (Altro → Account).</p>'; return; }
     const tg = db.tg || {};
     if (!tg.attivo) {
       box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Registra le spese scrivendo al tuo bot (“45 benzina eni”) o mandando la foto dello scontrino, e ricevi i promemoria su Telegram.</p>
@@ -3958,7 +4114,7 @@
   }
   function renderBackup() {
     const box = $('#bk-set'); if (!box) return;
-    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${DEMO ? 'Il backup su Drive non è disponibile nella demo.' : 'Il backup su Drive richiede il collegamento al Foglio Google.'}</p><button class="btn" id="bk-json">Scarica copia dei dati</button>`; return; }
+    if (DEMO || (isLocal() || !gas)) { box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${DEMO ? 'Il backup su Drive non è disponibile nella demo.' : 'Per ora il backup su Drive funziona con il Foglio Google collegato. I tuoi dati sono comunque al sicuro su Supabase.'}</p><button class="btn" id="bk-json">Scarica copia dei dati</button>`; return; }
     const b = db.backup || {};
     box.innerHTML = `<label class="sw"><input type="checkbox" id="bk-on" ${b.attivo ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>Backup automatico ogni settimana</b><small>Ogni domenica una copia del Foglio nella cartella “Spese Casa - Backup” di Google Drive (tiene le ultime 8).</small></span></label>
       <p class="muted small" style="margin:6px 0 10px">${b.ultimo ? 'Ultimo backup: <b>' + esc(shortDate(b.ultimo)) + '</b>' : 'Nessun backup ancora.'}</p>
@@ -5005,11 +5161,16 @@
     $('#new-cat').addEventListener('keydown', e => { if (e.key === 'Enter') $('#add-cat').click(); });
     $('#btn-csv').onclick = exportCSV;
     $('#btn-sync').onclick = () => pull(true);
-    $('#btn-conn').onclick = () => {
-      if (queue.length && !confirm(`Ci sono ${queue.length} modifiche non ancora inviate. Cambiare comunque?`)) return;
-      if (HAS_DEFAULT && !confirm('Scollegare questo dispositivo? Servirà di nuovo il codice.')) return;
-      showSetup();
-    };
+    $('#btn-conn').onclick = signOut;
+    document.addEventListener('click', e => {
+      if (e.target.closest('#acct-import')) return formImport();
+      if (e.target.closest('#acct-out')) return signOut();
+      if (e.target.closest('#acct-del')) return deleteAccount();
+      if (e.target.closest('#acct-unlink')) {
+        if (!confirm('Scollegare il Foglio Google? IA, Telegram e notifiche si fermano fino al prossimo aggiornamento.')) return;
+        gas = ''; tok = ''; LS.set('sc_gas', ''); LS.set('sc_tok', ''); db.ai = false; save(); render(); toast('Foglio scollegato');
+      }
+    });
 
     let rz, wasDesk = isDesk();
     window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (isDesk() !== wasDesk) { wasDesk = isDesk(); render(); } else if (view === 'home') { renderChart(); renderBudget(); } }, 150); });
@@ -5022,41 +5183,69 @@
   /* ================= Setup ================= */
   const DEFAULT_CATS = ['Spesa alimentare', 'Luce', 'Gas', 'Acqua', 'Internet e telefono', 'Affitto / Mutuo', 'Condominio', 'Tasse e tributi', 'Assicurazioni', 'Manutenzione', 'Arredamento', 'Elettrodomestici', 'Pulizia e casa', 'Auto e trasporti', 'Salute', 'Animali', 'Altro'];
 
-  function showSetup() {
-    if (HAS_DEFAULT && !DEMO) return showLogin();
-    hideSplash();
-    $('#app').hidden = true; $('#setup').hidden = false;
-    $('#setup').classList.toggle('code-mode', false);
-    $('#setup-url').value = isLocal() ? '' : url;
+  function showSetup() { showLogin(); }
+  // accesso: email -> codice ricevuto via email
+  let loginEmail = '';
+  function loginStep(n) {
+    $('#login-step1').hidden = n !== 1; $('#login-step2').hidden = n !== 2;
+    $('#login-msg').innerHTML = n === 1 ? 'Accedi con la tua email: ti mandiamo un codice, niente password.' : `Abbiamo mandato un codice a <b>${esc(loginEmail)}</b>. Controlla anche lo spam.`;
+    $('#code-err').hidden = true; $('#setup-demo').hidden = n === 2;
+    setTimeout(() => { const el = n === 1 ? $('#login-email') : $('#setup-code'); if (el) el.focus(); }, 300);
   }
-  // nuovo dispositivo (o codice cambiato): basta il codice di accesso
   function showLogin() {
     if (DEMO || !$('#setup')) return;
-    // codice richiesto: nessun dato resta visibile su questo dispositivo
-    tok = ''; LS.set('sc_tok', '');
-    db = { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [], persone: [], entrate: [], entrateFisse: [], obiettivi: [], lista: [], documenti: [], manutenzioni: [], progetti: [], faccende: [] };
-    try { localStorage.removeItem('sc_data'); } catch {}
+    // nessun dato resta visibile su questo dispositivo
+    url = ''; hh = ''; LS.set('sc_hh', '');
+    db = emptyDb(); queue = [];
+    try { localStorage.removeItem(LK('sc_data')); localStorage.removeItem(LK('sc_queue')); } catch {}
     if (!$('#sheet').hidden) closeSheet();
     hideSplash();
     $('#app').hidden = true; $('#setup').hidden = false;
     $('#setup').classList.add('code-mode');
-    $('#code-err').hidden = true;
-    setTimeout(() => $('#setup-code') && $('#setup-code').focus(), 300);
+    loginStep(1);
+  }
+  const loginErr = e => {
+    const m = String((e && e.message) || e);
+    if (/rate limit|too many|security purposes/i.test(m)) return 'Troppi tentativi: aspetta qualche minuto e riprova.';
+    if (/expired|invalid|otp/i.test(m)) return 'Codice non valido o scaduto. Richiedine uno nuovo.';
+    if (/fetch|network/i.test(m)) return 'Connessione assente, riprova.';
+    return m;
+  };
+  async function sendCode() {
+    const email = $('#login-email').value.trim().toLowerCase(), err = $('#code-err'), btn = $('#login-send');
+    if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Scrivi un indirizzo email valido'; err.hidden = false; return; }
+    err.hidden = true; btn.disabled = true; btn.textContent = 'Invio…';
+    try {
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+      if (error) throw error;
+      loginEmail = email; loginStep(2);
+    } catch (e) { err.textContent = loginErr(e); err.hidden = false; }
+    btn.disabled = false; btn.textContent = 'Invia codice';
   }
   async function doLogin() {
-    const code = $('#setup-code').value.trim(), err = $('#code-err'), btn = $('#code-go');
+    const code = $('#setup-code').value.replace(/\s/g, ''), err = $('#code-err'), btn = $('#code-go');
     if (!code) return;
     err.hidden = true; btn.disabled = true; btn.textContent = 'Verifico…';
     try {
-      const target = url || DEFAULT_URL;
-      const r = await fetch(target, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'login', code, device: (navigator.userAgentData && navigator.userAgentData.platform) || (/iPhone|iPad/.test(navigator.userAgent) ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'PC') }) });
-      const j = await r.json(); if (!j.ok) throw new Error(j.error);
-      tok = j.result.token || ''; LS.set('sc_tok', tok);
-      url = target; LS.set('sc_url', url);
+      const { error } = await sb.auth.verifyOtp({ email: loginEmail, token: code, type: 'email' });
+      if (error) throw error;
+      await afterAuth();
       $('#setup-code').value = '';
-      startApp(); toast('Benvenuto 👋');
-    } catch (e) { err.textContent = e.message === 'Failed to fetch' ? 'Connessione assente, riprova' : e.message; err.hidden = false; $('#setup-code').select(); }
+      toast('Benvenuto 👋');
+    } catch (e) { err.textContent = loginErr(e); err.hidden = false; $('#setup-code').select(); }
     btn.disabled = false; btn.textContent = 'Entra';
+  }
+  // dopo l'accesso: trova la "casa" dell'utente e apre l'app
+  async function afterAuth() {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) throw new Error('Accesso non riuscito');
+    const { data, error } = await sb.from('household_members').select('household_id').eq('user_id', user.id).order('created_at').limit(1);
+    if (error) throw error;
+    if (!data.length) throw new Error('Account non pronto: riprova tra qualche secondo');
+    if (LS.get('sc_uid', '') !== user.id) { LS.set('sc_seeded', false); }
+    hh = data[0].household_id; LS.set('sc_hh', hh); LS.set('sc_uid', user.id); LS.set('sc_email', user.email || '');
+    url = 'cloud'; queue = []; db = emptyDb(); save();
+    startApp();
   }
   // sfumatura sotto l'intestazione solo quando la pagina è scorsa
   { let on = false; addEventListener('scroll', () => { const v = scrollY > 6; if (v !== on) { on = v; document.body.classList.toggle('scr', v); } }, { passive: true }); }
@@ -5076,42 +5265,29 @@
   }
 
   function setupBind() {
-    $('#setup-go').onclick = async () => {
-      const v = $('#setup-url').value.trim();
-      const err = $('#setup-err'); err.hidden = true;
-      if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(v)) { err.textContent = 'URL non valido: deve iniziare con https://script.google.com/…/exec'; err.hidden = false; return; }
-      $('#setup-go').textContent = 'Verifico…';
-      try {
-        const r = await sfetch(v + (v.includes('?') ? '&' : '?') + 'action=all');
-        const j = await r.json();
-        if (!j.ok) throw new Error(j.error);
-        if (url !== v) { queue = []; tok = ''; LS.set('sc_tok', ''); }
-        url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], progetti: j.data.progetti || [], faccende: j.data.faccende || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
-        save(); online = true; startApp(); toast('Collegato');
-      } catch (e) {
-        if (e.message === 'AUTH_REQ') { url = v; LS.set('sc_url', url); $('#setup-go').textContent = 'Collega'; return; }
-        err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');
-        err.hidden = false;
-      }
-      $('#setup-go').textContent = 'Collega';
-    };
     $('#setup-demo').onclick = () => { location.href = location.pathname + '?demo'; };
+    $('#login-send').onclick = sendCode;
+    $('#login-email').addEventListener('keydown', e => { if (e.key === 'Enter') sendCode(); });
+    $('#login-back').onclick = () => loginStep(1);
+    $('#login-resend').onclick = () => { $('#login-email').value = loginEmail; sendCode(); };
     $('#code-go').onclick = doLogin;
     $('#setup-code').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-
-    $('#setup-local').onclick = () => {
-      url = 'local'; LS.set('sc_url', url); queue = [];
-      if (!db.categorie.length) db.categorie = DEFAULT_CATS.slice();
-      save(); startApp();
-    };
   }
 
   /* ================= Init ================= */
   bind(); setupBind(); lockBind(); viewerBind(); motionInit(); themeApply(themeGet());
   if (DEMO) demoStart();
   if (url && lockCfg() && !DEMO) { showLock(); setTimeout(() => { if (locked) unlock(); }, 450); }
-  if (url) startApp(); else showSetup();
+  if (DEMO) startApp();
+  else if (!sb) { hideSplash(); $('#app').hidden = true; $('#setup').hidden = false; $('#setup').classList.add('code-mode'); $('#login-msg').textContent = 'Non riesco a caricare l\'app: controlla la connessione e ricarica la pagina.'; $('#login-step1').hidden = true; }
+  else {
+    if (url) startApp();
+    sb.auth.getSession().then(({ data }) => {
+      if (!data.session) { if (url || !navigator.onLine) { if (!navigator.onLine) return; } showLogin(); }
+      else if (!url) afterAuth().catch(() => showLogin());
+    });
+    sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && url) showLogin(); });
+  }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});

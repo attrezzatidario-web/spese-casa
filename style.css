@@ -2056,3 +2056,6 @@ div.f { margin-bottom: 14px; }
 #sp-who .wp > span { width: 100%; justify-content: center; height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #sp-who .wp input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(14,26,21,.08), 0 4px 10px -4px rgba(14,26,21,.14); }
 .att.add { min-height: 48px; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: var(--surface-2); }
+
+/* v2 — accesso con email */
+#login-step1:not([hidden]), #login-step2:not([hidden]) { display: grid; gap: 10px; }
