@@ -3258,12 +3258,12 @@
     }
     box.innerHTML = `${gas && db.ai ? '<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Ora l\'IA passa dal Foglio Google. Inserisci la chiave per usarla direttamente su questo dispositivo.</p>' : ''}
       <p class="muted small" style="margin:0 0 10px">Usa la tua chiave gratuita di Google Gemini: resta solo su questo dispositivo e le foto vanno direttamente a Google, senza passare da noi.</p>
-      <div class="inline-add"><input id="ai-key" type="password" placeholder="Chiave API (AIza…)" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" id="ai-save">Attiva</button></div>
+      <div class="inline-add"><input id="ai-key" type="password" placeholder="Chiave API Gemini" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" id="ai-save">Attiva</button></div>
       <details class="ai-howto"><summary class="link">Come ottengo la chiave? (1 minuto)</summary>
         <ol class="small muted" style="margin:8px 0 0;padding-left:18px">
           <li>Apri <a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> con il tuo account Google.</li>
           <li>Premi <b>Create API key</b> (o <b>Crea chiave API</b>).</li>
-          <li>Copia la chiave, che inizia con <b>AIza</b>, e incollala qui sopra.</li>
+          <li>Premi <b>Copia</b> accanto alla chiave e incollala qui sopra.</li>
         </ol>
         <p class="small muted" style="margin:8px 0 0">Con il piano gratuito Google può usare i contenuti inviati per migliorare i suoi servizi.</p>
       </details>`;
@@ -3273,7 +3273,8 @@
     busy(key ? 'Verifico la chiave…' : 'Rimuovo…');
     try {
       if (key) {
-        if (!/^AIza[\w-]{20,}$/.test(key)) throw new Error('Chiave non valida: deve iniziare con AIza');
+        key = key.replace(/\s+/g, '');
+        if (!/^[\w.\-]{30,}$/.test(key)) throw new Error('Chiave non valida: copiala intera da Google AI Studio');
         if (!window.SC_AI) throw new Error('IA non caricata: ricarica la pagina');
         await window.SC_AI.run(key, { task: 'test' });
         LS.set('sc_aikey', key);
