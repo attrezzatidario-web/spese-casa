@@ -5,7 +5,7 @@
   /* ================= Storage ================= */
   // ?demo nell'indirizzo = modalità demo, con uno spazio di memoria separato dai dati veri
   const DEMO = /[?&]demo\b/.test(location.search);
-  const LK = k => (DEMO ? 'demo_' : '') + k;
+  const LK = k => (DEMO ? 'demo_' : 'v2_') + k;
   const LS = {
     get(k, d) { try { const v = localStorage.getItem(LK(k)); return v ? JSON.parse(v) : d; } catch { return d; } },
     set(k, v) { try { localStorage.setItem(LK(k), JSON.stringify(v)); } catch {} }
@@ -16,27 +16,40 @@
     mensile: 1, bimestrale: 2, trimestrale: 3, quadrimestrale: 4, semestrale: 6, annuale: 12, 'una tantum': 0
   };
 
-  // indirizzo del tuo script: i nuovi dispositivi si collegano da soli e chiedono solo il codice
+  /* ---------- Supabase: dati e account ---------- */
+  const SB_URL = 'https://yxfrevixckortffogmbb.supabase.co';
+  const SB_KEY = 'sb_publishable_yDpVXV9QcjHRsmmBKMTj9A_BhCnB0Wh';
+  const sb = window.supabase && !DEMO ? window.supabase.createClient(SB_URL, SB_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'v2_sc_auth' }
+  }) : null;
+  let hh = LS.get('sc_hh', '');            // la "casa" dell'utente su Supabase
+  // url: 'cloud' = collegato a Supabase, 'demo' = demo, '' = da accedere
+  let url = DEMO ? '' : (hh ? 'cloud' : '');
+
+  /* ---------- Ponte temporaneo verso Google Apps Script ----------
+     Serve solo per le funzioni non ancora spostate (IA, Telegram, notifiche, file su Drive)
+     e si attiva quando si importano i dati dal Foglio Google. */
   const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzYhgylTZQvP8PKZwSDbK7nOCqx-BL8iXjZPUwq7CvRvA5SNxc4RSvzhcXA3KZf0wXZ/exec';
-  const HAS_DEFAULT = /^https:\/\/script\.google\.com\//.test(DEFAULT_URL);
-  let url = LS.get('sc_url', '') || (HAS_DEFAULT && !DEMO ? DEFAULT_URL : '');
-  // se questo dispositivo era rimasto in modalità "solo dispositivo", lo ricollego al Foglio Google
-  // (i dati locali restano salvati a parte in sc_local_backup, per sicurezza)
-  if (url === 'local' && HAS_DEFAULT && !DEMO) {
-    try { const old = localStorage.getItem('sc_data'); if (old) localStorage.setItem('sc_local_backup', old); localStorage.removeItem('sc_data'); localStorage.removeItem('sc_queue'); } catch {}
-    url = DEFAULT_URL; LS.set('sc_url', url);
-  }
-  let tok = LS.get('sc_tok', '');
-  // ogni richiesta allo script porta il "token" del dispositivo
+  // il ponte con il Foglio Google è spento: l'app usa solo Supabase
+  let gas = '';
+  let tok = '';
+  try { localStorage.removeItem(LK('sc_gas')); localStorage.removeItem(LK('sc_tok')); localStorage.removeItem(LK('sc_gasflags')); } catch {}
+  const SOON = 'Funzione non disponibile.';
   function sfetch(u, o) {
-    o = o || {}; const used = tok;
+    o = o || {};
     if (!o.method || o.method === 'GET') u += (u.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(tok);
     else { try { const b = JSON.parse(o.body); b.k = tok; o = { ...o, body: JSON.stringify(b) }; } catch {} }
-    return fetch(u, o).then(r => r.clone().json().then(j => { if (j && j.ok === false && j.error === 'AUTH') { if (used === tok) showLogin(); throw new Error('AUTH_REQ'); } return r; }, () => r));
+    return fetch(u, o).then(r => r.clone().json().then(j => {
+      if (j && j.ok === false && j.error === 'AUTH') {
+        gas = ''; tok = ''; LS.set('sc_gas', ''); LS.set('sc_tok', '');
+        throw new Error('Funzione non disponibile.');
+      }
+      return r;
+    }, () => r));
   }
   let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
   if (!db.estratti) db.estratti = [];
-  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni', 'progetti', 'faccende'].forEach(k => { if (!db[k]) db[k] = []; });
+  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni', 'progetti', 'faccende', 'resoconti'].forEach(k => { if (!db[k]) db[k] = []; });
   if (!db.fisse) db.fisse = [];
   if (!db.veicoli) db.veicoli = [];
   if (!db.config) db.config = {};
@@ -199,7 +212,9 @@
   }
 
   /* ================= Data layer ================= */
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni', Progetti: 'progetti', Faccende: 'faccende' };
+  const BUCKET = 'documenti';
+  const b64Blob = (b64, mime) => { const bin = atob(b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni', Progetti: 'progetti', Faccende: 'faccende', Resoconti: 'resoconti' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -215,6 +230,7 @@
       if (op.action === 'upsert') db.categorie.push(nome);
       return;
     }
+    if (!k) return; // righe solo sul server (es. dettaglio estratti)
     const id = op.action === 'upsert' ? op.row.id : op.id;
     db[k] = db[k].filter(r => String(r.id) !== String(id));
     if (op.action === 'upsert') db[k].push(op.row);
@@ -237,24 +253,70 @@
   }
   async function api(action, extra) {
     if (DEMO) throw new Error('Nella demo questa funzione non è disponibile');
-    const r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...extra }) });
+    if (!gas) throw new Error(SOON);
+    const r = await sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...extra }) });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || 'Errore');
     return j.result;
   }
 
+  const emptyDb = () => ({ resoconti: [], spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [], persone: [], entrate: [], entrateFisse: [], obiettivi: [], lista: [], documenti: [], manutenzioni: [], progetti: [], faccende: [] });
+  const recId = op => op.sheet === 'Config' ? String(op.row.chiave) : op.sheet === 'Categorie' ? String(op.row.nome) : String(op.row.id);
+  const netErr = e => e instanceof TypeError || /fetch|network|load failed/i.test(String(e && e.message));
+  const chunks = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
+  function sbErr(error) {
+    if (!error) return;
+    if (error.code === 'PGRST301' || /JWT|not authenticated/i.test(error.message)) { setTimeout(showLogin, 0); throw new Error('AUTH_REQ'); }
+    const e = new Error(error.message || 'Errore'); if (netErr(error)) e.net = true; throw e;
+  }
+
+  // scrive su Supabase un gruppo di modifiche (vale l'ultima per ogni riga)
+  async function sbWrite(ops) {
+    const fin = new Map();
+    ops.forEach(op => { const id = op.action === 'upsert' ? recId(op) : String(op.id); fin.delete(op.sheet + '\u0001' + id); fin.set(op.sheet + '\u0001' + id, { sheet: op.sheet, id, op }); });
+    const ups = [], dels = {};
+    fin.forEach(({ sheet, id, op }) => {
+      if (op.action === 'upsert') ups.push({ household_id: hh, sheet, id, data: op.row });
+      else (dels[sheet] = dels[sheet] || []).push(id);
+    });
+    for (const c of chunks(ups, 500)) { const { error } = await sb.from('records').upsert(c, { onConflict: 'household_id,sheet,id' }); sbErr(error); }
+    for (const sheet of Object.keys(dels)) for (const c of chunks(dels[sheet], 200)) {
+      const { error } = await sb.from('records').delete().eq('household_id', hh).eq('sheet', sheet).in('id', c); sbErr(error);
+    }
+  }
+  // legge tutti i dati della casa (a pagine da 1000)
+  async function sbReadAll() {
+    const out = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from('records').select('sheet,id,data').eq('household_id', hh).order('seq', { ascending: true }).range(from, from + 999);
+      sbErr(error); out.push(...data);
+      if (data.length < 1000) return out;
+    }
+  }
+  function dbFromRecords(rows) {
+    const n = emptyDb();
+    rows.forEach(r => {
+      if (r.sheet === 'Config') { try { n.config[r.id] = JSON.parse(r.data.valore); } catch { n.config[r.id] = r.data.valore; } }
+      else if (r.sheet === 'Categorie') n.categorie.push(r.id);
+      else { const k = KEY[r.sheet]; if (k) n[k].push(r.data); }
+    });
+    return n;
+  }
+
   async function flush() {
-    if (isLocal() || syncing || !queue.length || !url) return setSync();
+    if (isLocal() || syncing || !queue.length || !url || !sb) return setSync();
     syncing = true; setSync();
     const batch = queue.slice();
     try {
-      const r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: batch }) });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error || 'Errore');
+      await sbWrite(batch);
       queue = queue.slice(batch.length); save();
       online = true;
+      // fase di passaggio: copia anche sul Foglio Google, così IA, Telegram e notifiche restano aggiornati
+      const gops = batch.filter(o => o.sheet === 'Config' || (KEY[o.sheet] && o.sheet !== 'Resoconti'));
+      if (gas && tok && gops.length) sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: gops }) }).catch(() => {});
     } catch (e) {
-      if (e instanceof TypeError) online = false;
+      if (e.message === 'AUTH_REQ') { /* serve di nuovo l'accesso */ }
+      else if (e.net || !navigator.onLine) online = false;
       else toast('Errore salvataggio: ' + e.message);
     } finally {
       syncing = false; setSync();
@@ -262,17 +324,37 @@
     if (queue.length && online) setTimeout(flush, 4000);
   }
 
+  // stato di IA/Telegram/backup dal Foglio Google (solo nella fase di passaggio)
+  let gasFlagsAt = 0;
+  async function pullGasFlags(force) {
+    if (!gas || !tok || (!force && Date.now() - gasFlagsAt < 600000)) return;
+    gasFlagsAt = Date.now();
+    try {
+      const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
+      const j = await r.json(); if (!j.ok) return;
+      db.tg = j.data.tg || {}; db.backup = j.data.backup || {}; db.ai = !!j.data.ai;
+      LS.set('sc_gasflags', { tg: db.tg, backup: db.backup, ai: db.ai });
+      save(); render();
+    } catch {}
+  }
+
   async function pull(showToast) {
     if (isLocal()) { if (showToast) toast('Modalità solo dispositivo'); return; }
+    if (!sb || !hh) return;
     try {
       setSync('Aggiorno…');
-      const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=all&t=' + Date.now());
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error);
-      db = { spese: j.data.spese || [], bollette: j.data.bollette || [], fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], progetti: j.data.progetti || [], faccende: j.data.faccende || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie || [], config: j.data.config || {}, ai: !!j.data.ai };
+      const rows = await sbReadAll();
+      const flags = LS.get('sc_gasflags', {});
+      db = { ...dbFromRecords(rows), tg: db.tg || flags.tg || {}, backup: db.backup || flags.backup || {}, ai: gas ? (db.ai != null ? db.ai : !!flags.ai) : false };
+      if (!rows.length && !queue.length && !LS.get('sc_seeded', false)) {
+        // primo accesso: categorie di partenza
+        LS.set('sc_seeded', true);
+        write(DEFAULT_CATS.map(nome => ({ action: 'upsert', sheet: 'Categorie', row: { nome } })));
+      }
       queue.forEach(applyLocal); // operazioni non ancora inviate restano visibili
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
+      pullGasFlags(showToast);
     } catch (e) {
       if (e.message === 'AUTH_REQ') return;
       online = false;
@@ -432,6 +514,7 @@
       <path d="${line} L${lx.toFixed(1)},${H} L0,${H} Z" fill="url(#hs-g)"/><path d="${line}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
   }
   function renderHome() {
+    renderResoconto();
     $('.month-label').textContent = monthName(homeMonth);
     const ms = db.spese.filter(s => ym(s.data) === homeMonth);
     const tot = sum(ms);
@@ -673,11 +756,11 @@
 
   /* ================= IMPOSTAZIONI ================= */
   function renderSettings() {
-    $('#btn-conn').hidden = DEMO;
-    $('#conn-info').textContent = DEMO ? 'Stai guardando la demo con dati di esempio. Le modifiche restano solo finché non chiudi o ricarichi la pagina.' : isLocal()
-      ? 'Modalità solo dispositivo: i dati restano su questo browser e non sono condivisi.'
-      : `Collegato al Foglio Google. ${db.spese.length} spese, ${db.bollette.length} bollette.`;
+    $('#btn-conn').hidden = true;
+    $('#conn-info').textContent = DEMO ? 'Stai guardando la demo con dati di esempio. Le modifiche restano solo finché non chiudi o ricarichi la pagina.'
+      : `Accesso con ${LS.get('sc_email', '')}. ${db.spese.length} spese, ${db.bollette.length} bollette.`;
     $('#btn-sync').hidden = isLocal();
+    renderAccount();
     renderAISettings();
     renderLockSettings();
     renderTheme();
@@ -692,6 +775,87 @@
       <button class="icon-btn" data-delshop="${i}" aria-label="Rimuovi">✕</button></div>`).join('') || '<p class="muted small" style="margin:0">Nessun negozio aggiunto.</p>';
     $('#shop-cat').innerHTML = '<option value="">Categoria</option>' + cats().map(c => `<option>${esc(c)}</option>`).join('');
     $('#cat-list').innerHTML = cats().map(c => `<span class="chip">${esc(c)}<button data-delcat="${esc(c)}" aria-label="Elimina ${esc(c)}">✕</button></span>`).join('');
+  }
+
+  /* ================= ACCOUNT (Supabase) ================= */
+  function formImport() {
+    openSheet('Importa dal Foglio Google', `
+      <p class="muted small" style="margin:0 0 12px">Copio qui tutti i dati del tuo Foglio Google. <b>I dati attuali di questo account vengono sostituiti</b>; il Foglio non viene toccato.</p>
+      <label class="f"><span>Codice di accesso della versione attuale</span><input name="code" type="password" autocomplete="off" required data-focus></label>`,
+      async fd => {
+        const code = String(fd.get('code') || '').trim(); if (!code) return;
+        try { await importFromSheet(code); closeSheet(); }
+        catch (e) { busy(); toast(e.message || 'Importazione non riuscita'); }
+      }, null, 'Importa');
+  }
+  // collega il Foglio solo per raggiungere i vecchi file (i dati di questo account non vengono toccati)
+  function formLinkSheet() {
+    openSheet('Collega il Foglio Google', `
+      <p class="muted small" style="margin:0 0 12px">Serve solo per copiare i vecchi file da Google Drive. <b>I dati di questo account non vengono modificati.</b></p>
+      <label class="f"><span>Codice di accesso della versione attuale</span><input name="code" type="password" autocomplete="off" required data-focus></label>`,
+      async fd => {
+        const code = String(fd.get('code') || '').trim(); if (!code) return;
+        busy('Mi collego al Foglio Google…');
+        try {
+          const target = gas || DEFAULT_URL;
+          const r = await fetch(target, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'login', code, device: 'Spese Casa v2' }) });
+          const j = await r.json(); if (!j.ok) throw new Error(j.error === 'AUTH' ? 'Codice non valido' : (j.error || 'Codice non valido'));
+          gas = target; tok = j.result.token || ''; LS.set('sc_gas', gas); LS.set('sc_tok', tok);
+          busy(); closeSheet(); renderAccount();
+          if (driveJobs().length) { if (confirm(`Foglio collegato. Spostare adesso i ${driveJobs().length} file da Google Drive nel tuo archivio?`)) migrateDriveFiles(); }
+          else toast('Foglio collegato: nessun file da spostare');
+        } catch (e) { busy(); toast(e.message === 'Failed to fetch' ? 'Connessione assente, riprova' : e.message); }
+      }, null, 'Collega');
+  }
+  async function importFromSheet(code) {
+    busy('Mi collego al Foglio Google…');
+    const target = gas || DEFAULT_URL;
+    let r = await fetch(target, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'login', code, device: 'Spese Casa v2' }) });
+    let j = await r.json(); if (!j.ok) throw new Error(j.error === 'AUTH' ? 'Codice non valido' : (j.error || 'Codice non valido'));
+    const t = j.result.token || '';
+    busy('Leggo i dati…');
+    r = await fetch(target + (target.includes('?') ? '&' : '?') + 'action=all&k=' + encodeURIComponent(t) + '&t=' + Date.now());
+    j = await r.json(); if (!j.ok) throw new Error(j.error || 'Lettura non riuscita');
+    const d = j.data, rows = [];
+    Object.entries(KEY).forEach(([sheet, k]) => {
+      if (sheet === 'Resoconti') return;
+      if (sheet === 'Categorie') (d.categorie || []).forEach(nome => rows.push({ household_id: hh, sheet, id: String(nome), data: { nome } }));
+      else (d[k] || []).forEach(row => { if (row && row.id != null && row.id !== '') rows.push({ household_id: hh, sheet, id: String(row.id), data: row }); });
+    });
+    Object.entries(d.config || {}).forEach(([chiave, v]) => rows.push({ household_id: hh, sheet: 'Config', id: chiave, data: { chiave, valore: JSON.stringify(v) } }));
+    if (!confirm(`Trovati ${rows.length} elementi (${(d.spese || []).length} spese, ${(d.bollette || []).length} bollette). Sostituisco i dati di questo account?`)) { busy(); return; }
+    busy('Copio i dati… 0%');
+    { const { error } = await sb.from('records').delete().eq('household_id', hh); sbErr(error); }
+    const cs = chunks(rows, 400);
+    for (let i = 0; i < cs.length; i++) {
+      const { error } = await sb.from('records').upsert(cs[i], { onConflict: 'household_id,sheet,id' }); sbErr(error);
+      busy(`Copio i dati… ${Math.round((i + 1) / cs.length * 100)}%`);
+    }
+    gas = target; tok = t; LS.set('sc_gas', gas); LS.set('sc_tok', tok); LS.set('sc_seeded', true);
+    db.tg = d.tg || {}; db.backup = d.backup || {}; db.ai = !!d.ai;
+    LS.set('sc_gasflags', { tg: db.tg, backup: db.backup, ai: db.ai });
+    queue = []; save();
+    await pull();
+    busy(); toast(`Importati ${rows.length} elementi`);
+  }
+  async function deleteAccount() {
+    if (!confirm('Eliminare definitivamente l\'account e tutti i tuoi dati?')) return;
+    if (prompt('Per confermare scrivi ELIMINA') !== 'ELIMINA') return toast('Eliminazione annullata');
+    busy('Elimino l\'account…');
+    try {
+      await pushDisable(true).catch(() => {});
+      const { error } = await sb.rpc('delete_my_account'); sbErr(error);
+      await sb.auth.signOut().catch(() => {});
+      Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
+      busy(); location.reload();
+    } catch (e) { busy(); toast(e.message); }
+  }
+  async function signOut() {
+    if (queue.length && !confirm(`Ci sono ${queue.length} modifiche non ancora salvate. Uscire comunque?`)) return;
+    await pushDisable(true).catch(() => {});
+    if (sb) await sb.auth.signOut().catch(() => {});
+    Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
+    location.reload();
   }
 
   function exportCSV() {
@@ -805,12 +969,10 @@
 
     // notifiche
     const n = db.config.notifiche || {};
-    const on = n.email || n.calendario;
-    $('#r-notify').innerHTML = on ? `<ul class="nlist">
-        ${n.calendario ? `<li><b>Calendario Google</b><span>Affitto${n.fisse !== false ? ' e spese fisse' : ''}: promemoria sul telefono ${n.giorniPrima ? n.giorniPrima + ' gg prima e ' : ''}il giorno della scadenza, alle ${n.ora}:00</span></li>` : ''}
-        ${n.email ? `<li><b>Email</b><span>Ogni giorno alle ${n.ora}:00 controllo automatico: ti scrivo solo se non hai ancora pagato${n.bollette ? ' (anche bollette)' : ''}</span></li>` : ''}
-      </ul>${n.email ? '<button class="btn sm" data-rent="testmail">Invia email di prova</button>' : ''}`
-      : `<p class="muted small" style="margin:0">Nessuna notifica attiva. Configura un promemoria sul calendario o via email.</p>`;
+    const pOn = LS.get('sc_push', '') && pushSupported() && Notification.permission === 'granted';
+    $('#r-notify').innerHTML = `<p class="muted small" style="margin:0">${pOn
+      ? `Promemoria sul telefono ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima e ' : ''}il giorno della scadenza, alle ${pad(Number(n.ora ?? 9))}:00, solo se non hai ancora pagato.`
+      : 'Notifiche non attive su questo dispositivo: attivale da Altro → Notifiche.'}</p>`;
 
     // contratto
     const kv = [
@@ -846,8 +1008,6 @@
         const v = { inizioAuto: !!(c.inizioAuto && inizio === String(c.inizio || '').slice(0, 7)), attivo: true, canone, giorno: Number(fd.get('giorno')), proprietario: fd.get('proprietario').trim(), iban: fd.get('iban').replace(/\s+/g, ' ').trim().toUpperCase(), metodo: fd.get('metodo'), inizio, causale: fd.get('causale').trim(), note: fd.get('note').trim() };
         setConfig('affitto', v);
         closeSheet(); toast('Affitto salvato');
-        const n = db.config.notifiche || {};
-        if (n.calendario && !isLocal()) { try { await syncNow(); await api('reminders'); } catch (e) { toast(e.message); } }
       },
       db.config.affitto ? () => {
         if (!confirm('Eliminare la configurazione dell\'affitto? I pagamenti registrati restano tra le spese.')) return;
@@ -885,72 +1045,305 @@
       }, null, 'Registra pagamento');
   }
 
-  function formNotify() {
-    const n = { email: false, calendario: false, bollette: true, giorniPrima: 3, ora: 9, ...(db.config.notifiche || {}) };
-    if (DEMO) return toast('Nella demo le notifiche non sono attive');
-    if (isLocal()) return toast('Le notifiche richiedono il collegamento al Foglio Google');
-    const hours = Array.from({ length: 15 }, (_, i) => String(i + 7));
-    const mt = { attivo: false, ora: 7, minuti: 30, telegram: true, email: false, ...(n.mattino || {}) };
-    openSheet('Notifiche', `
-      <div class="nt-mattino">
-        <label class="sw"><input type="checkbox" name="m_attivo" ${mt.attivo ? 'checked' : ''}><span class="sw-ui"></span>
-          <span class="sw-t"><b>☀️ Buongiorno con l'IA</b><small>Ogni mattina un resoconto: spese di ieri, andamento del mese, cosa scade oggi e nei prossimi giorni, cose da fare e un consiglio.</small></span></label>
-        <div class="f-row">
-          <label class="f"><span>Orario</span><input type="time" name="m_ora" value="${pad(Number(mt.ora) || 0)}:${pad(Number(mt.minuti) || 0)}"></label>
-          <div class="f"><span class="f-l">Dove</span><div class="who-pick">${db.tg && db.tg.attivo ? `<label class="wp"><input type="checkbox" name="m_tg" ${mt.telegram !== false ? 'checked' : ''}><span>Telegram</span></label>` : ''}<label class="wp"><input type="checkbox" name="m_email" ${mt.email || !(db.tg && db.tg.attivo) ? 'checked' : ''}><span>Email</span></label></div></div>
-        </div>
-        <p class="muted small" style="margin:-4px 0 4px">Google lo invia entro qualche minuto dall'orario scelto.</p>
+  /* ================= CASA CONDIVISA ================= */
+  let membri = null;
+  async function loadMembers() {
+    try { const { data, error } = await sb.rpc('list_members'); sbErr(error); membri = data || []; }
+    catch (e) { membri = null; }
+    if (view === 'impostazioni') renderAccount(true);
+  }
+  function renderAccount(fromLoad) {
+    const box = $('#acct-set'); if (!box) return;
+    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
+    if (!fromLoad || !membri) loadMembers.pending || (loadMembers.pending = loadMembers().finally(() => { loadMembers.pending = null; }));
+    const me = (membri || []).find(m => m.is_me), owner = me && me.role === 'owner', tanti = (membri || []).length > 1;
+    const lista = membri ? membri.map(m => `<div class="item" style="cursor:default"><div class="main"><div class="t">${esc(m.email)}${m.is_me ? ' <span class="muted small">· tu</span>' : ''}</div><div class="s">${m.role === 'owner' ? 'Ha creato la casa' : 'Membro'}</div></div>${owner && !m.is_me ? `<button class="btn sm ghost" data-rmmember="${esc(m.user_id)}" data-mail="${esc(m.email)}">Togli</button>` : ''}</div>`).join('') : '<p class="muted small" style="margin:0">Carico i membri…</p>';
+    box.innerHTML = `<h4 style="margin:0 0 6px">Chi fa parte della casa</h4>
+      <div class="list">${lista}</div>
+      <div class="row-btns" style="margin-top:10px">
+        <button class="btn primary" id="casa-invita">Invita in casa</button>
+        <button class="btn" id="casa-entra">Ho un codice invito</button>
+        ${tanti ? '<button class="btn ghost" id="casa-esci">Esci dalla casa</button>' : ''}
       </div>
-      <label class="sw"><input type="checkbox" name="calendario" ${n.calendario ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Calendario Google</b><small>Crea eventi ricorrenti con promemoria per affitto e spese fisse: arrivano come notifica sul telefono.</small></span></label>
-      <label class="sw"><input type="checkbox" name="email" ${n.email ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Email intelligente</b><small>Controllo ogni giorno: ti scrivo solo se il pagamento non è ancora registrato.</small></span></label>
-      <label class="sw"><input type="checkbox" name="bollette" ${n.bollette ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Includi le bollette</b><small>Nell'email anche le bollette in scadenza.</small></span></label>
-      <label class="sw"><input type="checkbox" name="fisse" ${n.fisse !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Includi le spese fisse</b><small>Abbonamenti, rate e assicurazioni con l'avviso attivo.</small></span></label>
-      <label class="sw"><input type="checkbox" name="auto" ${n.auto !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Includi le scadenze auto</b><small>Assicurazione, bollo, revisione e tagliando (anche un mese prima).</small></span></label>
-      <label class="sw"><input type="checkbox" name="manutenzioni" ${n.manutenzioni !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Includi le manutenzioni</b><small>Caldaia, filtri e controlli periodici di casa.</small></span></label>
-      ${db.tg && db.tg.attivo ? `<label class="sw"><input type="checkbox" name="telegram" ${n.telegram !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Telegram</b><small>Promemoria e avvisi anche sul bot Telegram.</small></span></label>
-      <label class="sw"><input type="checkbox" name="settimanale" ${n.settimanale !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Riepilogo della settimana</b><small>Ogni domenica sera su Telegram: speso, budget, pagamenti dei prossimi 7 giorni e cose da fare.</small></span></label>` : ''}
-      <div class="f-row" style="margin-top:6px">
-        <label class="f"><span>Avvisami</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
-        <label class="f"><span>Orario</span><select name="ora">${hours.map(hh => `<option value="${hh}"${String(n.ora) === hh ? ' selected' : ''}>${hh}:00</option>`).join('')}</select></label>
-      </div>
-      <p class="muted small" style="margin:0 0 8px">Le email arrivano all'indirizzo Gmail del tuo account Google.</p>`,
+      <div class="row-btns" style="margin-top:14px">
+        <button class="btn ghost" id="acct-out">Esci</button>
+        <button class="btn danger-ghost" id="acct-del">Elimina account</button>
+      </div>`;
+  }
+  const inviteLink = c => location.origin + location.pathname + '?invito=' + c;
+  async function casaInvita() {
+    busy('Creo l\'invito…');
+    try {
+      const { data: code, error } = await sb.rpc('create_invite'); sbErr(error); busy();
+      const link = inviteLink(code), testo = `Ti invito nella nostra casa su Spese Casa: apri ${link} oppure, dopo l'accesso, inserisci il codice ${code} in Altro → Account.`;
+      openSheet('Invita in casa', `
+        <p class="muted small" style="margin:0 0 12px">Chi entra vede e modifica tutti i dati della casa: spese, bollette, entrate e allegati. Il codice vale 24 ore e si usa una volta.</p>
+        <div class="invite-code">${esc(String(code).replace(/(\d{3})(\d{3})/, '$1 $2'))}</div>
+        <div class="row-btns" style="justify-content:center;margin:12px 0 4px">
+          ${navigator.share ? '<button type="button" class="btn primary" id="inv-share">Condividi</button>' : ''}
+          <button type="button" class="btn" id="inv-copy">Copia il link</button>
+        </div>`, () => closeSheet(), null, 'Fatto');
+      const sh = $('#inv-share'); if (sh) sh.onclick = () => navigator.share({ title: 'Spese Casa', text: testo, url: link }).catch(() => {});
+      $('#inv-copy').onclick = () => { try { navigator.clipboard.writeText(link); toast('Link copiato'); } catch { prompt('Copia il link', link); } };
+    } catch (e) { busy(); toast(/function|schema cache/i.test(e.message) ? 'Casa condivisa non ancora attiva su Supabase' : e.message); }
+  }
+  function casaEntra(pre) {
+    const pieni = db.spese.length + db.bollette.length + db.entrate.length;
+    openSheet('Entra in una casa', `
+      <p class="muted small" style="margin:0 0 12px">Inserisci il codice di 6 cifre che ti hanno mandato.</p>
+      ${pieni ? `<p class="small" style="margin:0 0 12px;color:var(--danger)"><b>Attenzione:</b> lascerai la casa attuale. ${membri && membri.length > 1 ? 'Gli altri membri continueranno a usarla.' : `I dati di questo account (${pieni} tra spese, bollette ed entrate) verranno eliminati.`}</p>` : ''}
+      <label class="f"><span>Codice invito</span><input name="code" inputmode="numeric" maxlength="7" autocomplete="one-time-code" value="${esc(pre || '')}" required data-focus class="code-in"></label>`,
       async fd => {
-        const [mh, mm] = String(fd.get('m_ora') || '07:30').split(':').map(Number);
-        const mattino = { attivo: fd.get('m_attivo') === 'on', ora: mh || 0, minuti: mm || 0, telegram: fd.get('m_tg') === 'on', email: fd.get('m_email') === 'on' };
-        const v = { mattino, calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', telegram: db.tg && db.tg.attivo ? fd.get('telegram') === 'on' : true, settimanale: db.tg && db.tg.attivo ? fd.get('settimanale') === 'on' : true, giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
-        if (v.calendario && !rentCfg() && !fisseActive().length && !vehActive().length) return toast('Aggiungi prima l\'affitto o una spesa fissa');
-        if (mattino.attivo && !mattino.telegram && !mattino.email) return toast('Scegli dove ricevere il buongiorno');
-        setConfig('notifiche', v);
-        setConfig('appUrl', location.href.split('#')[0]);
-        closeSheet(); busy('Attivo le notifiche…');
-        try {
-          await syncNow();
-          const r = await api('reminders');
-          busy();
-          ntStatus = null;
-          toast(r.calendario || r.email || r.telegram || r.mattino ? 'Notifiche attivate' + (r.indirizzo ? ' · ' + r.indirizzo : '') : 'Notifiche disattivate');
-        } catch (e) {
-          busy();
-          toast(/autorizz|permission|permess/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message);
-        }
-        render();
-      }, null, 'Salva notifiche');
+        const c = String(fd.get('code') || '').replace(/\D/g, '');
+        if (c.length !== 6) return toast('Il codice ha 6 cifre');
+        busy('Entro nella casa…');
+        try { const { data: nuovo, error } = await sb.rpc('join_household', { c }); sbErr(error); closeSheet(); await cambiaCasa(nuovo); busy(); toast('Benvenuto nella casa 🏠'); }
+        catch (e) { busy(); toast(e.message); }
+      }, null, 'Entra');
+  }
+  async function casaEsci() {
+    if (!confirm('Uscire da questa casa? Non vedrai più i suoi dati e ripartirai da una casa vuota.')) return;
+    busy('Esco dalla casa…');
+    try { const { data: nuovo, error } = await sb.rpc('leave_household'); sbErr(error); await cambiaCasa(nuovo); busy(); toast('Sei uscito dalla casa'); }
+    catch (e) { busy(); toast(e.message); }
+  }
+  async function casaTogli(uid, mail) {
+    if (!confirm(`Togliere ${mail} dalla casa? Non vedrà più i vostri dati.`)) return;
+    busy('Tolgo il membro…');
+    try { const { error } = await sb.rpc('remove_member', { u: uid }); sbErr(error); busy(); toast('Membro tolto'); loadMembers(); }
+    catch (e) { busy(); toast(e.message); }
+  }
+  // passa a un'altra casa: azzera i dati locali e ricarica quelli nuovi
+  async function cambiaCasa(nuovo) {
+    hh = nuovo; LS.set('sc_hh', hh); LS.set('sc_seeded', true);
+    queue = []; db = emptyDb(); save(); membri = null;
+    gas = ''; tok = ''; LS.set('sc_gas', ''); LS.set('sc_tok', '');
+    await pull();
+    // notifiche e resoconto seguono la casa nuova
+    if (LS.get('sc_push', '') && pushSupported() && Notification.permission === 'granted') { try { await pushEnable(); } catch {} }
+    try { const { data: k } = await sb.rpc('get_ai_key'); if (k) LS.set('sc_aikey', k); else if (aiKey()) await sb.rpc('set_ai_key', { k: aiKey() }); } catch {}
+    route();
+  }
+  // link d'invito: ?invito=123456
+  { const q = new URLSearchParams(location.search), c = q.get('invito');
+    if (c && /^\d{6}$/.test(c)) { LS.set('sc_invito', c); q.delete('invito'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); } }
+  function invitoInSospeso() {
+    const c = LS.get('sc_invito', ''); if (!c || DEMO || !hh) return;
+    try { localStorage.removeItem(LK('sc_invito')); } catch {}
+    casaEntra(c);
   }
 
+  // la chiave IA è della casa: la prendo dal server (o la carico se era solo su questo dispositivo)
+  async function syncAIKey() {
+    if (DEMO || !sb || !hh) return;
+    try {
+      const { data: k, error } = await sb.rpc('get_ai_key');
+      if (error) return;
+      if (k && k !== aiKey()) { LS.set('sc_aikey', k); if (window.SC_AI) window.SC_AI.resetModel(); render(); }
+      else if (!k && aiKey()) await sb.rpc('set_ai_key', { k: aiKey() });
+      else if (!k && !aiKey()) {}
+    } catch {}
+  }
+  /* ================= RESOCONTO IA (notifica + Home) ================= */
+  const resCfg = () => ((db.config.notifiche || {}).resoconto) || {};
+  function renderResoconto() {
+    const card = $('#h-res'); if (!card) return;
+    const list = (db.resoconti || []).slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+    const r = list[0];
+    if (!r || daysTo(r.data) < -7) { card.hidden = true; return; }
+    card.hidden = false;
+    $('#h-res-d').textContent = r.data === today() ? 'oggi' : shortDate(r.data);
+    $('#h-res-body').innerHTML = `<b class="res-tit">${esc(r.titolo || '')}</b><div class="res-t">${esc(r.testo || '').replace(/\n/g, '<br>')}</div>`;
+  }
+  const resBox = () => `<div class="nt-status" style="margin-top:14px"><div class="nt-row"><i class="dot ${resCfg().attivo ? 'paid' : 'late'}"></i><div><b>Resoconto IA</b><small>${esc(resSummary())}</small></div></div></div>
+      <div class="row-btns">${resCfg().attivo ? '<button class="btn" id="res-now">Prova adesso</button>' : ''}<button class="btn ${resCfg().attivo ? 'ghost' : ''}" id="res-set">${resCfg().attivo ? 'Modifica' : 'Attiva resoconto IA'}</button></div>`;
+  function resSummary() {
+    const c = resCfg();
+    if (!c.attivo) return 'Ogni mattina un resoconto dei conti con i consigli dell\'IA, come notifica e in Home.';
+    return (c.freq === 'settimanale' ? 'Ogni lunedì' : 'Ogni giorno') + ` alle ${pad(Number(c.ora ?? 8))}:00`;
+  }
+  function formResoconto() {
+    if (DEMO) return toast('Nella demo non è disponibile');
+    const c = { attivo: false, freq: 'giornaliero', ora: 8, ...resCfg() };
+    const hours = Array.from({ length: 16 }, (_, i) => i + 6);
+    openSheet('Resoconto IA', `
+      <p class="muted small" style="margin:0 0 12px">L'IA analizza spese, entrate, scadenze e budget e ti manda un resoconto con consigli pratici.</p>
+      <label class="sw"><input type="checkbox" name="attivo" ${c.attivo ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Attiva il resoconto</b><small>Usa la chiave IA della casa. Arriva anche a chi fa parte della casa e ha attivato le notifiche.</small></span></label>
+      <div class="f-row" style="margin-top:6px">
+        <label class="f"><span>Quando</span><select name="freq"><option value="giornaliero"${c.freq !== 'settimanale' ? ' selected' : ''}>Ogni mattina</option><option value="settimanale"${c.freq === 'settimanale' ? ' selected' : ''}>Ogni lunedì</option></select></label>
+        <label class="f"><span>Orario</span><select name="ora">${hours.map(h => `<option value="${h}"${Number(c.ora) === h ? ' selected' : ''}>${pad(h)}:00</option>`).join('')}</select></label>
+      </div>`,
+      async fd => {
+        const v = { attivo: fd.get('attivo') === 'on', freq: fd.get('freq'), ora: Number(fd.get('ora')) };
+        busy(v.attivo ? 'Attivo il resoconto…' : 'Salvo…');
+        try {
+          if (v.attivo) {
+            if (!aiKey()) throw new Error('Inserisci prima la chiave IA (Altro → Intelligenza artificiale)');
+            const { error } = await sb.rpc('set_ai_key', { k: aiKey() }); sbErr(error);
+          }
+          setConfig('notifiche', { ...(db.config.notifiche || {}), resoconto: v });
+          await syncNow();
+          busy(); closeSheet(); toast(v.attivo ? 'Resoconto attivo' : 'Resoconto spento'); render();
+        } catch (e) { busy(); toast(/function|schema cache|does not exist/i.test(e.message) ? 'Servizio resoconto non ancora attivo su Supabase' : e.message); }
+      }, null, 'Salva');
+  }
+  async function resocontoOra() {
+    busy('L\'IA scrive il resoconto…');
+    try {
+      await syncNow();
+      const { data, error } = await sb.functions.invoke('notifiche', { body: { resoconto: true } });
+      if (error) { let msg = error.message; try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch {} throw new Error(msg); }
+      if (!data || !data.ok) throw new Error((data && data.error) || 'Resoconto non riuscito');
+      await pull();
+      busy(); toast('Resoconto pronto' + ((data.inviate || []).includes('ok') ? ' e inviato come notifica' : ''));
+      route();
+    } catch (e) { busy(); toast(/Failed to send|Failed to fetch|FunctionsFetchError/i.test(e.message) ? 'Servizio non raggiungibile, riprova' : e.message); }
+  }
 
+  /* ================= FILE DA GOOGLE DRIVE → ARCHIVIO ================= */
+  function driveJobs() {
+    const jobs = [], drive = v => { v = String(v || ''); return v && !v.startsWith('sb:') && !v.startsWith('demo:') && /[-\w]{20,}/.test(v); };
+    db.spese.forEach(r => drive(r.allegato) && jobs.push({ sheet: 'Spese', row: r, field: 'allegato', cartella: 'Scontrini' }));
+    db.entrate.forEach(r => drive(r.allegato) && jobs.push({ sheet: 'Entrate', row: r, field: 'allegato', cartella: 'Buste paga' }));
+    db.fatture.forEach(r => drive(r.allegato) && jobs.push({ sheet: 'Fatture', row: r, field: 'allegato', cartella: 'Bollette' }));
+    db.documenti.forEach(r => drive(r.fileId) && jobs.push({ sheet: 'Documenti', row: r, field: 'fileId', cartella: r.tipo || 'Documenti' }));
+    (db.estratti || []).forEach(r => drive(r.fileUrl) && jobs.push({ sheet: 'Estratti', row: r, field: 'fileUrl', cartella: 'Estratti conto', estratto: true }));
+    return jobs;
+  }
+  async function migrateDriveFiles() {
+    if (!gas || !tok) return toast('Collega prima il Foglio: Altro → Account → Importa dal Foglio Google');
+    const jobs = driveJobs();
+    if (!jobs.length) return toast('Nessun file da spostare: sono già tutti nel tuo archivio');
+    if (!confirm(`Copio ${jobs.length} file da Google Drive nel tuo archivio. Su Drive restano come copia. Continuare?`)) return;
+    let ok = 0, ko = 0, fatte = 0;
+    const one = async j => {
+      const v = String(j.row[j.field]);
+      const q = j.estratto ? 'action=estrattoFile&id=' + encodeURIComponent(j.row.id) : 'action=file&id=' + encodeURIComponent((v.match(/[-\w]{25,}/) || [v])[0]);
+      const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + q + '&t=' + Date.now());
+      const x = await r.json(); if (!x.ok) throw new Error(x.error || 'file non trovato');
+      const id = await uploadDoc({ b64: x.data.b64, mime: x.data.mime, name: x.data.name }, j.cartella, x.data.name);
+      const cur = (db[KEY[j.sheet]] || []).find(e => String(e.id) === String(j.row.id)) || j.row;
+      write([{ action: 'upsert', sheet: j.sheet, row: { ...cur, [j.field]: id } }]);
+    };
+    let next = 0;
+    const worker = async () => {
+      while (next < jobs.length) {
+        const j = jobs[next++];
+        try { await one(j); ok++; } catch (e) { ko++; }
+        fatte++; busy(`Sposto i file: ${fatte} di ${jobs.length}…`);
+      }
+    };
+    busy(`Sposto i file: 0 di ${jobs.length}…`);
+    await Promise.all([worker(), worker()]);
+    try { await syncNow(); } catch {}
+    busy(); renderAccount();
+    toast(ko ? `Spostati ${ok} file, ${ko} non trovati su Drive` : `Spostati tutti i ${ok} file nel tuo archivio`);
+  }
 
-
-
-
-
+  /* ================= NOTIFICHE SUL TELEFONO (web push) ================= */
+  const VAPID_PUBLIC = 'BOmeNL_VFB4WwSPylaBuisV2pi0A-GsmoeJK2CgeLpZVQ_HczJIn5T0wgKijQlFQPCECjPKFCApTyqzkruYu28c';
+  const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const b64uKey = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  let pushState = null; // { on, endpoint }
+  async function pushCurrent() {
+    if (!pushSupported()) return null;
+    try { const reg = await navigator.serviceWorker.getRegistration(); return reg ? await reg.pushManager.getSubscription() : null; } catch { return null; }
+  }
+  async function pushEnable() {
+    if (!sb || !hh) throw new Error('Accedi per attivare le notifiche');
+    if (!pushSupported()) throw new Error('Questo browser non supporta le notifiche');
+    pauseLock(60000);
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error(perm === 'denied' ? 'Notifiche bloccate: riattivale dalle impostazioni del telefono per questa app' : 'Permesso non concesso');
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uKey(VAPID_PUBLIC) });
+    const j = sub.toJSON();
+    const device = isIOS() ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'PC';
+    const { error } = await sb.from('push_subscriptions').upsert({ household_id: hh, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device }, { onConflict: 'endpoint' });
+    if (error) throw new Error(netErr(error) ? 'Connessione assente, riprova' : 'Iscrizione non salvata: ' + error.message);
+    LS.set('sc_push', j.endpoint);
+    pushState = { on: true, endpoint: j.endpoint };
+  }
+  async function pushDisable(silent) {
+    const sub = await pushCurrent();
+    const ep = (sub && sub.endpoint) || LS.get('sc_push', '');
+    try { if (sub) await sub.unsubscribe(); } catch {}
+    if (ep && sb) { try { await sb.from('push_subscriptions').delete().eq('endpoint', ep); } catch {} }
+    try { localStorage.removeItem(LK('sc_push')); } catch {}
+    pushState = { on: false, endpoint: '' };
+    if (!silent) toast('Notifiche disattivate su questo dispositivo');
+  }
+  async function renderNotifyCard() {
+    const box = $('#nt-set'); if (!box) return;
+    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Nella demo le notifiche non sono attive.</p>'; return; }
+    const n = db.config.notifiche || {};
+    const cosa = [n.bollette !== false && 'bollette', 'affitto', n.fisse !== false && 'spese fisse', n.auto !== false && 'auto', n.manutenzioni !== false && 'manutenzioni', 'cose da fare', 'budget'].filter(Boolean).join(', ');
+    const quando = `ogni giorno alle ${pad(Number(n.ora ?? 9))}:00 · ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima' : 'il giorno stesso'}`;
+    if (!pushSupported() || (isIOS() && !isStandalone())) {
+      box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${isIOS()
+        ? 'Su iPhone le notifiche arrivano solo con l\'app aggiunta alla schermata Home: in Safari premi <b>Condividi</b> → <b>Aggiungi alla schermata Home</b>, poi apri l\'app dall\'icona e torna qui.'
+        : 'Questo browser non supporta le notifiche. Prova con Chrome, Edge o Safari aggiornati.'}</p>
+        <button class="btn" data-rent="notify">Cosa avvisare</button>` + resBox();
+      return;
+    }
+    if (!pushState) { const s = await pushCurrent(); pushState = { on: !!s && LS.get('sc_push', '') === s.endpoint, endpoint: s ? s.endpoint : '' }; }
+    const on = pushState.on && Notification.permission === 'granted';
+    box.innerHTML = `<div class="nt-status"><div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${on ? 'Attive su questo dispositivo' : 'Non attive su questo dispositivo'}</b><small>${on ? esc(quando) : 'Promemoria di ' + esc(cosa) + ' direttamente sul telefono.'}</small></div></div></div>
+      <div class="row-btns">${on
+        ? '<button class="btn primary" id="nt-test">Invia prova</button><button class="btn" data-rent="notify">Cosa avvisare</button><button class="btn ghost" id="nt-off">Disattiva</button>'
+        : '<button class="btn primary" id="nt-on">Attiva notifiche</button><button class="btn" data-rent="notify">Cosa avvisare</button>'}</div>
+` + resBox();
+  }
+  async function notifyOn() {
+    busy('Attivo le notifiche…');
+    try { await pushEnable(); busy(); toast('Notifiche attive'); }
+    catch (e) { busy(); toast(e.message || 'Attivazione non riuscita'); }
+    renderNotifyCard();
+  }
+  async function notifyTest() {
+    busy('Invio una notifica di prova…');
+    try {
+      await syncNow();
+      const ep = (pushState && pushState.endpoint) || LS.get('sc_push', '');
+      const { data, error } = await sb.functions.invoke('notifiche', { body: { test: true, endpoint: ep } });
+      busy();
+      if (error) {
+        let msg = error.message || 'Errore';
+        try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch {}
+        throw new Error(msg);
+      }
+      toast(data && data.ok ? (data.promemoria ? 'Inviata: ' + data.promemoria + ' promemoria di oggi' : 'Inviata: controlla le notifiche') : 'Non inviata: ' + ((data && data.esito) || 'errore'));
+    } catch (e) { busy(); toast(/Failed to send|Failed to fetch|FunctionsFetchError/i.test(e.message) ? 'Servizio notifiche non ancora attivo' : e.message); }
+  }
+  function formNotify() {
+    if (DEMO) return toast('Nella demo le notifiche non sono attive');
+    const n = { bollette: true, giorniPrima: 3, ora: 9, ...(db.config.notifiche || {}) };
+    const hours = Array.from({ length: 16 }, (_, i) => i + 6);
+    openSheet('Cosa avvisare', `
+      <p class="muted small" style="margin:0 0 12px">Valgono per tutta la casa. Affitto, cose da fare e budget superati sono sempre inclusi.</p>
+      <label class="sw"><input type="checkbox" name="bollette" ${n.bollette !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Bollette</b><small>Le bollette in scadenza.</small></span></label>
+      <label class="sw"><input type="checkbox" name="fisse" ${n.fisse !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Spese fisse</b><small>Abbonamenti, rate e assicurazioni con l'avviso attivo.</small></span></label>
+      <label class="sw"><input type="checkbox" name="auto" ${n.auto !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Scadenze auto</b><small>Assicurazione, bollo, revisione e tagliando (anche un mese prima).</small></span></label>
+      <label class="sw"><input type="checkbox" name="manutenzioni" ${n.manutenzioni !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Manutenzioni</b><small>Caldaia, filtri e controlli periodici di casa.</small></span></label>
+      <div class="f-row" style="margin-top:6px">
+        <label class="f"><span>Avvisami</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
+        <label class="f"><span>Orario</span><select name="ora">${hours.map(h => `<option value="${h}"${Number(n.ora) === h ? ' selected' : ''}>${pad(h)}:00</option>`).join('')}</select></label>
+      </div>`,
+      async fd => {
+        const v = { ...(db.config.notifiche || {}), bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
+        setConfig('notifiche', v);
+        closeSheet(); toast('Salvato'); render();
+      }, null, 'Salva');
+  }
+  function refreshCalendarReminders() { /* il Calendario Google non è più usato: ci pensano le notifiche */ }
 
   /* ================= ALLEGATI (PDF / foto) ================= */
   const ICO_CLIP = '<svg viewBox="0 0 24 24"><path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7L14 4.5a3.5 3.5 0 0 1 5 5L10.5 18a2 2 0 0 1-3-3L15 7.5"/></svg>';
@@ -980,18 +1373,34 @@
   }
   async function uploadDoc(doc, cartella, name) {
     if (DEMO) { const id = 'demo:' + uid(); const bin = atob(doc.b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); demoFiles[id] = { blob: new Blob([arr], { type: doc.mime }), name: name || doc.name, mime: doc.mime }; return id; }
-    if (isLocal()) throw new Error('Gli allegati richiedono il collegamento al Foglio Google');
-    const r = await api('upload', { b64: doc.b64, mime: doc.mime, name: name || doc.name, cartella });
-    return r.id;
+    if (isLocal() || !sb || !hh) throw new Error('Accedi per salvare gli allegati');
+    const fname = String(name || doc.name || 'documento').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.\- ]/g, '_').slice(0, 80);
+    const path = `${hh}/${String(cartella || 'Documenti').replace(/[^\w\- ]/g, '_')}/${uid()}-${fname}`;
+    const { error } = await sb.storage.from(BUCKET).upload(path, b64Blob(doc.b64, doc.mime), { contentType: doc.mime, upsert: false });
+    if (error) throw new Error(netErr(error) ? 'Connessione assente: allegato non salvato' : 'Allegato non salvato: ' + error.message);
+    return 'sb:' + path;
+  }
+  // elimina un allegato (nuovo archivio o vecchio Google Drive)
+  function delFile(id) {
+    if (!id || DEMO) return;
+    if (String(id).startsWith('sb:')) { if (sb) sb.storage.from(BUCKET).remove([String(id).slice(3)]).catch(() => {}); return; }
+    if (gas) api('deleteFile', { id }).catch(() => {});
+  }
+  async function sbFile(id) {
+    const path = String(id).slice(3);
+    const { data, error } = await sb.storage.from(BUCKET).download(path);
+    if (error || !data) throw new Error(error && netErr(error) ? 'Connessione assente' : 'File non trovato');
+    const name = decodeURIComponent(path.split('/').pop()).replace(/^[a-z0-9]{6,}-/, '');
+    return { blob: data, name, mime: data.type || (/\.pdf$/i.test(name) ? 'application/pdf' : 'image/jpeg') };
   }
   // riquadro allegato dentro un form: gestisce file nuovo (in attesa) o già salvato
   function attachBox(opts) {
     const st = { pending: opts.pending || null, id: opts.id || '', removed: false };
     const box = $('#att-box');
     const draw = () => {
-      if (st.pending) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(st.pending.name)}</b><small>Verrà salvato su Google Drive</small></div>
+      if (st.pending) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(st.pending.name)}</b><small>Verrà salvato nel tuo archivio</small></div>
         ${opts.onRead && aiReady() ? `<button type="button" class="btn sm ai-inline" id="att-ai">${ICO.spark}Leggi con IA</button>` : ''}<button type="button" class="icon-btn" id="att-x" aria-label="Rimuovi">✕</button></div>`;
-      else if (st.id && !st.removed) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(opts.label)} allegata</b><small>Salvata su Google Drive</small></div>
+      else if (st.id && !st.removed) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(opts.label)} allegata</b><small>Salvata nel tuo archivio</small></div>
         <button type="button" class="btn sm" id="att-open">Apri</button><button type="button" class="icon-btn" id="att-x" aria-label="Rimuovi">✕</button></div>`;
       else box.innerHTML = `<button type="button" class="att add" id="att-add">${ICO_CLIP}<span>Allega ${esc(opts.label.toLowerCase())} <small>PDF o foto</small></span></button>`;
       const a = $('#att-add'), x = $('#att-x'), o = $('#att-open'), ai = $('#att-ai');
@@ -1638,19 +2047,38 @@
     catch (e) { busy(); return toast(e.message || 'File non leggibile'); }
     const movs = [];
     let banca = '', da = '', a = '';
-    try {
-      for (let i = 0; i < doc.pages.length; i++) {
-        busy(`L'IA legge la pagina ${i + 1} di ${doc.pages.length}…`);
-        const r = await aiCall('statement', { image: canvasToB64(doc.pages[i].canvas), mime: 'image/jpeg', pagina: i + 1 });
-        if (r.valido === false && !r.movimenti?.length) continue;
-        banca = banca || r.banca; da = da || r.periodoDa; a = r.periodoA || a;
-        (r.movimenti || []).forEach(m => {
-          const imp = Math.abs(Number(m.importo) || 0);
-          if (!imp) return;
-          movs.push({ id: uid(), page: i, data: validDate(m.data), descrizione: m.descrizione, esercente: m.esercente || '', importo: Math.round(imp * 100) / 100, segno: m.segno, categoria: m.categoria, box: Array.isArray(m.box) && m.box.length === 4 ? m.box : null });
-        });
+    // 3 pagine alla volta; ogni pagina riprovata una volta se non riesce
+    const N = doc.pages.length, res = new Array(N), falliti = [];
+    let fatte = 0, next = 0, fermo = null;
+    const avanzamento = () => busy(N === 1 ? 'L\'IA legge l\'estratto conto…' : `L'IA legge le pagine: ${fatte} di ${N}…`);
+    const leggi = async i => {
+      const img = canvasToB64(doc.pages[i].canvas);
+      for (let t = 0; t < 2; t++) {
+        try { return await aiCall('statement', { image: img, mime: 'image/jpeg', pagina: i + 1 }, 180000); }
+        catch (e) { if (/chiave|limite gratuito|sovraccarica/i.test(e.message) || t === 1) throw e; await sleep(1500); }
       }
-    } catch (e) { busy(); return toast(e.message); }
+    };
+    const worker = async () => {
+      while (next < N && !fermo) {
+        const i = next++;
+        try { res[i] = await leggi(i); } catch (e) { if (/chiave|limite gratuito/i.test(e.message)) fermo = e; else falliti.push(i + 1); }
+        fatte++; avanzamento();
+      }
+    };
+    avanzamento();
+    await Promise.all(Array.from({ length: Math.min(3, N) }, worker));
+    if (fermo) { busy(); return toast(fermo.message); }
+    res.forEach((r, i) => {
+      if (!r || (r.valido === false && !(r.movimenti || []).length)) return;
+      banca = banca || r.banca; da = da || r.periodoDa; a = r.periodoA || a;
+      (r.movimenti || []).forEach(m => {
+        const imp = Math.abs(Number(m.importo) || 0);
+        if (!imp) return;
+        movs.push({ id: uid(), page: i, data: validDate(m.data), descrizione: m.descrizione, esercente: m.esercente || '', importo: Math.round(imp * 100) / 100, segno: m.segno, categoria: m.categoria, box: Array.isArray(m.box) && m.box.length === 4 ? m.box : null });
+      });
+    });
+    if (falliti.length && movs.length) setTimeout(() => toast(`Non sono riuscito a leggere ${falliti.length === 1 ? 'la pagina ' + falliti[0] : 'le pagine ' + falliti.sort((x, y) => x - y).join(', ')}: riprova più tardi per completarle`), 2500);
+    if (falliti.length && !movs.length) { busy(); return toast('L\'IA non è riuscita a leggere il file: riprova tra poco'); }
     busy();
     if (!movs.length) return toast('Non ho trovato movimenti nel file');
     stmt = { ...doc, banca, periodoDa: da, periodoA: a, movs, created: new Date().toISOString() };
@@ -1784,7 +2212,7 @@
       $('#st-pages').appendChild(wrap);
     });
     else $('#st-pages').innerHTML = `<div class="empty-state small-es"><div class="es-ic"><svg viewBox="0 0 24 24">${ICO_DOC.replace(/<\/?svg[^>]*>/g, '')}</svg></div>
-      <p class="muted small">${stmt.fileUrl ? 'Il file evidenziato è salvato nel tuo Google Drive.' : 'Anteprima non disponibile per le analisi salvate.'}</p>
+      <p class="muted small">${stmt.fileUrl ? 'Il file evidenziato è salvato nel tuo archivio.' : 'Anteprima non disponibile per le analisi salvate.'}</p>
       ${stmt.fileUrl && stmt.savedId ? `<button class="btn sm" data-stmt="getfile:${esc(stmt.savedId)}">Scarica il file</button>` : ''}</div>`;
   }
 
@@ -1909,46 +2337,59 @@
   const unpackMovs = txt => { try { return JSON.parse(txt || '[]').map(a => ({ id: uid(), data: a[0], descrizione: a[1], esercente: a[2], importo: Number(a[3]), segno: a[4] ? 'entrata' : 'uscita', categoria: a[5], box: a[6] ? a[6].split(',').map(Number) : null, st: a[7], match: a[8] || null, page: a[9] === '' ? null : Number(a[9]) })); } catch { return []; } };
 
   async function saveStatement() {
-    if (isLocal()) return toast('Il salvataggio richiede il collegamento al Foglio Google');
+    if (isLocal()) return toast('Accedi per salvare l\'analisi');
     busy('Salvo l\'analisi…');
     try {
       const ids = stmt.movs.filter(x => x.st === 'ok' && x.match).map(x => x.match);
       const ops = ids.map(id => db.spese.find(x => x.id === id)).filter(sp => sp && !sp.verificato).map(sp => ({ action: 'upsert', sheet: 'Spese', row: { ...sp, verificato: today() } }));
-      if (ops.length) { write(ops); await syncNow(); }
-      let pdf = '', mime = '', fileName = '';
-      if (stmt.pages && stmt.pages.length) { const f = await buildStatementFile(); pdf = await blobB64(f.blob); mime = f.mime; fileName = f.name; }
       const c = stmtCounts();
       const id = stmt.savedId || uid();
-      const row = { id, data: today(), nome: stmt.name, banca: stmt.banca || '', periodoDa: stmt.periodoDa || '', periodoA: stmt.periodoA || '', ok: c.ok, prob: c.prob, miss: c.miss, tot: c.tot, fileUrl: stmt.fileUrl || '', movimenti: packMovs(), onlyApp: JSON.stringify(stmt.onlyApp.map(s => s.id)) };
-      const r = await api('saveStatement', { row, pdf, mime, fileName });
-      stmt.savedId = id; stmt.fileUrl = r.fileUrl || stmt.fileUrl;
-      const meta = { ...row, fileUrl: stmt.fileUrl }; delete meta.movimenti; delete meta.onlyApp;
+      let fileUrl = stmt.fileUrl || '';
+      if (stmt.pages && stmt.pages.length) {
+        const f = await buildStatementFile();
+        const old = fileUrl;
+        fileUrl = await uploadDoc({ b64: await blobB64(f.blob), mime: f.mime, name: f.name }, 'Estratti conto', f.name);
+        if (old && old !== fileUrl && old.startsWith('sb:')) delFile(old);
+      }
+      const meta = { id, data: today(), nome: stmt.name, banca: stmt.banca || '', periodoDa: stmt.periodoDa || '', periodoA: stmt.periodoA || '', ok: c.ok, prob: c.prob, miss: c.miss, tot: c.tot, fileUrl };
+      // il dettaglio dei movimenti sta in una riga a parte: si carica solo quando apri l'analisi
+      const detail = { id, movimenti: packMovs(), onlyApp: JSON.stringify(stmt.onlyApp.map(s => s.id)) };
+      write([...ops, { action: 'upsert', sheet: 'Estratti', row: meta }, { action: 'upsert', sheet: 'EstrattiDettaglio', row: detail }]);
+      await syncNow();
+      stmt.savedId = id; stmt.fileUrl = fileUrl;
       db.estratti = [meta, ...(db.estratti || []).filter(x => x.id !== id)]; save();
-      busy(); renderStmt(); toast('Analisi salvata' + (r.fileUrl ? ' · file su Google Drive' : ''));
-    } catch (e) {
-      busy();
-      toast(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : 'Errore: ' + e.message);
-    }
+      busy(); renderStmt(); toast('Analisi salvata' + (fileUrl ? ' con il file evidenziato' : ''));
+    } catch (e) { busy(); toast('Errore: ' + e.message); }
   }
 
-  // scarica il file evidenziato salvato su Drive passando dallo script (funziona con qualsiasi account Google aperto nel browser)
   async function downloadSavedFile(id) {
     busy('Scarico il file…');
     try {
-      const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+      const x = (db.estratti || []).find(e => e.id === id) || {};
+      if (String(x.fileUrl || '').startsWith('sb:')) { const f = await sbFile(x.fileUrl); busy(); return saveBlob(f.blob, f.name); }
+      if (!gas) throw new Error('il file non è più disponibile');
+      const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
       const j = await r.json(); if (!j.ok) throw new Error(j.error);
-      const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-      busy(); saveBlob(new Blob([arr], { type: j.data.mime }), j.data.name);
-    } catch (e) { busy(); toast(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : 'Impossibile scaricare: ' + e.message); }
+      busy(); saveBlob(b64Blob(j.data.b64, j.data.mime), j.data.name);
+    } catch (e) { busy(); toast('Impossibile scaricare: ' + e.message); }
   }
 
   async function openSavedStatement(id) {
     busy('Apro l\'analisi…');
     try {
-      const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
-      const j = await r.json(); if (!j.ok) throw new Error(j.error);
-      const d = j.data;
+      const meta = (db.estratti || []).find(e => e.id === id) || {};
+      let d = null;
+      if (sb && hh) {
+        const { data, error } = await sb.from('records').select('data').eq('household_id', hh).eq('sheet', 'EstrattiDettaglio').eq('id', id).limit(1);
+        sbErr(error);
+        if (data && data.length) d = { ...meta, ...data[0].data };
+      }
+      if (!d) {
+        if (!gas) throw new Error('il dettaglio non è più disponibile');
+        const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+        const j = await r.json(); if (!j.ok) throw new Error(j.error);
+        d = j.data;
+      }
       let only = []; try { only = JSON.parse(d.onlyApp || '[]'); } catch {}
       stmt = { savedId: d.id, kind: 'saved', name: d.nome, banca: d.banca, periodoDa: d.periodoDa, periodoA: d.periodoA, fileUrl: d.fileUrl, movs: unpackMovs(d.movimenti), pages: [], onlyApp: only.map(x => db.spese.find(s => s.id === x)).filter(Boolean) };
       Object.keys(stF).forEach(k => (stF[k] = '')); stmtFilter = 'all'; stView = 'list';
@@ -1969,8 +2410,10 @@
     if (act.startsWith('getfile:')) return downloadSavedFile(act.slice(8));
     if (act.startsWith('del:')) {
       const id = act.slice(4);
-      if (!confirm('Eliminare questa analisi salvata? Il file su Google Drive resta.')) return;
-      write([{ action: 'delete', sheet: 'Estratti', id }]);
+      if (!confirm('Eliminare questa analisi salvata e il suo file?')) return;
+      const x = (db.estratti || []).find(e => e.id === id);
+      write([{ action: 'delete', sheet: 'Estratti', id }, { action: 'delete', sheet: 'EstrattiDettaglio', id }]);
+      if (x && String(x.fileUrl || '').startsWith('sb:')) delFile(x.fileUrl);
       if (stmt && stmt.savedId === id) stmt.savedId = null;
       renderStmt(); toast('Analisi eliminata'); return;
     }
@@ -2637,12 +3080,6 @@
   }
 
   // aggiorna gli eventi del calendario Google in background
-  function refreshCalendarReminders(forAuto) {
-    const n = db.config.notifiche || {};
-    if (isLocal() || !n.calendario || (forAuto ? n.auto === false : n.fisse === false)) return;
-    syncNow().then(() => api('reminders')).catch(() => {});
-  }
-
   /* ================= FATTURE (dettaglio bollette) ================= */
   const ICO_DOC = '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>';
   const UNITA = ['', 'kWh', 'Smc', 'm³', 'GB', 'minuti'];
@@ -2823,7 +3260,9 @@
     mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
     spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>'
   };
-  const aiReady = () => DEMO || (!isLocal() && !!db.ai);
+  // IA: chiave Gemini dell'utente salvata solo su questo dispositivo
+  const aiKey = () => LS.get('sc_aikey', '');
+  const aiReady = () => DEMO || (!isLocal() && (!!aiKey() || (!!gas && !!db.ai)));
 
   function busy(txt) {
     let el = $('#busy');
@@ -2833,15 +3272,25 @@
     el.hidden = false;
   }
 
-  async function aiCall(task, extra) {
+  async function aiCall(task, extra, ms) {
     if (DEMO) return demoAI(task, extra || {});
+    if (aiKey() && window.SC_AI) {
+      const lim = ms || 100000;
+      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), lim);
+      try { return await window.SC_AI.run(aiKey(), { task, categorie: cats(), oggi: today(), ...(extra || {}) }, ctl.signal, lim - 5000); }
+      catch (e) { throw new Error(e.name === 'AbortError' ? 'L\'IA non ha risposto in tempo. Riprova tra poco o compila a mano: l\'allegato resta salvato.' : (e.message || 'Errore IA')); }
+      finally { clearTimeout(tm); }
+    }
+    if (!gas) throw new Error('Attiva prima l\'IA in Altro → Intelligenza artificiale');
     // tempo massimo di attesa: senza risposta non resto bloccato all'infinito
     const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 100000);
     let r;
     try {
-      r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal,
+      if (!gas) throw new Error(SOON);
+      r = await sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl.signal,
         body: JSON.stringify({ action: 'ai', task, categorie: cats(), oggi: today(), ...extra }) });
     } catch (e) {
+      if (e.message === SOON) throw e;
       throw new Error(e.name === 'AbortError' ? 'L\'IA non ha risposto in tempo. Riprova tra poco o compila a mano: l\'allegato resta salvato.' : 'Connessione assente, riprova');
     } finally { clearTimeout(tm); }
     let j; try { j = await r.json(); } catch { throw new Error('Risposta non valida dallo script: hai creato la Nuova versione del deployment?'); }
@@ -3089,26 +3538,45 @@
   function renderAISettings() {
     const box = $('#ai-set');
     if (DEMO) { box.innerHTML = '<p class="small" style="margin:0"><span class="chip paid">Attiva</span> Nella demo l\'IA risponde con esempi.</p>'; return; }
-    if (isLocal()) { box.innerHTML = '<p class="muted small" style="margin:0">Disponibile solo con il collegamento al Foglio Google.</p>'; return; }
-    box.innerHTML = db.ai
-      ? `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati.</p>
-         <button class="btn ghost" id="ai-off">Rimuovi chiave</button>`
-      : `<p class="muted small" style="margin:0 0 10px">Incolla la chiave gratuita di Google Gemini. Viene salvata solo nel tuo Google Apps Script.</p>
-         <div class="inline-add"><input id="ai-key" type="password" placeholder="Chiave API (AIza…)" autocomplete="off"><button class="btn primary" id="ai-save">Attiva</button></div>
-         <a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Ottieni la chiave gratuita →</a>`;
+    if (aiKey()) {
+      box.innerHTML = `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati per tutta la casa.</p>
+        <button class="btn ghost" id="ai-off">Rimuovi chiave</button>`;
+      return;
+    }
+    box.innerHTML = `
+      <p class="muted small" style="margin:0 0 10px">Usa la tua chiave gratuita di Google Gemini. Vale per tutta la casa: chi entra con un invito la trova già attiva. Le foto vanno direttamente a Google.</p>
+      <div class="inline-add"><input id="ai-key" type="password" placeholder="Chiave API Gemini" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" id="ai-save">Attiva</button></div>
+      <details class="ai-howto"><summary class="link">Come ottengo la chiave? (1 minuto)</summary>
+        <ol class="small muted" style="margin:8px 0 0;padding-left:18px">
+          <li>Apri <a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> con il tuo account Google.</li>
+          <li>Premi <b>Create API key</b> (o <b>Crea chiave API</b>).</li>
+          <li>Premi <b>Copia</b> accanto alla chiave e incollala qui sopra.</li>
+        </ol>
+        <p class="small muted" style="margin:8px 0 0">Con il piano gratuito Google può usare i contenuti inviati per migliorare i suoi servizi.</p>
+      </details>`;
   }
 
   async function setAIKey(key) {
     busy(key ? 'Verifico la chiave…' : 'Rimuovo…');
     try {
-      const r = await sfetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'setKey', key }) });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error);
-      db.ai = !!key; save(); render();
-      toast(key ? 'IA attivata' : 'IA disattivata');
+      if (key) {
+        key = key.replace(/\s+/g, '');
+        if (!/^[\w.\-]{20,}$/.test(key)) throw new Error('Chiave non valida: copiala intera da Google AI Studio');
+        if (!window.SC_AI) throw new Error('IA non caricata: ricarica la pagina');
+        await window.SC_AI.run(key, { task: 'test' }, null, 25000);
+        LS.set('sc_aikey', key);
+        if (sb && hh) { const { error } = await sb.rpc('set_ai_key', { k: key }); if (error) console.warn(error); }
+      } else {
+        if (sb && hh) { const { error } = await sb.rpc('delete_household_ai_key'); if (error && !netErr(error)) console.warn(error); }
+        try { localStorage.removeItem(LK('sc_aikey')); } catch {}
+        if (window.SC_AI) window.SC_AI.resetModel();
+      }
+      render();
+      toast(key ? 'IA attivata per tutta la casa' : 'IA disattivata per tutta la casa');
     } catch (e) { toast(e.message || 'Errore'); }
     busy();
   }
+
 
 
   /* ================= BLOCCO FACE ID / IMPRONTA ================= */
@@ -3161,8 +3629,9 @@
   function lockBind() {
     $('#lock-go').onclick = unlock;
     $('#lock-reset').onclick = () => {
-      if (!confirm('Scollego questo dispositivo: i dati restano al sicuro sul Foglio Google e potrai ricollegarti incollando di nuovo l\'URL dello script. Continuare?')) return;
-      Object.keys(localStorage).filter(k => k.startsWith('sc_')).forEach(k => localStorage.removeItem(k));
+      if (!confirm('Esco dall\'account su questo dispositivo: i dati restano al sicuro e potrai rientrare con la tua email. Continuare?')) return;
+      if (sb) sb.auth.signOut().catch(() => {});
+      Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
       location.reload();
     };
     document.addEventListener('visibilitychange', () => {
@@ -3186,7 +3655,7 @@
       const on = e.target.checked;
       try {
         if (on) { pauseLock(60000); const id = await bioCreate(); pauseLock(2500); LS.set('sc_lock', { id, dopo: 60 }); toast('Blocco attivato'); }
-        else { if (!(await bioVerify())) throw new Error('verifica'); localStorage.removeItem('sc_lock'); toast('Blocco disattivato'); }
+        else { if (!(await bioVerify())) throw new Error('verifica'); localStorage.removeItem(LK('sc_lock')); toast('Blocco disattivato'); }
       } catch (er) { e.target.checked = !on; toast(on ? 'Attivazione annullata' : 'Verifica non riuscita'); }
       renderLockSettings();
     };
@@ -3337,7 +3806,7 @@
     db.spese.filter(s => s.allegato).forEach(s => out.push({ key: 's:' + s.id, fileId: s.allegato, nome: s.descrizione || s.categoria || 'Scontrino', cat: 'Scontrini', data: s.data, importo: s.importo, logo: iconHTML(s.descrizione, s.categoria, s.sito), note: s.categoria, ref: { k: 'spesa', id: s.id } }));
     db.entrate.filter(e => e.allegato).forEach(e => { const p = personaById(e.personaId); out.push({ key: 'e:' + e.id, fileId: e.allegato, nome: e.descrizione || e.tipo || 'Busta paga', cat: 'Buste paga', data: e.data, importo: e.importo, note: p ? p.nome : '', ref: { k: 'entrata', id: e.id } }); });
     db.fatture.filter(f => f.allegato).forEach(f => { const b = db.bollette.find(x => x.id === f.bollettaId); out.push({ key: 'f:' + f.id, fileId: f.allegato, nome: (b ? b.nome : 'Bolletta') + (f.numero ? ' n. ' + f.numero : ''), cat: 'Bollette', data: f.emissione || f.scadenza, importo: f.importo, logo: b ? iconHTML(b.nome) : '', ref: { k: 'fattura', id: f.id } }); });
-    (db.estratti || []).forEach(x => { const m = String(x.fileUrl || '').match(/[-\w]{25,}/); if (m) out.push({ key: 'x:' + x.id, fileId: m[0], nome: x.nome || 'Estratto conto', cat: 'Estratti conto', data: x.periodoA || x.data, note: x.banca, ref: { k: 'estratto', id: x.id } }); });
+    (db.estratti || []).forEach(x => { const fu = String(x.fileUrl || ''), m = fu.startsWith('sb:') ? [fu] : fu.match(/[-\w]{25,}/); if (m) out.push({ key: 'x:' + x.id, fileId: m[0], nome: x.nome || 'Estratto conto', cat: 'Estratti conto', data: x.periodoA || x.data, note: x.banca, ref: { k: 'estratto', id: x.id } }); });
     return out.filter(d => d.fileId).sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
   }
   function renderDocs() {
@@ -3366,7 +3835,7 @@
     const isNew = !d;
     d = d || { id: uid(), nome: file ? file.name.replace(/\.[^.]+$/, '') : '', tipo: docF.cat && DOC_TIPI.includes(docF.cat) ? docF.cat : 'Garanzie', data: today(), scadenza: '', note: '' };
     openSheet(isNew ? 'Nuovo documento' : 'Modifica documento', `
-      ${file ? `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(file.name)}</b><small>Verrà salvato su Google Drive</small></div></div><div style="height:12px"></div>` : ''}
+      ${file ? `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(file.name)}</b><small>Verrà salvato nel tuo archivio</small></div></div><div style="height:12px"></div>` : ''}
       <label class="f"><span>Nome</span><input name="nome" value="${esc(d.nome)}" placeholder="Es. Garanzia lavatrice, Contratto luce…" required data-focus></label>
       <label class="f"><span>Tipo</span><div class="dt-tipi">${DOC_TIPI.map(t => `<label class="tp"><input type="radio" name="tipo" value="${t}" ${t === d.tipo ? 'checked' : ''}><span>${docIco(t)}${t}</span></label>`).join('')}</div></label>
       <div class="f-row">
@@ -3380,20 +3849,20 @@
         if (file) {
           busy('Carico il documento…');
           try { row.fileId = await uploadDoc(file, row.tipo, nome + (file.mime === 'application/pdf' ? '.pdf' : '.jpg')); row.mime = file.mime; busy(); }
-          catch (e) { busy(); return toast(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message); }
+          catch (e) { busy(); return toast(e.message); }
         }
         write([{ action: 'upsert', sheet: 'Documenti', row }]); closeSheet(); toast(isNew ? 'Documento salvato' : 'Documento aggiornato');
       },
       isNew ? null : () => delDoc(d));
   }
   function delDoc(d) {
-    if (!confirm('Eliminare questo documento? Il file viene spostato nel cestino di Google Drive.')) return;
+    if (!confirm('Eliminare questo documento e il suo file?')) return;
     write([{ action: 'delete', sheet: 'Documenti', id: d.id }]);
-    if (!isLocal() && d.fileId) api('deleteFile', { id: d.fileId }).catch(() => {});
+    if (!isLocal() && d.fileId) delFile(d.fileId);
     closeSheet(); closeViewer(); toast('Documento eliminato');
   }
   async function newDoc() {
-    if (isLocal() && !DEMO) return toast('I documenti richiedono il collegamento al Foglio Google');
+    if (isLocal() && !DEMO) return toast('Accedi per salvare i documenti');
     let file; try { file = await pickDoc(); } catch (e) { if (e.message !== 'annullato') toast(e.message); return; }
     formDoc(null, file);
   }
@@ -3403,7 +3872,13 @@
     if (DEMO) { if (!demoFiles[id]) demoFiles[id] = { blob: await demoDocBlob(id), name: ((demoMeta[id] || {}).title || 'documento') + '.png', mime: 'image/png' }; return demoFiles[id]; }
     const key = new URL('__doc/' + encodeURIComponent(id), location.href).href;
     try { const c = await caches.open('sc-docs'); const hit = await c.match(key); if (hit) { const blob = await hit.blob(); return { blob, name: decodeURIComponent(hit.headers.get('x-name') || 'documento'), mime: blob.type }; } } catch {}
-    const r = await sfetch(url + (url.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+    if (String(id).startsWith('sb:')) {
+      const f = await sbFile(id);
+      try { const c = await caches.open('sc-docs'); await c.put(key, new Response(f.blob, { headers: { 'content-type': f.mime, 'x-name': encodeURIComponent(f.name) } })); } catch {}
+      return f;
+    }
+    if (!gas) throw new Error('Questo file non è più disponibile.');
+    const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
     const j = await r.json(); if (!j.ok) throw new Error(j.error);
     const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -3450,7 +3925,7 @@
       body.innerHTML = `<div class="vw-load"><span>Anteprima non disponibile. Usa “Scarica”.</span></div>`;
     } catch (e) {
       if (viewerDoc !== d) return;
-      $('#vw-body').innerHTML = `<div class="vw-load"><span>${esc(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : 'Impossibile aprire: ' + e.message)}</span></div>`;
+      $('#vw-body').innerHTML = `<div class="vw-load"><span>${esc(/^Exception:.*(permission|autorizz)/i.test(e.message) ? 'Google non concede l\'accesso a questo file: apri lo script del Foglio ed esegui una volta la funzione "autorizza".' : e.message.startsWith('Questo file') ? e.message : 'Impossibile aprire: ' + e.message)}</span></div>`;
     }
   }
   function viewerBind() {
@@ -3870,7 +4345,7 @@
   let acStatus = null;
   async function renderAccess(force) {
     const box = $('#ac-set'); if (!box) return;
-    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Non disponibile nella demo.' : 'Disponibile solo con il collegamento al Foglio Google.'}</p>`; return; }
+    if (DEMO || (isLocal() || !gas)) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Non disponibile nella demo.' : 'Per ora funziona con il Foglio Google collegato (Altro → Account).'}</p>`; return; }
     const st = acStatus;
     box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Sui nuovi dispositivi basta aprire l'app e inserire il codice una sola volta. Senza codice nessuno può vedere i vostri dati.</p>
       ${st ? `<div class="nt-status"><div class="nt-row"><i class="dot ${st.attivo ? 'paid' : 'late'}"></i><div><b>${st.attivo ? 'Codice attivo' : 'Codice non impostato'}</b><small>${st.attivo ? st.dispositivi + ' dispositiv' + (st.dispositivi === 1 ? 'o collegato' : 'i collegati') : 'Impostalo subito: l\'app è pubblica'}</small></div></div></div>` : ''}
@@ -3892,45 +4367,10 @@
         catch (e) { busy(); toast(e.message); }
       });
   }
-  let ntStatus = null, ntLoading = false;
-  async function renderNotifyCard(force) {
-    const box = $('#nt-set'); if (!box) return;
-    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Nella demo le notifiche non sono attive.' : 'Le notifiche richiedono il collegamento al Foglio Google.'}</p>`; return; }
-    const st = ntStatus;
-    const row = (on, t, sub) => `<div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${t}</b><small>${sub}</small></div></div>`;
-    box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Promemoria di affitto, bollette, spese fisse, auto, manutenzioni e cose da fare, più il buongiorno del mattino.</p>
-      ${st ? `<div class="nt-status">
-        ${row(st.mattino, 'Buongiorno con l\'IA', st.mattino ? `ogni mattina alle ${pad(st.mattinoOra || 0)}:${pad(st.mattinoMin || 0)}` : 'non attivo')}
-        ${row(st.controllo, 'Controllo scadenze', st.controllo ? `ogni giorno alle ${st.ora}:00` : 'non attivo: premi Configura e Salva')}
-        ${row(st.telegram, 'Telegram', st.telegram ? `@${esc(st.bot)} · ${st.chats} collegat${st.chats === 1 ? 'o' : 'i'}` : 'non collegato (Altro → Telegram)')}
-        ${row(st.emailOn, 'Email', st.emailOn ? esc(st.email) : 'disattivata')}
-      </div>` : `<p class="muted small">${ntLoading ? 'Controllo lo stato…' : ''}</p>`}
-      <div class="row-btns"><button class="btn" data-rent="notify">Configura</button><button class="btn primary" id="nt-test">Invia notifica di prova</button></div>`;
-    if ((!st || force) && !ntLoading) {
-      ntLoading = true;
-      try { ntStatus = await api('notify', { op: 'status' }); } catch (e) { ntStatus = null; }
-      ntLoading = false;
-      if (view === 'impostazioni') renderNotifyCard();
-    }
-  }
-  async function notifyTest() {
-    busy('Invio le notifiche di prova…');
-    try {
-      await syncNow();
-      const r = await api('notify', { op: 'test' }); busy();
-      const ok = v => v === 'ok';
-      openSheet('Notifica di prova', `<div class="nt-status">
-        <div class="nt-row"><i class="dot ${ok(r.telegram) ? 'paid' : 'late'}"></i><div><b>Telegram</b><small>${ok(r.telegram) ? 'Inviata: controlla il bot' : esc(r.telegram)}</small></div></div>
-        <div class="nt-row"><i class="dot ${ok(r.email) ? 'paid' : 'late'}"></i><div><b>Email</b><small>${ok(r.email) ? 'Inviata a ' + esc(r.email_indirizzo) + ' (guarda anche in Spam)' : esc(r.email)}</small></div></div>
-        <div class="nt-row"><i class="dot ${ok(r.buongiorno) ? 'paid' : 'soon'}"></i><div><b>Buongiorno di oggi</b><small>${ok(r.buongiorno) ? 'Inviato: così vedi come arriva ogni mattina' : 'Attiva Telegram o email nel Buongiorno'}</small></div></div>
-        ${r.riattivato ? '<p class="small pos-t" style="margin:8px 0 0">Il controllo giornaliero mancava: l\'ho riattivato.</p>' : ''}</div>`, () => closeSheet(), null, 'Ok');
-      renderNotifyCard(true);
-    } catch (e) { busy(); toast(/autorizz|permission|permess|MailApp|ScriptApp/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message); }
-  }
   function renderTg() {
     const box = $('#tg-set'); if (!box) return;
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
-    if (isLocal()) { box.innerHTML = '<p class="muted small" style="margin:0">Disponibile solo con il collegamento al Foglio Google.</p>'; return; }
+    if ((isLocal() || !gas)) { box.innerHTML = '<p class="muted small" style="margin:0">Per ora funziona con il Foglio Google collegato (Altro → Account).</p>'; return; }
     const tg = db.tg || {};
     if (!tg.attivo) {
       box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Registra le spese scrivendo al tuo bot (“45 benzina eni”) o mandando la foto dello scontrino, e ricevi i promemoria su Telegram.</p>
@@ -3958,11 +4398,7 @@
   }
   function renderBackup() {
     const box = $('#bk-set'); if (!box) return;
-    if (DEMO || isLocal()) { box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${DEMO ? 'Il backup su Drive non è disponibile nella demo.' : 'Il backup su Drive richiede il collegamento al Foglio Google.'}</p><button class="btn" id="bk-json">Scarica copia dei dati</button>`; return; }
-    const b = db.backup || {};
-    box.innerHTML = `<label class="sw"><input type="checkbox" id="bk-on" ${b.attivo ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>Backup automatico ogni settimana</b><small>Ogni domenica una copia del Foglio nella cartella “Spese Casa - Backup” di Google Drive (tiene le ultime 8).</small></span></label>
-      <p class="muted small" style="margin:6px 0 10px">${b.ultimo ? 'Ultimo backup: <b>' + esc(shortDate(b.ultimo)) + '</b>' : 'Nessun backup ancora.'}</p>
-      <div class="row-btns"><button class="btn" id="bk-now">Fai backup ora</button><button class="btn ghost" id="bk-json">Scarica copia (JSON)</button></div>`;
+    box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${DEMO ? 'Nella demo puoi scaricare i dati di esempio.' : 'I tuoi dati sono salvati sul server e su questo dispositivo. Quando vuoi, scaricane una copia completa.'}</p><button class="btn" id="bk-json">Scarica copia dei dati</button>`;
   }
   async function bkApi(op) {
     busy(op === 'now' ? 'Creo il backup…' : 'Salvo…');
@@ -4905,7 +5341,7 @@
       const ai = e.target.closest('[data-ai]');
       if (ai) { ai.dataset.ai === 'receipt' ? aiReceipt() : aiTextForm(); return; }
       if (e.target.closest('#ai-save')) { const k = $('#ai-key').value.trim(); if (k) setAIKey(k); return; }
-      if (e.target.closest('#ai-off')) { if (confirm('Disattivare l\'IA?')) setAIKey(''); return; }
+      if (e.target.closest('#ai-off')) { if (confirm('Rimuovere la chiave IA per tutta la casa? Anche gli altri membri non potranno più usare l\'IA.')) setAIKey(''); return; }
       if (e.target.closest('#h-ai-btn')) { runInsights(); return; }
       if (e.target.closest('#ins-all')) { insFull(); return; }
       if (e.target.closest('#bill-photo')) { aiBill(); return; }
@@ -4955,6 +5391,16 @@
       if (e.target.closest('#tg-off')) { if (confirm('Disattivare il bot Telegram?')) tgApi('off').then(r => { db.tg = r; save(); renderTg(); toast('Bot disattivato'); }).catch(() => {}); return; }
       if (e.target.closest('#bk-now')) { bkApi('now'); return; }
       if (e.target.closest('#nt-test')) { notifyTest(); return; }
+      if (e.target.closest('#nt-on')) { notifyOn(); return; }
+      if (e.target.closest('#res-set')) { formResoconto(); return; }
+      if (e.target.closest('#res-now')) { resocontoOra(); return; }
+      if (e.target.closest('#acct-drive')) { migrateDriveFiles(); return; }
+      if (e.target.closest('#acct-link')) { formLinkSheet(); return; }
+      if (e.target.closest('#casa-invita')) { casaInvita(); return; }
+      if (e.target.closest('#casa-entra')) { casaEntra(); return; }
+      if (e.target.closest('#casa-esci')) { casaEsci(); return; }
+      { const rm = e.target.closest('[data-rmmember]'); if (rm) { casaTogli(rm.dataset.rmmember, rm.dataset.mail); return; } }
+      if (e.target.closest('#nt-off')) { if (confirm('Disattivare le notifiche su questo dispositivo?')) pushDisable().then(renderNotifyCard); return; }
       if (e.target.closest('#ac-set-btn')) { formAccess(); return; }
       if (e.target.closest('#ac-out')) { if (confirm('Scollegare tutti gli altri dispositivi? Dovranno reinserire il codice.')) api('access', { op: 'logoutAll', device: 'questo dispositivo' }).then(r => { tok = r.token || tok; LS.set('sc_tok', tok); acStatus = null; renderAccess(true); toast('Altri dispositivi scollegati'); }).catch(er => toast(er.message)); return; }
       if (e.target.closest('#tg-weekly')) { tgApi('weekly').then(() => toast('Riepilogo inviato su Telegram')).catch(() => {}); return; }
@@ -5005,11 +5451,16 @@
     $('#new-cat').addEventListener('keydown', e => { if (e.key === 'Enter') $('#add-cat').click(); });
     $('#btn-csv').onclick = exportCSV;
     $('#btn-sync').onclick = () => pull(true);
-    $('#btn-conn').onclick = () => {
-      if (queue.length && !confirm(`Ci sono ${queue.length} modifiche non ancora inviate. Cambiare comunque?`)) return;
-      if (HAS_DEFAULT && !confirm('Scollegare questo dispositivo? Servirà di nuovo il codice.')) return;
-      showSetup();
-    };
+    $('#btn-conn').onclick = signOut;
+    document.addEventListener('click', e => {
+      if (e.target.closest('#acct-import')) return formImport();
+      if (e.target.closest('#acct-out')) return signOut();
+      if (e.target.closest('#acct-del')) return deleteAccount();
+      if (e.target.closest('#acct-unlink')) {
+        if (!confirm('Scollegare il Foglio Google? IA, Telegram e notifiche si fermano fino al prossimo aggiornamento.')) return;
+        gas = ''; tok = ''; LS.set('sc_gas', ''); LS.set('sc_tok', ''); db.ai = false; save(); render(); toast('Foglio scollegato');
+      }
+    });
 
     let rz, wasDesk = isDesk();
     window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (isDesk() !== wasDesk) { wasDesk = isDesk(); render(); } else if (view === 'home') { renderChart(); renderBudget(); } }, 150); });
@@ -5022,41 +5473,69 @@
   /* ================= Setup ================= */
   const DEFAULT_CATS = ['Spesa alimentare', 'Luce', 'Gas', 'Acqua', 'Internet e telefono', 'Affitto / Mutuo', 'Condominio', 'Tasse e tributi', 'Assicurazioni', 'Manutenzione', 'Arredamento', 'Elettrodomestici', 'Pulizia e casa', 'Auto e trasporti', 'Salute', 'Animali', 'Altro'];
 
-  function showSetup() {
-    if (HAS_DEFAULT && !DEMO) return showLogin();
-    hideSplash();
-    $('#app').hidden = true; $('#setup').hidden = false;
-    $('#setup').classList.toggle('code-mode', false);
-    $('#setup-url').value = isLocal() ? '' : url;
+  function showSetup() { showLogin(); }
+  // accesso: email -> codice ricevuto via email
+  let loginEmail = '';
+  function loginStep(n) {
+    $('#login-step1').hidden = n !== 1; $('#login-step2').hidden = n !== 2;
+    $('#login-msg').innerHTML = n === 1 ? 'Accedi con la tua email: ti mandiamo un codice, niente password.' : `Abbiamo mandato un codice a <b>${esc(loginEmail)}</b>. Controlla anche lo spam.`;
+    $('#code-err').hidden = true; $('#setup-demo').hidden = n === 2;
+    setTimeout(() => { const el = n === 1 ? $('#login-email') : $('#setup-code'); if (el) el.focus(); }, 300);
   }
-  // nuovo dispositivo (o codice cambiato): basta il codice di accesso
   function showLogin() {
     if (DEMO || !$('#setup')) return;
-    // codice richiesto: nessun dato resta visibile su questo dispositivo
-    tok = ''; LS.set('sc_tok', '');
-    db = { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [], persone: [], entrate: [], entrateFisse: [], obiettivi: [], lista: [], documenti: [], manutenzioni: [], progetti: [], faccende: [] };
-    try { localStorage.removeItem('sc_data'); } catch {}
+    // nessun dato resta visibile su questo dispositivo
+    url = ''; hh = ''; LS.set('sc_hh', '');
+    db = emptyDb(); queue = [];
+    try { localStorage.removeItem(LK('sc_data')); localStorage.removeItem(LK('sc_queue')); } catch {}
     if (!$('#sheet').hidden) closeSheet();
     hideSplash();
     $('#app').hidden = true; $('#setup').hidden = false;
     $('#setup').classList.add('code-mode');
-    $('#code-err').hidden = true;
-    setTimeout(() => $('#setup-code') && $('#setup-code').focus(), 300);
+    loginStep(1);
+  }
+  const loginErr = e => {
+    const m = String((e && e.message) || e);
+    if (/rate limit|too many|security purposes/i.test(m)) return 'Troppi tentativi: aspetta qualche minuto e riprova.';
+    if (/expired|invalid|otp/i.test(m)) return 'Codice non valido o scaduto. Richiedine uno nuovo.';
+    if (/fetch|network/i.test(m)) return 'Connessione assente, riprova.';
+    return m;
+  };
+  async function sendCode() {
+    const email = $('#login-email').value.trim().toLowerCase(), err = $('#code-err'), btn = $('#login-send');
+    if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Scrivi un indirizzo email valido'; err.hidden = false; return; }
+    err.hidden = true; btn.disabled = true; btn.textContent = 'Invio…';
+    try {
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+      if (error) throw error;
+      loginEmail = email; loginStep(2);
+    } catch (e) { err.textContent = loginErr(e); err.hidden = false; }
+    btn.disabled = false; btn.textContent = 'Invia codice';
   }
   async function doLogin() {
-    const code = $('#setup-code').value.trim(), err = $('#code-err'), btn = $('#code-go');
+    const code = $('#setup-code').value.replace(/\s/g, ''), err = $('#code-err'), btn = $('#code-go');
     if (!code) return;
     err.hidden = true; btn.disabled = true; btn.textContent = 'Verifico…';
     try {
-      const target = url || DEFAULT_URL;
-      const r = await fetch(target, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'login', code, device: (navigator.userAgentData && navigator.userAgentData.platform) || (/iPhone|iPad/.test(navigator.userAgent) ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'PC') }) });
-      const j = await r.json(); if (!j.ok) throw new Error(j.error);
-      tok = j.result.token || ''; LS.set('sc_tok', tok);
-      url = target; LS.set('sc_url', url);
+      const { error } = await sb.auth.verifyOtp({ email: loginEmail, token: code, type: 'email' });
+      if (error) throw error;
+      await afterAuth();
       $('#setup-code').value = '';
-      startApp(); toast('Benvenuto 👋');
-    } catch (e) { err.textContent = e.message === 'Failed to fetch' ? 'Connessione assente, riprova' : e.message; err.hidden = false; $('#setup-code').select(); }
+      toast('Benvenuto 👋');
+    } catch (e) { err.textContent = loginErr(e); err.hidden = false; $('#setup-code').select(); }
     btn.disabled = false; btn.textContent = 'Entra';
+  }
+  // dopo l'accesso: trova la "casa" dell'utente e apre l'app
+  async function afterAuth() {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) throw new Error('Accesso non riuscito');
+    const { data, error } = await sb.from('household_members').select('household_id').eq('user_id', user.id).order('created_at').limit(1);
+    if (error) throw error;
+    if (!data.length) throw new Error('Account non pronto: riprova tra qualche secondo');
+    if (LS.get('sc_uid', '') !== user.id) { LS.set('sc_seeded', false); }
+    hh = data[0].household_id; LS.set('sc_hh', hh); LS.set('sc_uid', user.id); LS.set('sc_email', user.email || '');
+    url = 'cloud'; queue = []; db = emptyDb(); save();
+    startApp();
   }
   // sfumatura sotto l'intestazione solo quando la pagina è scorsa
   { let on = false; addEventListener('scroll', () => { const v = scrollY > 6; if (v !== on) { on = v; document.body.classList.toggle('scr', v); } }, { passive: true }); }
@@ -5073,45 +5552,34 @@
     if (!isLocal()) pull().finally(() => document.body.classList.remove('is-loading'));
     if (!locked) handleLaunch();
     setTimeout(monthCelebrate, 800);
+    setTimeout(invitoInSospeso, 1500);
+    setTimeout(syncAIKey, 1200);
   }
 
   function setupBind() {
-    $('#setup-go').onclick = async () => {
-      const v = $('#setup-url').value.trim();
-      const err = $('#setup-err'); err.hidden = true;
-      if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(v)) { err.textContent = 'URL non valido: deve iniziare con https://script.google.com/…/exec'; err.hidden = false; return; }
-      $('#setup-go').textContent = 'Verifico…';
-      try {
-        const r = await sfetch(v + (v.includes('?') ? '&' : '?') + 'action=all');
-        const j = await r.json();
-        if (!j.ok) throw new Error(j.error);
-        if (url !== v) { queue = []; tok = ''; LS.set('sc_tok', ''); }
-        url = v; LS.set('sc_url', url);
-        db = { spese: j.data.spese, bollette: j.data.bollette, fatture: j.data.fatture || [], fisse: j.data.fisse || [], veicoli: j.data.veicoli || [], estratti: j.data.estratti || [], persone: j.data.persone || [], entrate: j.data.entrate || [], entrateFisse: j.data.entrateFisse || [], obiettivi: j.data.obiettivi || [], lista: j.data.lista || [], documenti: j.data.documenti || [], manutenzioni: j.data.manutenzioni || [], progetti: j.data.progetti || [], faccende: j.data.faccende || [], tg: j.data.tg || {}, backup: j.data.backup || {}, categorie: j.data.categorie, config: j.data.config || {}, ai: !!j.data.ai };
-        save(); online = true; startApp(); toast('Collegato');
-      } catch (e) {
-        if (e.message === 'AUTH_REQ') { url = v; LS.set('sc_url', url); $('#setup-go').textContent = 'Collega'; return; }
-        err.textContent = 'Collegamento non riuscito. Controlla che l\'App web sia pubblicata con accesso "Chiunque" e di aver eseguito setup(). ' + (e.message || '');
-        err.hidden = false;
-      }
-      $('#setup-go').textContent = 'Collega';
-    };
     $('#setup-demo').onclick = () => { location.href = location.pathname + '?demo'; };
+    $('#login-send').onclick = sendCode;
+    $('#login-email').addEventListener('keydown', e => { if (e.key === 'Enter') sendCode(); });
+    $('#login-back').onclick = () => loginStep(1);
+    $('#login-resend').onclick = () => { $('#login-email').value = loginEmail; sendCode(); };
     $('#code-go').onclick = doLogin;
     $('#setup-code').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-
-    $('#setup-local').onclick = () => {
-      url = 'local'; LS.set('sc_url', url); queue = [];
-      if (!db.categorie.length) db.categorie = DEFAULT_CATS.slice();
-      save(); startApp();
-    };
   }
 
   /* ================= Init ================= */
   bind(); setupBind(); lockBind(); viewerBind(); motionInit(); themeApply(themeGet());
   if (DEMO) demoStart();
   if (url && lockCfg() && !DEMO) { showLock(); setTimeout(() => { if (locked) unlock(); }, 450); }
-  if (url) startApp(); else showSetup();
+  if (DEMO) startApp();
+  else if (!sb) { hideSplash(); $('#app').hidden = true; $('#setup').hidden = false; $('#setup').classList.add('code-mode'); $('#login-msg').textContent = 'Non riesco a caricare l\'app: controlla la connessione e ricarica la pagina.'; $('#login-step1').hidden = true; }
+  else {
+    if (url) startApp();
+    sb.auth.getSession().then(({ data }) => {
+      if (!data.session) { if (url || !navigator.onLine) { if (!navigator.onLine) return; } showLogin(); }
+      else if (!url) afterAuth().catch(() => showLogin());
+    });
+    sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && url) showLogin(); });
+  }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -7,7 +7,7 @@ import webpush from 'npm:web-push@3.6.7';
 
 const TZ = 'Europe/Rome';
 const VAPID_PUBLIC = 'BOmeNL_VFB4WwSPylaBuisV2pi0A-GsmoeJK2CgeLpZVQ_HczJIn5T0wgKijQlFQPCECjPKFCApTyqzkruYu28c';
-const APP_URL = 'https://attrezzatidario-web.github.io/spese-casa/v2/';
+const APP_URL = 'https://attrezzatidario-web.github.io/spese-casa/';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',

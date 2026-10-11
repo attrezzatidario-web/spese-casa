@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=37">
+  <link rel="stylesheet" href="style.css?v=3-1">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -54,23 +54,22 @@
 
   <!-- Schermata collegamento -->
   <section id="setup" class="setup" hidden>
-    <div class="setup-card">
-      <img src="logo.svg" alt="Spese Casa" width="64" height="64">
-      <h1>Spese Casa</h1>
-      <p class="muted">Incolla l'URL dell'App web di Google Apps Script per salvare i dati sul tuo Foglio Google.</p>
-      <input id="setup-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
-      <button id="setup-go" class="btn primary block">Collega</button>
-      <p id="setup-err" class="err" hidden></p>
-      <button id="setup-local" class="btn ghost block">Usa solo su questo dispositivo</button>
-      <button id="setup-demo" class="btn ghost block">Guarda la demo</button>
-    </div>
     <div class="setup-card code-card">
       <img src="logo.svg" alt="Spese Casa" width="64" height="64">
       <h1>Spese Casa</h1>
-      <p class="muted">Inserisci il codice di accesso. Lo chiedo solo la prima volta su questo dispositivo.</p>
-      <input id="setup-code" type="password" placeholder="Codice" autocomplete="off" autocapitalize="off" class="code-in">
-      <button id="code-go" class="btn primary block">Entra</button>
+      <p class="muted" id="login-msg">Accedi con la tua email: ti mandiamo un codice, niente password.</p>
+      <div id="login-step1">
+        <input id="login-email" type="email" inputmode="email" placeholder="La tua email" autocomplete="email" autocapitalize="off">
+        <button id="login-send" class="btn primary block">Invia codice</button>
+      </div>
+      <div id="login-step2" hidden>
+        <input id="setup-code" type="text" inputmode="numeric" placeholder="Codice" autocomplete="one-time-code" maxlength="10" class="code-in">
+        <button id="code-go" class="btn primary block">Entra</button>
+        <button id="login-resend" class="btn ghost block">Invia di nuovo</button>
+        <button id="login-back" class="btn ghost block">Cambia email</button>
+      </div>
       <p id="code-err" class="err" hidden></p>
+      <button id="setup-demo" class="btn ghost block">Guarda la demo</button>
     </div>
   </section>
 
@@ -141,6 +140,10 @@
               <div class="card-h"><h3>Andamento del mese</h3><button class="btn sm bud-btn" id="bud-set"><i></i><span id="bud-btn-t">Imposta limite</span></button></div>
               <div id="bud-status" class="bud-status"></div>
               <div id="bud-chart" class="bud-chart"></div>
+            </div>
+            <div class="card ai-card c-res" id="h-res" hidden>
+              <div class="card-h"><h3 class="ai-title"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Resoconto</h3><span id="h-res-d" class="muted small"></span></div>
+              <div id="h-res-body"></div>
             </div>
             <div class="card ai-card c-ai" id="h-ai" hidden>
               <div class="card-h"><h3 class="ai-title"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Analisi IA</h3><button class="btn sm" id="h-ai-btn">Analizza</button></div>
@@ -487,16 +490,13 @@
           <a href="#estratto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg></span><b>Estratto conto</b><small>Verifica con l'IA</small></a>
         </div>
         <div class="card">
-          <h3>Collegamento</h3>
+          <h3>Account</h3>
           <p id="conn-info" class="muted small"></p>
           <div class="row-btns">
             <button id="btn-sync" class="btn">Sincronizza ora</button>
-            <button id="btn-conn" class="btn ghost">Cambia collegamento</button>
+            <button id="btn-conn" class="btn ghost" hidden>Esci</button>
           </div>
-        </div>
-        <div class="card">
-          <h3>Codice di accesso</h3>
-          <div id="ac-set"></div>
+          <div id="acct-set" style="margin-top:12px"></div>
         </div>
         <div class="card">
           <h3>Aspetto</h3>
@@ -505,10 +505,6 @@
         <div class="card">
           <h3>Sicurezza</h3>
           <div id="lock-set"></div>
-        </div>
-        <div class="card">
-          <h3>Telegram</h3>
-          <div id="tg-set"></div>
         </div>
         <div class="card">
           <h3>Notifiche</h3>
@@ -601,6 +597,8 @@
     </div>
   </div>
 
-  <script src="app.js?v=37"></script>
+  <script src="lib-supabase.js?v=1"></script>
+  <script src="ai.js?v=3"></script>
+  <script src="app.js?v=3-1"></script>
 </body>
 </html>
