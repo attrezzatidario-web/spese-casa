@@ -781,8 +781,9 @@
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
     box.innerHTML = `
       <div class="nt-status"><div class="nt-row"><i class="dot ${gas ? 'paid' : 'late'}"></i><div><b>Foglio Google ${gas ? 'collegato' : 'non collegato'}</b><small>${gas ? 'Le modifiche vengono copiate anche sul Foglio, così la versione precedente resta aggiornata.' : 'Se usavi già Spese Casa, importa qui i tuoi dati.'}</small></div></div></div>
-      <div class="row-btns">
-        <button class="btn ${gas ? '' : 'primary'}" id="acct-import">${gas ? 'Importa di nuovo dal Foglio' : 'Importa dal Foglio Google'}</button>
+      ${!gas ? `<p class="muted small" style="margin:12px 0 8px">Hai già i tuoi dati qui e vuoi solo recuperare i vecchi file su Google Drive? Collega il Foglio senza toccare i dati.</p><button class="btn primary" id="acct-link">Collega il Foglio per i vecchi file</button>` : ''}
+      <div class="row-btns" style="margin-top:8px">
+        <button class="btn ${gas ? '' : 'ghost'}" id="acct-import">${gas ? 'Importa di nuovo dal Foglio' : 'Importa dal Foglio Google'}</button>
         ${gas ? '<button class="btn ghost" id="acct-unlink">Scollega il Foglio</button>' : ''}
       </div>
       ${gas && driveJobs().length ? `<p class="muted small" style="margin:12px 0 8px">Hai <b>${driveJobs().length} file</b> ancora su Google Drive: copiali nel tuo archivio per aprirli da qualsiasi dispositivo.</p><button class="btn primary" id="acct-drive">Sposta i file da Google Drive</button>` : ''}
@@ -800,6 +801,25 @@
         try { await importFromSheet(code); closeSheet(); }
         catch (e) { busy(); toast(e.message || 'Importazione non riuscita'); }
       }, null, 'Importa');
+  }
+  // collega il Foglio solo per raggiungere i vecchi file (i dati di questo account non vengono toccati)
+  function formLinkSheet() {
+    openSheet('Collega il Foglio Google', `
+      <p class="muted small" style="margin:0 0 12px">Serve solo per copiare i vecchi file da Google Drive. <b>I dati di questo account non vengono modificati.</b></p>
+      <label class="f"><span>Codice di accesso della versione attuale</span><input name="code" type="password" autocomplete="off" required data-focus></label>`,
+      async fd => {
+        const code = String(fd.get('code') || '').trim(); if (!code) return;
+        busy('Mi collego al Foglio Google…');
+        try {
+          const target = gas || DEFAULT_URL;
+          const r = await fetch(target, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'login', code, device: 'Spese Casa v2' }) });
+          const j = await r.json(); if (!j.ok) throw new Error(j.error === 'AUTH' ? 'Codice non valido' : (j.error || 'Codice non valido'));
+          gas = target; tok = j.result.token || ''; LS.set('sc_gas', gas); LS.set('sc_tok', tok);
+          busy(); closeSheet(); renderAccount();
+          if (driveJobs().length) { if (confirm(`Foglio collegato. Spostare adesso i ${driveJobs().length} file da Google Drive nel tuo archivio?`)) migrateDriveFiles(); }
+          else toast('Foglio collegato: nessun file da spostare');
+        } catch (e) { busy(); toast(e.message === 'Failed to fetch' ? 'Connessione assente, riprova' : e.message); }
+      }, null, 'Collega');
   }
   async function importFromSheet(code) {
     busy('Mi collego al Foglio Google…');
@@ -5289,6 +5309,7 @@
       if (e.target.closest('#res-set')) { formResoconto(); return; }
       if (e.target.closest('#res-now')) { resocontoOra(); return; }
       if (e.target.closest('#acct-drive')) { migrateDriveFiles(); return; }
+      if (e.target.closest('#acct-link')) { formLinkSheet(); return; }
       if (e.target.closest('#nt-off')) { if (confirm('Disattivare le notifiche su questo dispositivo?')) pushDisable().then(renderNotifyCard); return; }
       if (e.target.closest('#ac-set-btn')) { formAccess(); return; }
       if (e.target.closest('#ac-out')) { if (confirm('Scollegare tutti gli altri dispositivi? Dovranno reinserire il codice.')) api('access', { op: 'logoutAll', device: 'questo dispositivo' }).then(r => { tok = r.token || tok; LS.set('sc_tok', tok); acStatus = null; renderAccess(true); toast('Altri dispositivi scollegati'); }).catch(er => toast(er.message)); return; }
