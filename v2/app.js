@@ -834,6 +834,7 @@
     if (prompt('Per confermare scrivi ELIMINA') !== 'ELIMINA') return toast('Eliminazione annullata');
     busy('Elimino l\'account…');
     try {
+      await pushDisable(true).catch(() => {});
       const { error } = await sb.rpc('delete_my_account'); sbErr(error);
       await sb.auth.signOut().catch(() => {});
       Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
@@ -842,6 +843,7 @@
   }
   async function signOut() {
     if (queue.length && !confirm(`Ci sono ${queue.length} modifiche non ancora salvate. Uscire comunque?`)) return;
+    await pushDisable(true).catch(() => {});
     if (sb) await sb.auth.signOut().catch(() => {});
     Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
     location.reload();
@@ -958,12 +960,10 @@
 
     // notifiche
     const n = db.config.notifiche || {};
-    const on = n.email || n.calendario;
-    $('#r-notify').innerHTML = on ? `<ul class="nlist">
-        ${n.calendario ? `<li><b>Calendario Google</b><span>Affitto${n.fisse !== false ? ' e spese fisse' : ''}: promemoria sul telefono ${n.giorniPrima ? n.giorniPrima + ' gg prima e ' : ''}il giorno della scadenza, alle ${n.ora}:00</span></li>` : ''}
-        ${n.email ? `<li><b>Email</b><span>Ogni giorno alle ${n.ora}:00 controllo automatico: ti scrivo solo se non hai ancora pagato${n.bollette ? ' (anche bollette)' : ''}</span></li>` : ''}
-      </ul>${n.email ? '<button class="btn sm" data-rent="testmail">Invia email di prova</button>' : ''}`
-      : `<p class="muted small" style="margin:0">Nessuna notifica attiva. Configura un promemoria sul calendario o via email.</p>`;
+    const pOn = LS.get('sc_push', '') && pushSupported() && Notification.permission === 'granted';
+    $('#r-notify').innerHTML = `<p class="muted small" style="margin:0">${pOn
+      ? `Promemoria sul telefono ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima e ' : ''}il giorno della scadenza, alle ${pad(Number(n.ora ?? 9))}:00, solo se non hai ancora pagato.`
+      : 'Notifiche non attive su questo dispositivo: attivale da Altro → Notifiche.'}</p>`;
 
     // contratto
     const kv = [
@@ -999,8 +999,6 @@
         const v = { inizioAuto: !!(c.inizioAuto && inizio === String(c.inizio || '').slice(0, 7)), attivo: true, canone, giorno: Number(fd.get('giorno')), proprietario: fd.get('proprietario').trim(), iban: fd.get('iban').replace(/\s+/g, ' ').trim().toUpperCase(), metodo: fd.get('metodo'), inizio, causale: fd.get('causale').trim(), note: fd.get('note').trim() };
         setConfig('affitto', v);
         closeSheet(); toast('Affitto salvato');
-        const n = db.config.notifiche || {};
-        if (n.calendario && !isLocal()) { try { await syncNow(); await api('reminders'); } catch (e) { toast(e.message); } }
       },
       db.config.affitto ? () => {
         if (!confirm('Eliminare la configurazione dell\'affitto? I pagamenti registrati restano tra le spese.')) return;
@@ -1038,72 +1036,108 @@
       }, null, 'Registra pagamento');
   }
 
+  /* ================= NOTIFICHE SUL TELEFONO (web push) ================= */
+  const VAPID_PUBLIC = 'BOmeNL_VFB4WwSPylaBuisV2pi0A-GsmoeJK2CgeLpZVQ_HczJIn5T0wgKijQlFQPCECjPKFCApTyqzkruYu28c';
+  const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const b64uKey = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  let pushState = null; // { on, endpoint }
+  async function pushCurrent() {
+    if (!pushSupported()) return null;
+    try { const reg = await navigator.serviceWorker.getRegistration(); return reg ? await reg.pushManager.getSubscription() : null; } catch { return null; }
+  }
+  async function pushEnable() {
+    if (!sb || !hh) throw new Error('Accedi per attivare le notifiche');
+    if (!pushSupported()) throw new Error('Questo browser non supporta le notifiche');
+    pauseLock(60000);
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error(perm === 'denied' ? 'Notifiche bloccate: riattivale dalle impostazioni del telefono per questa app' : 'Permesso non concesso');
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uKey(VAPID_PUBLIC) });
+    const j = sub.toJSON();
+    const device = isIOS() ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'PC';
+    const { error } = await sb.from('push_subscriptions').upsert({ household_id: hh, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device }, { onConflict: 'endpoint' });
+    if (error) throw new Error(netErr(error) ? 'Connessione assente, riprova' : 'Iscrizione non salvata: ' + error.message);
+    LS.set('sc_push', j.endpoint);
+    pushState = { on: true, endpoint: j.endpoint };
+  }
+  async function pushDisable(silent) {
+    const sub = await pushCurrent();
+    const ep = (sub && sub.endpoint) || LS.get('sc_push', '');
+    try { if (sub) await sub.unsubscribe(); } catch {}
+    if (ep && sb) { try { await sb.from('push_subscriptions').delete().eq('endpoint', ep); } catch {} }
+    try { localStorage.removeItem(LK('sc_push')); } catch {}
+    pushState = { on: false, endpoint: '' };
+    if (!silent) toast('Notifiche disattivate su questo dispositivo');
+  }
+  async function renderNotifyCard() {
+    const box = $('#nt-set'); if (!box) return;
+    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Nella demo le notifiche non sono attive.</p>'; return; }
+    const n = db.config.notifiche || {};
+    const cosa = [n.bollette !== false && 'bollette', 'affitto', n.fisse !== false && 'spese fisse', n.auto !== false && 'auto', n.manutenzioni !== false && 'manutenzioni', 'cose da fare', 'budget'].filter(Boolean).join(', ');
+    const quando = `ogni giorno alle ${pad(Number(n.ora ?? 9))}:00 · ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima' : 'il giorno stesso'}`;
+    if (!pushSupported() || (isIOS() && !isStandalone())) {
+      box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${isIOS()
+        ? 'Su iPhone le notifiche arrivano solo con l\'app aggiunta alla schermata Home: in Safari premi <b>Condividi</b> → <b>Aggiungi alla schermata Home</b>, poi apri l\'app dall\'icona e torna qui.'
+        : 'Questo browser non supporta le notifiche. Prova con Chrome, Edge o Safari aggiornati.'}</p>
+        <button class="btn" data-rent="notify">Cosa avvisare</button>`;
+      return;
+    }
+    if (!pushState) { const s = await pushCurrent(); pushState = { on: !!s && LS.get('sc_push', '') === s.endpoint, endpoint: s ? s.endpoint : '' }; }
+    const on = pushState.on && Notification.permission === 'granted';
+    box.innerHTML = `<div class="nt-status"><div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${on ? 'Attive su questo dispositivo' : 'Non attive su questo dispositivo'}</b><small>${on ? esc(quando) : 'Promemoria di ' + esc(cosa) + ' direttamente sul telefono.'}</small></div></div></div>
+      <div class="row-btns">${on
+        ? '<button class="btn primary" id="nt-test">Invia prova</button><button class="btn" data-rent="notify">Cosa avvisare</button><button class="btn ghost" id="nt-off">Disattiva</button>'
+        : '<button class="btn primary" id="nt-on">Attiva notifiche</button><button class="btn" data-rent="notify">Cosa avvisare</button>'}</div>`;
+  }
+  async function notifyOn() {
+    busy('Attivo le notifiche…');
+    try { await pushEnable(); busy(); toast('Notifiche attive'); }
+    catch (e) { busy(); toast(e.message || 'Attivazione non riuscita'); }
+    renderNotifyCard();
+  }
+  async function notifyTest() {
+    busy('Invio una notifica di prova…');
+    try {
+      await syncNow();
+      const ep = (pushState && pushState.endpoint) || LS.get('sc_push', '');
+      const { data, error } = await sb.functions.invoke('notifiche', { body: { test: true, endpoint: ep } });
+      busy();
+      if (error) {
+        let msg = error.message || 'Errore';
+        try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch {}
+        throw new Error(msg);
+      }
+      toast(data && data.ok ? (data.promemoria ? 'Inviata: ' + data.promemoria + ' promemoria di oggi' : 'Inviata: controlla le notifiche') : 'Non inviata: ' + ((data && data.esito) || 'errore'));
+    } catch (e) { busy(); toast(/Failed to send|Failed to fetch|FunctionsFetchError/i.test(e.message) ? 'Servizio notifiche non ancora attivo' : e.message); }
+  }
   function formNotify() {
-    const n = { email: false, calendario: false, bollette: true, giorniPrima: 3, ora: 9, ...(db.config.notifiche || {}) };
     if (DEMO) return toast('Nella demo le notifiche non sono attive');
-    if (isLocal()) return toast('Le notifiche richiedono il collegamento al Foglio Google');
-    const hours = Array.from({ length: 15 }, (_, i) => String(i + 7));
-    const mt = { attivo: false, ora: 7, minuti: 30, telegram: true, email: false, ...(n.mattino || {}) };
-    openSheet('Notifiche', `
-      <div class="nt-mattino">
-        <label class="sw"><input type="checkbox" name="m_attivo" ${mt.attivo ? 'checked' : ''}><span class="sw-ui"></span>
-          <span class="sw-t"><b>☀️ Buongiorno con l'IA</b><small>Ogni mattina un resoconto: spese di ieri, andamento del mese, cosa scade oggi e nei prossimi giorni, cose da fare e un consiglio.</small></span></label>
-        <div class="f-row">
-          <label class="f"><span>Orario</span><input type="time" name="m_ora" value="${pad(Number(mt.ora) || 0)}:${pad(Number(mt.minuti) || 0)}"></label>
-          <div class="f"><span class="f-l">Dove</span><div class="who-pick">${db.tg && db.tg.attivo ? `<label class="wp"><input type="checkbox" name="m_tg" ${mt.telegram !== false ? 'checked' : ''}><span>Telegram</span></label>` : ''}<label class="wp"><input type="checkbox" name="m_email" ${mt.email || !(db.tg && db.tg.attivo) ? 'checked' : ''}><span>Email</span></label></div></div>
-        </div>
-        <p class="muted small" style="margin:-4px 0 4px">Google lo invia entro qualche minuto dall'orario scelto.</p>
-      </div>
-      <label class="sw"><input type="checkbox" name="calendario" ${n.calendario ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Calendario Google</b><small>Crea eventi ricorrenti con promemoria per affitto e spese fisse: arrivano come notifica sul telefono.</small></span></label>
-      <label class="sw"><input type="checkbox" name="email" ${n.email ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Email intelligente</b><small>Controllo ogni giorno: ti scrivo solo se il pagamento non è ancora registrato.</small></span></label>
-      <label class="sw"><input type="checkbox" name="bollette" ${n.bollette ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Includi le bollette</b><small>Nell'email anche le bollette in scadenza.</small></span></label>
+    const n = { bollette: true, giorniPrima: 3, ora: 9, ...(db.config.notifiche || {}) };
+    const hours = Array.from({ length: 16 }, (_, i) => i + 6);
+    openSheet('Cosa avvisare', `
+      <p class="muted small" style="margin:0 0 12px">Valgono per tutta la casa. Affitto, cose da fare e budget superati sono sempre inclusi.</p>
+      <label class="sw"><input type="checkbox" name="bollette" ${n.bollette !== false ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Bollette</b><small>Le bollette in scadenza.</small></span></label>
       <label class="sw"><input type="checkbox" name="fisse" ${n.fisse !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Includi le spese fisse</b><small>Abbonamenti, rate e assicurazioni con l'avviso attivo.</small></span></label>
+        <span class="sw-t"><b>Spese fisse</b><small>Abbonamenti, rate e assicurazioni con l'avviso attivo.</small></span></label>
       <label class="sw"><input type="checkbox" name="auto" ${n.auto !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Includi le scadenze auto</b><small>Assicurazione, bollo, revisione e tagliando (anche un mese prima).</small></span></label>
+        <span class="sw-t"><b>Scadenze auto</b><small>Assicurazione, bollo, revisione e tagliando (anche un mese prima).</small></span></label>
       <label class="sw"><input type="checkbox" name="manutenzioni" ${n.manutenzioni !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Includi le manutenzioni</b><small>Caldaia, filtri e controlli periodici di casa.</small></span></label>
-      ${db.tg && db.tg.attivo ? `<label class="sw"><input type="checkbox" name="telegram" ${n.telegram !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Telegram</b><small>Promemoria e avvisi anche sul bot Telegram.</small></span></label>
-      <label class="sw"><input type="checkbox" name="settimanale" ${n.settimanale !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Riepilogo della settimana</b><small>Ogni domenica sera su Telegram: speso, budget, pagamenti dei prossimi 7 giorni e cose da fare.</small></span></label>` : ''}
+        <span class="sw-t"><b>Manutenzioni</b><small>Caldaia, filtri e controlli periodici di casa.</small></span></label>
       <div class="f-row" style="margin-top:6px">
         <label class="f"><span>Avvisami</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
-        <label class="f"><span>Orario</span><select name="ora">${hours.map(hh => `<option value="${hh}"${String(n.ora) === hh ? ' selected' : ''}>${hh}:00</option>`).join('')}</select></label>
-      </div>
-      <p class="muted small" style="margin:0 0 8px">Le email arrivano all'indirizzo Gmail del tuo account Google.</p>`,
+        <label class="f"><span>Orario</span><select name="ora">${hours.map(h => `<option value="${h}"${Number(n.ora) === h ? ' selected' : ''}>${pad(h)}:00</option>`).join('')}</select></label>
+      </div>`,
       async fd => {
-        const [mh, mm] = String(fd.get('m_ora') || '07:30').split(':').map(Number);
-        const mattino = { attivo: fd.get('m_attivo') === 'on', ora: mh || 0, minuti: mm || 0, telegram: fd.get('m_tg') === 'on', email: fd.get('m_email') === 'on' };
-        const v = { mattino, calendario: fd.get('calendario') === 'on', email: fd.get('email') === 'on', bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', telegram: db.tg && db.tg.attivo ? fd.get('telegram') === 'on' : true, settimanale: db.tg && db.tg.attivo ? fd.get('settimanale') === 'on' : true, giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
-        if (v.calendario && !rentCfg() && !fisseActive().length && !vehActive().length) return toast('Aggiungi prima l\'affitto o una spesa fissa');
-        if (mattino.attivo && !mattino.telegram && !mattino.email) return toast('Scegli dove ricevere il buongiorno');
+        const v = { ...(db.config.notifiche || {}), bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
         setConfig('notifiche', v);
-        setConfig('appUrl', location.href.split('#')[0]);
-        closeSheet(); busy('Attivo le notifiche…');
-        try {
-          await syncNow();
-          const r = await api('reminders');
-          busy();
-          ntStatus = null;
-          toast(r.calendario || r.email || r.telegram || r.mattino ? 'Notifiche attivate' + (r.indirizzo ? ' · ' + r.indirizzo : '') : 'Notifiche disattivate');
-        } catch (e) {
-          busy();
-          toast(/autorizz|permission|permess/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message);
-        }
-        render();
-      }, null, 'Salva notifiche');
+        closeSheet(); toast('Salvato'); render();
+      }, null, 'Salva');
   }
-
-
-
-
-
-
-
+  function refreshCalendarReminders() { /* il Calendario Google non è più usato: ci pensano le notifiche */ }
 
   /* ================= ALLEGATI (PDF / foto) ================= */
   const ICO_CLIP = '<svg viewBox="0 0 24 24"><path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7L14 4.5a3.5 3.5 0 0 1 5 5L10.5 18a2 2 0 0 1-3-3L15 7.5"/></svg>';
@@ -2821,12 +2855,6 @@
   }
 
   // aggiorna gli eventi del calendario Google in background
-  function refreshCalendarReminders(forAuto) {
-    const n = db.config.notifiche || {};
-    if (isLocal() || !n.calendario || (forAuto ? n.auto === false : n.fisse === false)) return;
-    syncNow().then(() => api('reminders')).catch(() => {});
-  }
-
   /* ================= FATTURE (dettaglio bollette) ================= */
   const ICO_DOC = '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>';
   const UNITA = ['', 'kWh', 'Smc', 'm³', 'GB', 'minuti'];
@@ -4111,41 +4139,6 @@
         catch (e) { busy(); toast(e.message); }
       });
   }
-  let ntStatus = null, ntLoading = false;
-  async function renderNotifyCard(force) {
-    const box = $('#nt-set'); if (!box) return;
-    if (DEMO || (isLocal() || !gas)) { box.innerHTML = `<p class="muted small" style="margin:0">${DEMO ? 'Nella demo le notifiche non sono attive.' : 'Per ora le notifiche funzionano con il Foglio Google collegato (Altro → Account).'}</p>`; return; }
-    const st = ntStatus;
-    const row = (on, t, sub) => `<div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${t}</b><small>${sub}</small></div></div>`;
-    box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Promemoria di affitto, bollette, spese fisse, auto, manutenzioni e cose da fare, più il buongiorno del mattino.</p>
-      ${st ? `<div class="nt-status">
-        ${row(st.mattino, 'Buongiorno con l\'IA', st.mattino ? `ogni mattina alle ${pad(st.mattinoOra || 0)}:${pad(st.mattinoMin || 0)}` : 'non attivo')}
-        ${row(st.controllo, 'Controllo scadenze', st.controllo ? `ogni giorno alle ${st.ora}:00` : 'non attivo: premi Configura e Salva')}
-        ${row(st.telegram, 'Telegram', st.telegram ? `@${esc(st.bot)} · ${st.chats} collegat${st.chats === 1 ? 'o' : 'i'}` : 'non collegato (Altro → Telegram)')}
-        ${row(st.emailOn, 'Email', st.emailOn ? esc(st.email) : 'disattivata')}
-      </div>` : `<p class="muted small">${ntLoading ? 'Controllo lo stato…' : ''}</p>`}
-      <div class="row-btns"><button class="btn" data-rent="notify">Configura</button><button class="btn primary" id="nt-test">Invia notifica di prova</button></div>`;
-    if ((!st || force) && !ntLoading) {
-      ntLoading = true;
-      try { ntStatus = await api('notify', { op: 'status' }); } catch (e) { ntStatus = null; }
-      ntLoading = false;
-      if (view === 'impostazioni') renderNotifyCard();
-    }
-  }
-  async function notifyTest() {
-    busy('Invio le notifiche di prova…');
-    try {
-      await syncNow();
-      const r = await api('notify', { op: 'test' }); busy();
-      const ok = v => v === 'ok';
-      openSheet('Notifica di prova', `<div class="nt-status">
-        <div class="nt-row"><i class="dot ${ok(r.telegram) ? 'paid' : 'late'}"></i><div><b>Telegram</b><small>${ok(r.telegram) ? 'Inviata: controlla il bot' : esc(r.telegram)}</small></div></div>
-        <div class="nt-row"><i class="dot ${ok(r.email) ? 'paid' : 'late'}"></i><div><b>Email</b><small>${ok(r.email) ? 'Inviata a ' + esc(r.email_indirizzo) + ' (guarda anche in Spam)' : esc(r.email)}</small></div></div>
-        <div class="nt-row"><i class="dot ${ok(r.buongiorno) ? 'paid' : 'soon'}"></i><div><b>Buongiorno di oggi</b><small>${ok(r.buongiorno) ? 'Inviato: così vedi come arriva ogni mattina' : 'Attiva Telegram o email nel Buongiorno'}</small></div></div>
-        ${r.riattivato ? '<p class="small pos-t" style="margin:8px 0 0">Il controllo giornaliero mancava: l\'ho riattivato.</p>' : ''}</div>`, () => closeSheet(), null, 'Ok');
-      renderNotifyCard(true);
-    } catch (e) { busy(); toast(/autorizz|permission|permess|MailApp|ScriptApp/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message); }
-  }
   function renderTg() {
     const box = $('#tg-set'); if (!box) return;
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
@@ -4177,11 +4170,7 @@
   }
   function renderBackup() {
     const box = $('#bk-set'); if (!box) return;
-    if (DEMO || (isLocal() || !gas)) { box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${DEMO ? 'Il backup su Drive non è disponibile nella demo.' : 'Per ora il backup su Drive funziona con il Foglio Google collegato. I tuoi dati sono comunque al sicuro su Supabase.'}</p><button class="btn" id="bk-json">Scarica copia dei dati</button>`; return; }
-    const b = db.backup || {};
-    box.innerHTML = `<label class="sw"><input type="checkbox" id="bk-on" ${b.attivo ? 'checked' : ''}><span class="sw-ui"></span><span class="sw-t"><b>Backup automatico ogni settimana</b><small>Ogni domenica una copia del Foglio nella cartella “Spese Casa - Backup” di Google Drive (tiene le ultime 8).</small></span></label>
-      <p class="muted small" style="margin:6px 0 10px">${b.ultimo ? 'Ultimo backup: <b>' + esc(shortDate(b.ultimo)) + '</b>' : 'Nessun backup ancora.'}</p>
-      <div class="row-btns"><button class="btn" id="bk-now">Fai backup ora</button><button class="btn ghost" id="bk-json">Scarica copia (JSON)</button></div>`;
+    box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${DEMO ? 'Nella demo puoi scaricare i dati di esempio.' : 'I tuoi dati sono salvati sul server e su questo dispositivo. Quando vuoi, scaricane una copia completa.'}</p><button class="btn" id="bk-json">Scarica copia dei dati</button>`;
   }
   async function bkApi(op) {
     busy(op === 'now' ? 'Creo il backup…' : 'Salvo…');
@@ -5174,6 +5163,8 @@
       if (e.target.closest('#tg-off')) { if (confirm('Disattivare il bot Telegram?')) tgApi('off').then(r => { db.tg = r; save(); renderTg(); toast('Bot disattivato'); }).catch(() => {}); return; }
       if (e.target.closest('#bk-now')) { bkApi('now'); return; }
       if (e.target.closest('#nt-test')) { notifyTest(); return; }
+      if (e.target.closest('#nt-on')) { notifyOn(); return; }
+      if (e.target.closest('#nt-off')) { if (confirm('Disattivare le notifiche su questo dispositivo?')) pushDisable().then(renderNotifyCard); return; }
       if (e.target.closest('#ac-set-btn')) { formAccess(); return; }
       if (e.target.closest('#ac-out')) { if (confirm('Scollegare tutti gli altri dispositivi? Dovranno reinserire il codice.')) api('access', { op: 'logoutAll', device: 'questo dispositivo' }).then(r => { tok = r.token || tok; LS.set('sc_tok', tok); acStatus = null; renderAccess(true); toast('Altri dispositivi scollegati'); }).catch(er => toast(er.message)); return; }
       if (e.target.closest('#tg-weekly')) { tgApi('weekly').then(() => toast('Riepilogo inviato su Telegram')).catch(() => {}); return; }
