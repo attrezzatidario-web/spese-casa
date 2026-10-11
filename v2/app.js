@@ -3819,7 +3819,7 @@
       body.innerHTML = `<div class="vw-load"><span>Anteprima non disponibile. Usa “Scarica”.</span></div>`;
     } catch (e) {
       if (viewerDoc !== d) return;
-      $('#vw-body').innerHTML = `<div class="vw-load"><span>${esc(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : 'Impossibile aprire: ' + e.message)}</span></div>`;
+      $('#vw-body').innerHTML = `<div class="vw-load"><span>${esc(/^Exception:.*(permission|autorizz)/i.test(e.message) ? 'Google non concede l\'accesso a questo file: apri lo script del Foglio ed esegui una volta la funzione "autorizza".' : e.message.startsWith('Questo file') ? e.message : 'Impossibile aprire: ' + e.message)}</span></div>`;
     }
   }
   function viewerBind() {
