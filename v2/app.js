@@ -1841,19 +1841,38 @@
     catch (e) { busy(); return toast(e.message || 'File non leggibile'); }
     const movs = [];
     let banca = '', da = '', a = '';
-    try {
-      for (let i = 0; i < doc.pages.length; i++) {
-        busy(`L'IA legge la pagina ${i + 1} di ${doc.pages.length}…`);
-        const r = await aiCall('statement', { image: canvasToB64(doc.pages[i].canvas), mime: 'image/jpeg', pagina: i + 1 });
-        if (r.valido === false && !r.movimenti?.length) continue;
-        banca = banca || r.banca; da = da || r.periodoDa; a = r.periodoA || a;
-        (r.movimenti || []).forEach(m => {
-          const imp = Math.abs(Number(m.importo) || 0);
-          if (!imp) return;
-          movs.push({ id: uid(), page: i, data: validDate(m.data), descrizione: m.descrizione, esercente: m.esercente || '', importo: Math.round(imp * 100) / 100, segno: m.segno, categoria: m.categoria, box: Array.isArray(m.box) && m.box.length === 4 ? m.box : null });
-        });
+    // 3 pagine alla volta; ogni pagina riprovata una volta se non riesce
+    const N = doc.pages.length, res = new Array(N), falliti = [];
+    let fatte = 0, next = 0, fermo = null;
+    const avanzamento = () => busy(N === 1 ? 'L\'IA legge l\'estratto conto…' : `L'IA legge le pagine: ${fatte} di ${N}…`);
+    const leggi = async i => {
+      const img = canvasToB64(doc.pages[i].canvas);
+      for (let t = 0; t < 2; t++) {
+        try { return await aiCall('statement', { image: img, mime: 'image/jpeg', pagina: i + 1 }, 180000); }
+        catch (e) { if (/chiave|limite gratuito|sovraccarica/i.test(e.message) || t === 1) throw e; await sleep(1500); }
       }
-    } catch (e) { busy(); return toast(e.message); }
+    };
+    const worker = async () => {
+      while (next < N && !fermo) {
+        const i = next++;
+        try { res[i] = await leggi(i); } catch (e) { if (/chiave|limite gratuito/i.test(e.message)) fermo = e; else falliti.push(i + 1); }
+        fatte++; avanzamento();
+      }
+    };
+    avanzamento();
+    await Promise.all(Array.from({ length: Math.min(3, N) }, worker));
+    if (fermo) { busy(); return toast(fermo.message); }
+    res.forEach((r, i) => {
+      if (!r || (r.valido === false && !(r.movimenti || []).length)) return;
+      banca = banca || r.banca; da = da || r.periodoDa; a = r.periodoA || a;
+      (r.movimenti || []).forEach(m => {
+        const imp = Math.abs(Number(m.importo) || 0);
+        if (!imp) return;
+        movs.push({ id: uid(), page: i, data: validDate(m.data), descrizione: m.descrizione, esercente: m.esercente || '', importo: Math.round(imp * 100) / 100, segno: m.segno, categoria: m.categoria, box: Array.isArray(m.box) && m.box.length === 4 ? m.box : null });
+      });
+    });
+    if (falliti.length && movs.length) setTimeout(() => toast(`Non sono riuscito a leggere ${falliti.length === 1 ? 'la pagina ' + falliti[0] : 'le pagine ' + falliti.sort((x, y) => x - y).join(', ')}: riprova più tardi per completarle`), 2500);
+    if (falliti.length && !movs.length) { busy(); return toast('L\'IA non è riuscita a leggere il file: riprova tra poco'); }
     busy();
     if (!movs.length) return toast('Non ho trovato movimenti nel file');
     stmt = { ...doc, banca, periodoDa: da, periodoA: a, movs, created: new Date().toISOString() };
@@ -3047,11 +3066,12 @@
     el.hidden = false;
   }
 
-  async function aiCall(task, extra) {
+  async function aiCall(task, extra, ms) {
     if (DEMO) return demoAI(task, extra || {});
     if (aiKey() && window.SC_AI) {
-      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 100000);
-      try { return await window.SC_AI.run(aiKey(), { task, categorie: cats(), oggi: today(), ...(extra || {}) }, ctl.signal); }
+      const lim = ms || 100000;
+      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), lim);
+      try { return await window.SC_AI.run(aiKey(), { task, categorie: cats(), oggi: today(), ...(extra || {}) }, ctl.signal, lim - 5000); }
       catch (e) { throw new Error(e.name === 'AbortError' ? 'L\'IA non ha risposto in tempo. Riprova tra poco o compila a mano: l\'allegato resta salvato.' : (e.message || 'Errore IA')); }
       finally { clearTimeout(tm); }
     }

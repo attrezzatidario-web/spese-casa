@@ -210,8 +210,15 @@
     } finally { clearTimeout(tm); if (signal) signal.removeEventListener('abort', onAbort); }
   }
 
+  // risposte rapide: niente fase di "ragionamento" (non serve per leggere documenti).
+  // I modelli Gemini 2.x usano thinkingBudget, i 3.x thinkingLevel: provo e ricordo cosa accetta.
+  const THINK_KEY = 'v2_sc_aithink';
+  const THINK = { budget: { thinkingBudget: 0 }, level: { thinkingLevel: 'minimal' }, none: null };
+  const thinkOrder = ['budget', 'level', 'none'];
+
   async function gemini(key, parts, schema, signal, ms) {
     const tried = {};
+    let think = lsGet(THINK_KEY) || 'budget';
     let model = lsGet(MODEL_KEY) || 'gemini-flash-latest';
     let ripiego = false;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -221,19 +228,23 @@
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: parts }],
-          generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: schema }
+          generationConfig: Object.assign({ temperature: 0.2, responseMimeType: 'application/json', responseSchema: schema }, THINK[think] ? { thinkingConfig: THINK[think] } : {})
         })
       }, signal, ms || 90000);
       const code = res.status;
       const body = await res.json().catch(() => ({}));
       if (code === 200) {
-        if (!ripiego) lsSet(MODEL_KEY, model);
+        if (!ripiego) { lsSet(MODEL_KEY, model); lsSet(THINK_KEY, think); }
         const p = (((body.candidates || [])[0] || {}).content || {}).parts || [];
         const txt = p.filter(x => x.text && !x.thought).map(x => x.text).join('');
         if (!txt) throw new Error('Risposta IA vuota');
         return JSON.parse(txt);
       }
       const msg = (body.error && body.error.message) || ('Errore ' + code);
+      if (code === 400 && /think/i.test(msg) && think !== 'none') {
+        // questo modello non accetta l'impostazione: provo la successiva (non conta come tentativo)
+        think = thinkOrder[thinkOrder.indexOf(think) + 1]; lsSet(THINK_KEY, think); attempt--; continue;
+      }
       if (code === 401 || ((code === 400 || code === 403) && /API key|API_KEY|permission|credential/i.test(msg))) throw new Error('Google rifiuta la chiave: ' + msg.split('. ')[0]);
       if (code === 429) throw new Error('Limite gratuito IA raggiunto, riprova tra poco');
       if (code === 503 || code === 500 || /high demand|overloaded|unavailable/i.test(msg)) {
