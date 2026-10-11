@@ -171,28 +171,48 @@ export function promptResoconto(d: any, settimanale: boolean) {
 }
 const SCHEMA_RES = S('OBJECT', { properties: { titolo: S('STRING'), anteprima: S('STRING'), testo: S('STRING') }, required: ['titolo', 'anteprima', 'testo'] });
 
+// modelli "Flash" disponibili per questa chiave, dal più recente (come fa l'app)
+async function modelliFlash(key: string): Promise<string[]> {
+  try {
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
+    const j: any = await r.json();
+    const ver = (n: string) => { const m = n.match(/(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
+    return (j.models || [])
+      .filter((m: any) => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m: any) => String(m.name).replace('models/', ''))
+      .filter((n: string) => /flash/.test(n) && !/lite|image|tts|audio|live|thinking|exp|embed/.test(n))
+      .sort((x: string, y: string) => (ver(y) - ver(x)) || (Number(/preview/.test(x)) - Number(/preview/.test(y))));
+  } catch { return []; }
+}
+
 export async function gemini(key: string, prompt: string, schema: any) {
   const base = 'https://generativelanguage.googleapis.com/v1beta/models/';
-  const modelli = ['gemini-flash-latest', 'gemini-2.5-flash'];
-  const think = [{ thinkingBudget: 0 }, { thinkingLevel: 'minimal' }, null];
-  let ti = 0, ultimo = '';
+  const elenco = await modelliFlash(key);
+  const modelli = ['gemini-flash-latest', ...elenco.filter(m => m !== 'gemini-flash-latest')].slice(0, 4);
+  const think = [{ thinkingBudget: 0 }, { thinkingLevel: 'minimal' }, { thinkingLevel: 'low' }, null];
+  let primoErrore = '';
   for (const model of modelli) {
-    for (let tent = 0; tent < 4; tent++) {
+    let ti = 0;
+    for (let tent = 0; tent < 6; tent++) {
       const gc: any = { temperature: 0.4, responseMimeType: 'application/json', responseSchema: schema };
       if (think[ti]) gc.thinkingConfig = think[ti];
       const r = await fetch(base + model + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: gc }) });
       const j: any = await r.json().catch(() => ({}));
       if (r.ok) {
         const txt = ((((j.candidates || [])[0] || {}).content || {}).parts || []).filter((x: any) => x.text && !x.thought).map((x: any) => x.text).join('');
+        if (!txt) { primoErrore = primoErrore || 'risposta vuota'; break; }
         return JSON.parse(txt);
       }
-      ultimo = (j.error && j.error.message) || ('Errore ' + r.status);
-      if (r.status === 400 && /think/i.test(ultimo) && ti < think.length - 1) { ti++; continue; }
-      if (r.status === 503 || r.status === 500) { await new Promise(res => setTimeout(res, 2000 * (tent + 1))); continue; }
-      break; // 404 modello o altro: provo il modello successivo
+      const msg = (j.error && j.error.message) || ('Errore ' + r.status);
+      if (r.status === 400 && /think/i.test(msg) && ti < think.length - 1) { ti++; continue; }
+      if (r.status === 401 || (r.status === 400 && /API key|API_KEY|credential/i.test(msg))) throw new Error('Google rifiuta la chiave IA della casa');
+      if (r.status === 429) throw new Error('Limite gratuito IA raggiunto, riprova tra qualche minuto');
+      if (r.status === 503 || r.status === 500) { await new Promise(res => setTimeout(res, 2000 * (tent + 1))); if (tent < 2) continue; }
+      primoErrore = primoErrore || (model + ': ' + msg);
+      break; // provo il modello successivo
     }
   }
-  throw new Error('IA non disponibile: ' + ultimo);
+  throw new Error('IA non disponibile (' + (primoErrore || 'nessun modello') + ')');
 }
 
 export async function resoconto(sb: any, hh: string, subs: any[], dati: any, today: string, forza: boolean) {
