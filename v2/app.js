@@ -776,14 +776,6 @@
   }
 
   /* ================= ACCOUNT (Supabase) ================= */
-  function renderAccount() {
-    const box = $('#acct-set'); if (!box) return;
-    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
-    box.innerHTML = `<div class="row-btns">
-        <button class="btn ghost" id="acct-out">Esci</button>
-        <button class="btn danger-ghost" id="acct-del">Elimina account</button>
-      </div>`;
-  }
   function formImport() {
     openSheet('Importa dal Foglio Google', `
       <p class="muted small" style="margin:0 0 12px">Copio qui tutti i dati del tuo Foglio Google. <b>I dati attuali di questo account vengono sostituiti</b>; il Foglio non viene toccato.</p>
@@ -1049,6 +1041,94 @@
         write([{ action: 'upsert', sheet: 'Spese', row: spesa }]);
         closeSheet(); toast('Affitto di ' + monthName(m) + ' registrato');
       }, null, 'Registra pagamento');
+  }
+
+  /* ================= CASA CONDIVISA ================= */
+  let membri = null;
+  async function loadMembers() {
+    try { const { data, error } = await sb.rpc('list_members'); sbErr(error); membri = data || []; }
+    catch (e) { membri = null; }
+    if (view === 'impostazioni') renderAccount(true);
+  }
+  function renderAccount(fromLoad) {
+    const box = $('#acct-set'); if (!box) return;
+    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
+    if (!fromLoad || !membri) loadMembers.pending || (loadMembers.pending = loadMembers().finally(() => { loadMembers.pending = null; }));
+    const me = (membri || []).find(m => m.is_me), owner = me && me.role === 'owner', tanti = (membri || []).length > 1;
+    const lista = membri ? membri.map(m => `<div class="item" style="cursor:default"><div class="main"><div class="t">${esc(m.email)}${m.is_me ? ' <span class="muted small">· tu</span>' : ''}</div><div class="s">${m.role === 'owner' ? 'Ha creato la casa' : 'Membro'}</div></div>${owner && !m.is_me ? `<button class="btn sm ghost" data-rmmember="${esc(m.user_id)}" data-mail="${esc(m.email)}">Togli</button>` : ''}</div>`).join('') : '<p class="muted small" style="margin:0">Carico i membri…</p>';
+    box.innerHTML = `<h4 style="margin:0 0 6px">Chi fa parte della casa</h4>
+      <div class="list">${lista}</div>
+      <div class="row-btns" style="margin-top:10px">
+        <button class="btn primary" id="casa-invita">Invita in casa</button>
+        <button class="btn" id="casa-entra">Ho un codice invito</button>
+        ${tanti ? '<button class="btn ghost" id="casa-esci">Esci dalla casa</button>' : ''}
+      </div>
+      <div class="row-btns" style="margin-top:14px">
+        <button class="btn ghost" id="acct-out">Esci</button>
+        <button class="btn danger-ghost" id="acct-del">Elimina account</button>
+      </div>`;
+  }
+  const inviteLink = c => location.origin + location.pathname + '?invito=' + c;
+  async function casaInvita() {
+    busy('Creo l\'invito…');
+    try {
+      const { data: code, error } = await sb.rpc('create_invite'); sbErr(error); busy();
+      const link = inviteLink(code), testo = `Ti invito nella nostra casa su Spese Casa: apri ${link} oppure, dopo l'accesso, inserisci il codice ${code} in Altro → Account.`;
+      openSheet('Invita in casa', `
+        <p class="muted small" style="margin:0 0 12px">Chi entra vede e modifica tutti i dati della casa: spese, bollette, entrate e allegati. Il codice vale 24 ore e si usa una volta.</p>
+        <div class="invite-code">${esc(String(code).replace(/(\d{3})(\d{3})/, '$1 $2'))}</div>
+        <div class="row-btns" style="justify-content:center;margin:12px 0 4px">
+          ${navigator.share ? '<button type="button" class="btn primary" id="inv-share">Condividi</button>' : ''}
+          <button type="button" class="btn" id="inv-copy">Copia il link</button>
+        </div>`, () => closeSheet(), null, 'Fatto');
+      const sh = $('#inv-share'); if (sh) sh.onclick = () => navigator.share({ title: 'Spese Casa', text: testo, url: link }).catch(() => {});
+      $('#inv-copy').onclick = () => { try { navigator.clipboard.writeText(link); toast('Link copiato'); } catch { prompt('Copia il link', link); } };
+    } catch (e) { busy(); toast(/function|schema cache/i.test(e.message) ? 'Casa condivisa non ancora attiva su Supabase' : e.message); }
+  }
+  function casaEntra(pre) {
+    const pieni = db.spese.length + db.bollette.length + db.entrate.length;
+    openSheet('Entra in una casa', `
+      <p class="muted small" style="margin:0 0 12px">Inserisci il codice di 6 cifre che ti hanno mandato.</p>
+      ${pieni ? `<p class="small" style="margin:0 0 12px;color:var(--danger)"><b>Attenzione:</b> lascerai la casa attuale. ${membri && membri.length > 1 ? 'Gli altri membri continueranno a usarla.' : `I dati di questo account (${pieni} tra spese, bollette ed entrate) verranno eliminati.`}</p>` : ''}
+      <label class="f"><span>Codice invito</span><input name="code" inputmode="numeric" maxlength="7" autocomplete="one-time-code" value="${esc(pre || '')}" required data-focus class="code-in"></label>`,
+      async fd => {
+        const c = String(fd.get('code') || '').replace(/\D/g, '');
+        if (c.length !== 6) return toast('Il codice ha 6 cifre');
+        busy('Entro nella casa…');
+        try { const { data: nuovo, error } = await sb.rpc('join_household', { c }); sbErr(error); closeSheet(); await cambiaCasa(nuovo); busy(); toast('Benvenuto nella casa 🏠'); }
+        catch (e) { busy(); toast(e.message); }
+      }, null, 'Entra');
+  }
+  async function casaEsci() {
+    if (!confirm('Uscire da questa casa? Non vedrai più i suoi dati e ripartirai da una casa vuota.')) return;
+    busy('Esco dalla casa…');
+    try { const { data: nuovo, error } = await sb.rpc('leave_household'); sbErr(error); await cambiaCasa(nuovo); busy(); toast('Sei uscito dalla casa'); }
+    catch (e) { busy(); toast(e.message); }
+  }
+  async function casaTogli(uid, mail) {
+    if (!confirm(`Togliere ${mail} dalla casa? Non vedrà più i vostri dati.`)) return;
+    busy('Tolgo il membro…');
+    try { const { error } = await sb.rpc('remove_member', { u: uid }); sbErr(error); busy(); toast('Membro tolto'); loadMembers(); }
+    catch (e) { busy(); toast(e.message); }
+  }
+  // passa a un'altra casa: azzera i dati locali e ricarica quelli nuovi
+  async function cambiaCasa(nuovo) {
+    hh = nuovo; LS.set('sc_hh', hh); LS.set('sc_seeded', true);
+    queue = []; db = emptyDb(); save(); membri = null;
+    gas = ''; tok = ''; LS.set('sc_gas', ''); LS.set('sc_tok', '');
+    await pull();
+    // notifiche e resoconto seguono la casa nuova
+    if (LS.get('sc_push', '') && pushSupported() && Notification.permission === 'granted') { try { await pushEnable(); } catch {} }
+    if (resCfg().attivo && aiKey()) sb.rpc('set_ai_key', { k: aiKey() }).then(() => {}, () => {});
+    route();
+  }
+  // link d'invito: ?invito=123456
+  { const q = new URLSearchParams(location.search), c = q.get('invito');
+    if (c && /^\d{6}$/.test(c)) { LS.set('sc_invito', c); q.delete('invito'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); } }
+  function invitoInSospeso() {
+    const c = LS.get('sc_invito', ''); if (!c || DEMO || !hh) return;
+    try { localStorage.removeItem(LK('sc_invito')); } catch {}
+    casaEntra(c);
   }
 
   /* ================= RESOCONTO IA (notifica + Home) ================= */
@@ -5302,6 +5382,10 @@
       if (e.target.closest('#res-now')) { resocontoOra(); return; }
       if (e.target.closest('#acct-drive')) { migrateDriveFiles(); return; }
       if (e.target.closest('#acct-link')) { formLinkSheet(); return; }
+      if (e.target.closest('#casa-invita')) { casaInvita(); return; }
+      if (e.target.closest('#casa-entra')) { casaEntra(); return; }
+      if (e.target.closest('#casa-esci')) { casaEsci(); return; }
+      { const rm = e.target.closest('[data-rmmember]'); if (rm) { casaTogli(rm.dataset.rmmember, rm.dataset.mail); return; } }
       if (e.target.closest('#nt-off')) { if (confirm('Disattivare le notifiche su questo dispositivo?')) pushDisable().then(renderNotifyCard); return; }
       if (e.target.closest('#ac-set-btn')) { formAccess(); return; }
       if (e.target.closest('#ac-out')) { if (confirm('Scollegare tutti gli altri dispositivi? Dovranno reinserire il codice.')) api('access', { op: 'logoutAll', device: 'questo dispositivo' }).then(r => { tok = r.token || tok; LS.set('sc_tok', tok); acStatus = null; renderAccess(true); toast('Altri dispositivi scollegati'); }).catch(er => toast(er.message)); return; }
@@ -5454,6 +5538,7 @@
     if (!isLocal()) pull().finally(() => document.body.classList.remove('is-loading'));
     if (!locked) handleLaunch();
     setTimeout(monthCelebrate, 800);
+    setTimeout(invitoInSospeso, 1500);
   }
 
   function setupBind() {
