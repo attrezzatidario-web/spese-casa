@@ -115,11 +115,109 @@ export function messaggio(items: Item[]) {
   };
 }
 
+/* ---------------- resoconto IA ---------------- */
+// dati riassunti per l'IA (come il "buongiorno" della versione precedente, più entrate e saldo)
+export function resocontoDati(dati: any, today: string) {
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const cfg = dati.config || {}, b = cfg.budget || {}, mese = today.slice(0, 7);
+  const t = D(today), ieri = ymdOf(new Date(t.getTime() - 864e5)), lim7 = ymdOf(new Date(t.getTime() + 7 * 864e5));
+  const pers: Record<string, string> = {}; (dati.persone || []).forEach((p: any) => pers[p.id] = p.nome);
+  const spese: any[] = dati.spese || [], sMese = spese.filter(s => String(s.data).slice(0, 7) === mese);
+  const prevMese = ymdOf(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - 1, 1, 12))).slice(0, 7);
+  const giorniMese = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0, 12)).getUTCDate(), g = t.getUTCDate();
+  const totM = sMese.filter(s => !(b.escludiAffitto && String(s.bollettaId || '').startsWith('affitto:'))).reduce((a, s) => a + (Number(s.importo) || 0), 0);
+  const totPrev = spese.filter(s => String(s.data).slice(0, 7) === prevMese && String(s.data).slice(8, 10) <= today.slice(8, 10)).reduce((a, s) => a + (Number(s.importo) || 0), 0);
+  const entrateM = (dati.entrate || []).filter((e: any) => String(e.data).slice(0, 7) === mese).reduce((a: number, e: any) => a + (Number(e.importo) || 0), 0);
+  const perCat: Record<string, number> = {}; sMese.forEach(s => perCat[s.categoria] = r2((perCat[s.categoria] || 0) + (Number(s.importo) || 0)));
+  const perNeg: Record<string, [number, number]> = {}; sMese.forEach(s => { const n = String(s.descrizione || '').trim(); if (!n) return; const o = perNeg[n] = perNeg[n] || [0, 0]; o[0] += Number(s.importo) || 0; o[1]++; });
+  const scad: any[] = [];
+  const dd = (s: string) => diffDays(s, today);
+  (dati.bollette || []).filter((x: any) => on(x.attiva) && x.scadenza && String(x.scadenza) <= lim7).forEach((x: any) => scad.push({ cosa: x.nome, data: String(x.scadenza), tra_giorni: dd(x.scadenza), importo: Number(x.importo) || 0 }));
+  (dati.fisse || []).filter((f: any) => on(f.attiva) && f.prossima && String(f.prossima) <= lim7).forEach((f: any) => scad.push({ cosa: f.nome + (on(f.auto, false) ? ' (addebito automatico)' : ''), data: String(f.prossima), tra_giorni: dd(f.prossima), importo: Number(f.importo) || 0 }));
+  (dati.manutenzioni || []).filter((m: any) => on(m.attiva) && m.prossima && String(m.prossima) <= lim7).forEach((m: any) => scad.push({ cosa: 'Manutenzione: ' + m.nome, data: String(m.prossima), tra_giorni: dd(m.prossima), importo: Number(m.costo) || 0 }));
+  const a = cfg.affitto || {};
+  if (a.attivo && Number(a.giorno)) {
+    const due = ymdOf(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), Math.min(Number(a.giorno), giorniMese), 12)));
+    if (!spese.some(s => s.bollettaId === 'affitto:' + mese) && due <= lim7) scad.push({ cosa: 'Affitto', data: due, tra_giorni: dd(due), importo: Number(a.canone) || 0 });
+  }
+  scad.sort((x, y) => x.data.localeCompare(y.data));
+  const lims = (cfg.budgetCat || {}).limiti || {}, budCat: any[] = [];
+  Object.keys(lims).forEach(c => { const l = Number(lims[c]) || 0; if (!l) return; const tt = sMese.filter(s => s.categoria === c).reduce((x, s) => x + (Number(s.importo) || 0), 0); if (tt >= l * 0.8) budCat.push({ categoria: c, speso: r2(tt), limite: l }); });
+  return {
+    giorno: ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'][t.getUTCDay()] + ' ' + today.split('-').reverse().join('/'),
+    speseDiIeri: spese.filter(s => String(s.data) === ieri).map(s => ({ cosa: s.descrizione || s.categoria, importo: Number(s.importo), chi: pers[s.personaId] || '' })),
+    mese: { speso: r2(totM), stessoPeriodoMeseScorso: r2(totPrev), entrate: r2(entrateM), saldo: r2(entrateM - totM), limite: Number(b.limite) || null, giornoDelMese: g, giorniNelMese: giorniMese, proiezioneFineMese: g ? r2(totM / g * giorniMese) : null },
+    categorieMese: perCat,
+    negoziMese: Object.keys(perNeg).sort((x, y) => perNeg[y][0] - perNeg[x][0]).slice(0, 10).map(n => ({ negozio: n, totale: r2(perNeg[n][0]), volte: perNeg[n][1] })),
+    scadenzeProssimi7Giorni: scad,
+    budgetCategorieQuasiFiniti: budCat,
+    speseFisseMensili: r2((dati.fisse || []).filter((f: any) => on(f.attiva)).reduce((x: number, f: any) => x + (Number(f.importo) || 0) / ({ settimanale: 0.25, mensile: 1, bimestrale: 2, trimestrale: 3, quadrimestrale: 4, semestrale: 6, annuale: 12 } as any)[f.frequenza || 'mensile'] || 0, 0)),
+    coseDaFare: (dati.faccende || []).filter((f: any) => !on(f.fatto, false) && (!f.scadenza || String(f.scadenza) <= lim7)).map((f: any) => ({ cosa: f.titolo, chi: pers[f.personaId] || '', entro: f.scadenza || '' })),
+    listaSpesa: (dati.lista || []).filter((x: any) => !on(x.fatto, false)).length
+  };
+}
+
+const S = (type: string, extra?: any) => Object.assign({ type }, extra || {});
+export function promptResoconto(d: any, settimanale: boolean) {
+  return 'Sei il consulente di finanza familiare dell\'app Spese Casa, per una famiglia italiana. Oggi è ' + d.giorno + '. ' +
+    'Scrivi il ' + (settimanale ? 'resoconto della settimana' : 'resoconto del mattino') + ' da mostrare nell\'app e in una notifica sul telefono.\n' +
+    'REGOLE: tono professionale, caldo e concreto; niente markdown né asterischi; importi nel formato 1.234,56 €; usa SOLO i dati qui sotto, non inventare.\n' +
+    'titolo: massimo 40 caratteri, il fatto più importante di oggi (es. "Mese sotto controllo: 1.240 € spesi"). ' +
+    'anteprima: massimo 120 caratteri, una frase con il dato chiave e un consiglio, è il testo della notifica. ' +
+    'testo: da 6 a 12 righe brevi, ognuna inizia con un\'emoji (📊 💶 📅 🟠 📝 🛒 💡): 1) andamento del mese (speso, rispetto allo stesso periodo del mese scorso, proiezione a fine mese, limite), 2) entrate e saldo del mese se ci sono, ' +
+    '3) spese di ieri in una riga, 4) scadenze dei prossimi giorni con importi, 5) budget di categoria quasi finiti o superati, 6) cose da fare e lista della spesa se presenti. ' +
+    'Chiudi con 2 consigli pratici di risparmio basati sui dati reali (righe che iniziano con 💡), riferiti a una categoria, un negozio o una spesa fissa precisa. Salta le sezioni vuote.\n' +
+    'Dati (JSON): ' + JSON.stringify(d).slice(0, 40000);
+}
+const SCHEMA_RES = S('OBJECT', { properties: { titolo: S('STRING'), anteprima: S('STRING'), testo: S('STRING') }, required: ['titolo', 'anteprima', 'testo'] });
+
+export async function gemini(key: string, prompt: string, schema: any) {
+  const base = 'https://generativelanguage.googleapis.com/v1beta/models/';
+  const modelli = ['gemini-flash-latest', 'gemini-2.5-flash'];
+  const think = [{ thinkingBudget: 0 }, { thinkingLevel: 'minimal' }, null];
+  let ti = 0, ultimo = '';
+  for (const model of modelli) {
+    for (let tent = 0; tent < 4; tent++) {
+      const gc: any = { temperature: 0.4, responseMimeType: 'application/json', responseSchema: schema };
+      if (think[ti]) gc.thinkingConfig = think[ti];
+      const r = await fetch(base + model + ':generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: gc }) });
+      const j: any = await r.json().catch(() => ({}));
+      if (r.ok) {
+        const txt = ((((j.candidates || [])[0] || {}).content || {}).parts || []).filter((x: any) => x.text && !x.thought).map((x: any) => x.text).join('');
+        return JSON.parse(txt);
+      }
+      ultimo = (j.error && j.error.message) || ('Errore ' + r.status);
+      if (r.status === 400 && /think/i.test(ultimo) && ti < think.length - 1) { ti++; continue; }
+      if (r.status === 503 || r.status === 500) { await new Promise(res => setTimeout(res, 2000 * (tent + 1))); continue; }
+      break; // 404 modello o altro: provo il modello successivo
+    }
+  }
+  throw new Error('IA non disponibile: ' + ultimo);
+}
+
+export async function resoconto(sb: any, hh: string, subs: any[], dati: any, today: string, forza: boolean) {
+  const key0 = 'res:' + today;
+  if (!forza && subs.length && await giaInviato(sb, subs[0].id, key0)) return { saltato: 'già inviato' };
+  const { data: keys } = await sb.from('ai_keys').select('key').eq('household_id', hh).order('updated_at', { ascending: false }).limit(1);
+  if (!keys || !keys.length) return { saltato: 'nessuna chiave IA' };
+  const rs = (dati.config.notifiche || {}).resoconto || {};
+  const r = await gemini(keys[0].key, promptResoconto(resocontoDati(dati, today), rs.freq === 'settimanale'), SCHEMA_RES);
+  const row = { id: today, data: today, titolo: String(r.titolo || '').slice(0, 80), anteprima: String(r.anteprima || '').slice(0, 200), testo: String(r.testo || ''), creato: new Date().toISOString() };
+  await sb.from('records').upsert({ household_id: hh, sheet: 'Resoconti', id: today, data: row }, { onConflict: 'household_id,sheet,id' });
+  const esiti = [];
+  for (const sub of subs) {
+    const e = await invia(sb, sub, { title: row.titolo || 'Il tuo resoconto', body: row.anteprima, url: APP_URL + '#home', tag: 'spese-casa-resoconto' });
+    esiti.push(e);
+    if (e === 'ok' && !forza) await segna(sb, sub.id, key0);
+  }
+  return { titolo: row.titolo, inviate: esiti };
+}
+
 /* ---------------- server ---------------- */
 async function caricaCasa(sb: any, hh: string, today: string) {
-  const fogli = ['Config', 'Bollette', 'Fisse', 'Veicoli', 'Manutenzioni', 'Faccende'];
-  const out: any = { config: {}, bollette: [], fisse: [], veicoli: [], manutenzioni: [], faccende: [], spese: [] };
-  const map: Record<string, string> = { Bollette: 'bollette', Fisse: 'fisse', Veicoli: 'veicoli', Manutenzioni: 'manutenzioni', Faccende: 'faccende' };
+  const fogli = ['Config', 'Bollette', 'Fisse', 'Veicoli', 'Manutenzioni', 'Faccende', 'Lista', 'Persone'];
+  const out: any = { config: {}, bollette: [], fisse: [], veicoli: [], manutenzioni: [], faccende: [], lista: [], persone: [], spese: [], entrate: [] };
+  const map: Record<string, string> = { Bollette: 'bollette', Fisse: 'fisse', Veicoli: 'veicoli', Manutenzioni: 'manutenzioni', Faccende: 'faccende', Lista: 'lista', Persone: 'persone' };
   for (let from = 0; ; from += 1000) {
     const { data, error } = await sb.from('records').select('sheet,id,data').eq('household_id', hh).in('sheet', fogli).range(from, from + 999);
     if (error) throw error;
@@ -136,6 +234,11 @@ async function caricaCasa(sb: any, hh: string, today: string) {
     if (error) throw error;
     data.forEach((r: any) => out.spese.push(r.data));
     if (data.length < 1000) break;
+  }
+  {
+    const { data, error } = await sb.from('records').select('data').eq('household_id', hh).eq('sheet', 'Entrate').gte('data->>data', da).limit(1000);
+    if (error) throw error;
+    data.forEach((r: any) => out.entrate.push(r.data));
   }
   return out;
 }
@@ -158,8 +261,13 @@ const segna = (sb: any, subId: string, key: string) => sb.from('notif_log').inse
 
 async function gestisciCasa(sb: any, hh: string, subs: any[], today: string, forza: boolean) {
   const dati = await caricaCasa(sb, hh, today);
-  const ora = Math.min(23, Math.max(0, Number((dati.config.notifiche || {}).ora ?? 9)));
-  if (!forza && romeNow().hour !== ora) return { hh, saltata: true };
+  const n = dati.config.notifiche || {}, rs = n.resoconto || {}, ora = romeNow().hour;
+  const out: any = { hh };
+  // resoconto IA (ogni mattina, oppure il lunedì)
+  if (rs.attivo && ora === Math.min(23, Math.max(0, Number(rs.ora ?? 8))) && (rs.freq !== 'settimanale' || D(today).getUTCDay() === 1)) {
+    try { out.resoconto = await resoconto(sb, hh, subs, dati, today, false); } catch (e: any) { out.resoconto = { errore: String(e && e.message || e) }; }
+  }
+  if (!forza && ora !== Math.min(23, Math.max(0, Number(n.ora ?? 9)))) return out;
   const tutti = promemoria(dati, today);
   const res: any[] = [];
   for (const sub of subs) {
@@ -174,7 +282,7 @@ async function gestisciCasa(sb: any, hh: string, subs: any[], today: string, for
     res.push(esito);
     if (esito === 'ok' && !forza) { await segna(sb, sub.id, dailyKey); for (const i of items) if (i.key) await segna(sb, sub.id, i.key); }
   }
-  return { hh, promemoria: tutti.length, inviate: res };
+  return { ...out, promemoria: tutti.length, inviate: res };
 }
 
 if (import.meta.main) Deno.serve(async req => {
@@ -200,6 +308,20 @@ if (import.meta.main) Deno.serve(async req => {
       const m = items.length ? messaggio(items) : { title: 'Notifiche attive ✅', body: 'Da domani ti avviso qui quando qualcosa sta per scadere.' };
       const esito = await invia(sb, sub, { ...m, url: APP_URL, tag: 'spese-casa-prova' });
       return json({ ok: esito === 'ok', esito, promemoria: items.length });
+    }
+
+    // resoconto IA adesso (pulsante "Prova adesso" nell'app)
+    if (body.resoconto) {
+      const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+      const { data: u } = await sb.auth.getUser(jwt);
+      if (!u || !u.user) return json({ ok: false, error: 'Accedi di nuovo' }, 401);
+      const { data: mem } = await sb.from('household_members').select('household_id').eq('user_id', u.user.id).order('created_at').limit(1);
+      if (!mem || !mem.length) return json({ ok: false, error: 'Casa non trovata' }, 404);
+      const hh = mem[0].household_id;
+      const { data: subs } = await sb.from('push_subscriptions').select('*').eq('household_id', hh);
+      const r = await resoconto(sb, hh, subs || [], await caricaCasa(sb, hh, today), today, true);
+      if (r.saltato) return json({ ok: false, error: r.saltato === 'nessuna chiave IA' ? 'Attiva prima il resoconto con la tua chiave IA' : r.saltato });
+      return json({ ok: true, ...r });
     }
 
     // giro orario (pianificato)

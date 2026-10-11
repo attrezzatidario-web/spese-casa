@@ -47,7 +47,7 @@
   }
   let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
   if (!db.estratti) db.estratti = [];
-  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni', 'progetti', 'faccende'].forEach(k => { if (!db[k]) db[k] = []; });
+  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni', 'progetti', 'faccende', 'resoconti'].forEach(k => { if (!db[k]) db[k] = []; });
   if (!db.fisse) db.fisse = [];
   if (!db.veicoli) db.veicoli = [];
   if (!db.config) db.config = {};
@@ -212,7 +212,7 @@
   /* ================= Data layer ================= */
   const BUCKET = 'documenti';
   const b64Blob = (b64, mime) => { const bin = atob(b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni', Progetti: 'progetti', Faccende: 'faccende' };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni', Progetti: 'progetti', Faccende: 'faccende', Resoconti: 'resoconti' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -258,7 +258,7 @@
     return j.result;
   }
 
-  const emptyDb = () => ({ spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [], persone: [], entrate: [], entrateFisse: [], obiettivi: [], lista: [], documenti: [], manutenzioni: [], progetti: [], faccende: [] });
+  const emptyDb = () => ({ resoconti: [], spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [], persone: [], entrate: [], entrateFisse: [], obiettivi: [], lista: [], documenti: [], manutenzioni: [], progetti: [], faccende: [] });
   const recId = op => op.sheet === 'Config' ? String(op.row.chiave) : op.sheet === 'Categorie' ? String(op.row.nome) : String(op.row.id);
   const netErr = e => e instanceof TypeError || /fetch|network|load failed/i.test(String(e && e.message));
   const chunks = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
@@ -310,7 +310,7 @@
       queue = queue.slice(batch.length); save();
       online = true;
       // fase di passaggio: copia anche sul Foglio Google, così IA, Telegram e notifiche restano aggiornati
-      const gops = batch.filter(o => o.sheet === 'Config' || KEY[o.sheet]);
+      const gops = batch.filter(o => o.sheet === 'Config' || (KEY[o.sheet] && o.sheet !== 'Resoconti'));
       if (gas && tok && gops.length) sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: gops }) }).catch(() => {});
     } catch (e) {
       if (e.message === 'AUTH_REQ') { /* serve di nuovo l'accesso */ }
@@ -512,6 +512,7 @@
       <path d="${line} L${lx.toFixed(1)},${H} L0,${H} Z" fill="url(#hs-g)"/><path d="${line}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
   }
   function renderHome() {
+    renderResoconto();
     $('.month-label').textContent = monthName(homeMonth);
     const ms = db.spese.filter(s => ym(s.data) === homeMonth);
     const tot = sum(ms);
@@ -779,11 +780,12 @@
     const box = $('#acct-set'); if (!box) return;
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
     box.innerHTML = `
-      <div class="nt-status"><div class="nt-row"><i class="dot ${gas ? 'paid' : 'late'}"></i><div><b>Foglio Google ${gas ? 'collegato' : 'non collegato'}</b><small>${gas ? 'IA, Telegram, notifiche e file passano ancora dal Foglio. Le modifiche vengono copiate anche lì.' : 'Se usavi già Spese Casa, importa qui i tuoi dati.'}</small></div></div></div>
+      <div class="nt-status"><div class="nt-row"><i class="dot ${gas ? 'paid' : 'late'}"></i><div><b>Foglio Google ${gas ? 'collegato' : 'non collegato'}</b><small>${gas ? 'Le modifiche vengono copiate anche sul Foglio, così la versione precedente resta aggiornata.' : 'Se usavi già Spese Casa, importa qui i tuoi dati.'}</small></div></div></div>
       <div class="row-btns">
         <button class="btn ${gas ? '' : 'primary'}" id="acct-import">${gas ? 'Importa di nuovo dal Foglio' : 'Importa dal Foglio Google'}</button>
         ${gas ? '<button class="btn ghost" id="acct-unlink">Scollega il Foglio</button>' : ''}
       </div>
+      ${gas && driveJobs().length ? `<p class="muted small" style="margin:12px 0 8px">Hai <b>${driveJobs().length} file</b> ancora su Google Drive: copiali nel tuo archivio per aprirli da qualsiasi dispositivo.</p><button class="btn primary" id="acct-drive">Sposta i file da Google Drive</button>` : ''}
       <div class="row-btns" style="margin-top:8px">
         <button class="btn ghost" id="acct-out">Esci</button>
         <button class="btn danger-ghost" id="acct-del">Elimina account</button>
@@ -810,6 +812,7 @@
     j = await r.json(); if (!j.ok) throw new Error(j.error || 'Lettura non riuscita');
     const d = j.data, rows = [];
     Object.entries(KEY).forEach(([sheet, k]) => {
+      if (sheet === 'Resoconti') return;
       if (sheet === 'Categorie') (d.categorie || []).forEach(nome => rows.push({ household_id: hh, sheet, id: String(nome), data: { nome } }));
       else (d[k] || []).forEach(row => { if (row && row.id != null && row.id !== '') rows.push({ household_id: hh, sheet, id: String(row.id), data: row }); });
     });
@@ -1036,6 +1039,103 @@
       }, null, 'Registra pagamento');
   }
 
+  /* ================= RESOCONTO IA (notifica + Home) ================= */
+  const resCfg = () => ((db.config.notifiche || {}).resoconto) || {};
+  function renderResoconto() {
+    const card = $('#h-res'); if (!card) return;
+    const list = (db.resoconti || []).slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+    const r = list[0];
+    if (!r || daysTo(r.data) < -7) { card.hidden = true; return; }
+    card.hidden = false;
+    $('#h-res-d').textContent = r.data === today() ? 'oggi' : shortDate(r.data);
+    $('#h-res-body').innerHTML = `<b class="res-tit">${esc(r.titolo || '')}</b><div class="res-t">${esc(r.testo || '').replace(/\n/g, '<br>')}</div>`;
+  }
+  const resBox = () => `<div class="nt-status" style="margin-top:14px"><div class="nt-row"><i class="dot ${resCfg().attivo ? 'paid' : 'late'}"></i><div><b>Resoconto IA</b><small>${esc(resSummary())}</small></div></div></div>
+      <div class="row-btns">${resCfg().attivo ? '<button class="btn" id="res-now">Prova adesso</button>' : ''}<button class="btn ${resCfg().attivo ? 'ghost' : ''}" id="res-set">${resCfg().attivo ? 'Modifica' : 'Attiva resoconto IA'}</button></div>`;
+  function resSummary() {
+    const c = resCfg();
+    if (!c.attivo) return 'Ogni mattina un resoconto dei conti con i consigli dell\'IA, come notifica e in Home.';
+    return (c.freq === 'settimanale' ? 'Ogni lunedì' : 'Ogni giorno') + ` alle ${pad(Number(c.ora ?? 8))}:00`;
+  }
+  function formResoconto() {
+    if (DEMO) return toast('Nella demo non è disponibile');
+    const c = { attivo: false, freq: 'giornaliero', ora: 8, ...resCfg() };
+    const hours = Array.from({ length: 16 }, (_, i) => i + 6);
+    openSheet('Resoconto IA', `
+      <p class="muted small" style="margin:0 0 12px">L'IA analizza spese, entrate, scadenze e budget e ti manda un resoconto con consigli pratici.</p>
+      <label class="sw"><input type="checkbox" name="attivo" ${c.attivo ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>Attiva il resoconto</b><small>Per scriverlo mentre il telefono è in pausa, la tua chiave Gemini viene salvata sul server in modo che solo il servizio notifiche possa usarla. Spegnendo il resoconto viene cancellata.</small></span></label>
+      <div class="f-row" style="margin-top:6px">
+        <label class="f"><span>Quando</span><select name="freq"><option value="giornaliero"${c.freq !== 'settimanale' ? ' selected' : ''}>Ogni mattina</option><option value="settimanale"${c.freq === 'settimanale' ? ' selected' : ''}>Ogni lunedì</option></select></label>
+        <label class="f"><span>Orario</span><select name="ora">${hours.map(h => `<option value="${h}"${Number(c.ora) === h ? ' selected' : ''}>${pad(h)}:00</option>`).join('')}</select></label>
+      </div>`,
+      async fd => {
+        const v = { attivo: fd.get('attivo') === 'on', freq: fd.get('freq'), ora: Number(fd.get('ora')) };
+        busy(v.attivo ? 'Attivo il resoconto…' : 'Salvo…');
+        try {
+          if (v.attivo) {
+            if (!aiKey()) throw new Error('Inserisci prima la chiave IA su questo dispositivo (Altro → Intelligenza artificiale)');
+            const { error } = await sb.rpc('set_ai_key', { k: aiKey() }); sbErr(error);
+          } else { const { error } = await sb.rpc('delete_ai_key'); sbErr(error); }
+          setConfig('notifiche', { ...(db.config.notifiche || {}), resoconto: v });
+          await syncNow();
+          busy(); closeSheet(); toast(v.attivo ? 'Resoconto attivo' : 'Resoconto spento'); render();
+        } catch (e) { busy(); toast(/function|schema cache|does not exist/i.test(e.message) ? 'Servizio resoconto non ancora attivo su Supabase' : e.message); }
+      }, null, 'Salva');
+  }
+  async function resocontoOra() {
+    busy('L\'IA scrive il resoconto…');
+    try {
+      await syncNow();
+      const { data, error } = await sb.functions.invoke('notifiche', { body: { resoconto: true } });
+      if (error) { let msg = error.message; try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch {} throw new Error(msg); }
+      if (!data || !data.ok) throw new Error((data && data.error) || 'Resoconto non riuscito');
+      await pull();
+      busy(); toast('Resoconto pronto' + ((data.inviate || []).includes('ok') ? ' e inviato come notifica' : ''));
+      route();
+    } catch (e) { busy(); toast(/Failed to send|Failed to fetch|FunctionsFetchError/i.test(e.message) ? 'Servizio non raggiungibile, riprova' : e.message); }
+  }
+
+  /* ================= FILE DA GOOGLE DRIVE → ARCHIVIO ================= */
+  function driveJobs() {
+    const jobs = [], drive = v => { v = String(v || ''); return v && !v.startsWith('sb:') && !v.startsWith('demo:') && /[-\w]{20,}/.test(v); };
+    db.spese.forEach(r => drive(r.allegato) && jobs.push({ sheet: 'Spese', row: r, field: 'allegato', cartella: 'Scontrini' }));
+    db.entrate.forEach(r => drive(r.allegato) && jobs.push({ sheet: 'Entrate', row: r, field: 'allegato', cartella: 'Buste paga' }));
+    db.fatture.forEach(r => drive(r.allegato) && jobs.push({ sheet: 'Fatture', row: r, field: 'allegato', cartella: 'Bollette' }));
+    db.documenti.forEach(r => drive(r.fileId) && jobs.push({ sheet: 'Documenti', row: r, field: 'fileId', cartella: r.tipo || 'Documenti' }));
+    (db.estratti || []).forEach(r => drive(r.fileUrl) && jobs.push({ sheet: 'Estratti', row: r, field: 'fileUrl', cartella: 'Estratti conto', estratto: true }));
+    return jobs;
+  }
+  async function migrateDriveFiles() {
+    if (!gas || !tok) return toast('Collega prima il Foglio: Altro → Account → Importa dal Foglio Google');
+    const jobs = driveJobs();
+    if (!jobs.length) return toast('Nessun file da spostare: sono già tutti nel tuo archivio');
+    if (!confirm(`Copio ${jobs.length} file da Google Drive nel tuo archivio. Su Drive restano come copia. Continuare?`)) return;
+    let ok = 0, ko = 0, fatte = 0;
+    const one = async j => {
+      const v = String(j.row[j.field]);
+      const q = j.estratto ? 'action=estrattoFile&id=' + encodeURIComponent(j.row.id) : 'action=file&id=' + encodeURIComponent((v.match(/[-\w]{25,}/) || [v])[0]);
+      const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + q + '&t=' + Date.now());
+      const x = await r.json(); if (!x.ok) throw new Error(x.error || 'file non trovato');
+      const id = await uploadDoc({ b64: x.data.b64, mime: x.data.mime, name: x.data.name }, j.cartella, x.data.name);
+      const cur = (db[KEY[j.sheet]] || []).find(e => String(e.id) === String(j.row.id)) || j.row;
+      write([{ action: 'upsert', sheet: j.sheet, row: { ...cur, [j.field]: id } }]);
+    };
+    let next = 0;
+    const worker = async () => {
+      while (next < jobs.length) {
+        const j = jobs[next++];
+        try { await one(j); ok++; } catch (e) { ko++; }
+        fatte++; busy(`Sposto i file: ${fatte} di ${jobs.length}…`);
+      }
+    };
+    busy(`Sposto i file: 0 di ${jobs.length}…`);
+    await Promise.all([worker(), worker()]);
+    try { await syncNow(); } catch {}
+    busy(); renderAccount();
+    toast(ko ? `Spostati ${ok} file, ${ko} non trovati su Drive` : `Spostati tutti i ${ok} file nel tuo archivio`);
+  }
+
   /* ================= NOTIFICHE SUL TELEFONO (web push) ================= */
   const VAPID_PUBLIC = 'BOmeNL_VFB4WwSPylaBuisV2pi0A-GsmoeJK2CgeLpZVQ_HczJIn5T0wgKijQlFQPCECjPKFCApTyqzkruYu28c';
   const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1082,7 +1182,7 @@
       box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${isIOS()
         ? 'Su iPhone le notifiche arrivano solo con l\'app aggiunta alla schermata Home: in Safari premi <b>Condividi</b> → <b>Aggiungi alla schermata Home</b>, poi apri l\'app dall\'icona e torna qui.'
         : 'Questo browser non supporta le notifiche. Prova con Chrome, Edge o Safari aggiornati.'}</p>
-        <button class="btn" data-rent="notify">Cosa avvisare</button>`;
+        <button class="btn" data-rent="notify">Cosa avvisare</button>` + resBox();
       return;
     }
     if (!pushState) { const s = await pushCurrent(); pushState = { on: !!s && LS.get('sc_push', '') === s.endpoint, endpoint: s ? s.endpoint : '' }; }
@@ -1090,7 +1190,8 @@
     box.innerHTML = `<div class="nt-status"><div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${on ? 'Attive su questo dispositivo' : 'Non attive su questo dispositivo'}</b><small>${on ? esc(quando) : 'Promemoria di ' + esc(cosa) + ' direttamente sul telefono.'}</small></div></div></div>
       <div class="row-btns">${on
         ? '<button class="btn primary" id="nt-test">Invia prova</button><button class="btn" data-rent="notify">Cosa avvisare</button><button class="btn ghost" id="nt-off">Disattiva</button>'
-        : '<button class="btn primary" id="nt-on">Attiva notifiche</button><button class="btn" data-rent="notify">Cosa avvisare</button>'}</div>`;
+        : '<button class="btn primary" id="nt-on">Attiva notifiche</button><button class="btn" data-rent="notify">Cosa avvisare</button>'}</div>
+` + resBox();
   }
   async function notifyOn() {
     busy('Attivo le notifiche…');
@@ -3359,6 +3460,7 @@
         if (!window.SC_AI) throw new Error('IA non caricata: ricarica la pagina');
         await window.SC_AI.run(key, { task: 'test' }, null, 25000);
         LS.set('sc_aikey', key);
+        if (resCfg().attivo && sb) sb.rpc('set_ai_key', { k: key }).then(() => {}, () => {});
       } else {
         try { localStorage.removeItem(LK('sc_aikey')); } catch {}
         if (window.SC_AI) window.SC_AI.resetModel();
@@ -5184,6 +5286,9 @@
       if (e.target.closest('#bk-now')) { bkApi('now'); return; }
       if (e.target.closest('#nt-test')) { notifyTest(); return; }
       if (e.target.closest('#nt-on')) { notifyOn(); return; }
+      if (e.target.closest('#res-set')) { formResoconto(); return; }
+      if (e.target.closest('#res-now')) { resocontoOra(); return; }
+      if (e.target.closest('#acct-drive')) { migrateDriveFiles(); return; }
       if (e.target.closest('#nt-off')) { if (confirm('Disattivare le notifiche su questo dispositivo?')) pushDisable().then(renderNotifyCard); return; }
       if (e.target.closest('#ac-set-btn')) { formAccess(); return; }
       if (e.target.closest('#ac-out')) { if (confirm('Scollegare tutti gli altri dispositivi? Dovranno reinserire il codice.')) api('access', { op: 'logoutAll', device: 'questo dispositivo' }).then(r => { tok = r.token || tok; LS.set('sc_tok', tok); acStatus = null; renderAccess(true); toast('Altri dispositivi scollegati'); }).catch(er => toast(er.message)); return; }

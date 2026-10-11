@@ -2059,3 +2059,6 @@ div.f { margin-bottom: 14px; }
 
 /* v2 — accesso con email */
 #login-step1:not([hidden]), #login-step2:not([hidden]) { display: grid; gap: 10px; }
+.res-tit { display: block; font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.res-t { font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+.c-res { order: -1; }
