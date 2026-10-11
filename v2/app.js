@@ -210,6 +210,8 @@
   }
 
   /* ================= Data layer ================= */
+  const BUCKET = 'documenti';
+  const b64Blob = (b64, mime) => { const bin = atob(b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
   const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni', Progetti: 'progetti', Faccende: 'faccende' };
 
   function applyLocal(op) {
@@ -226,6 +228,7 @@
       if (op.action === 'upsert') db.categorie.push(nome);
       return;
     }
+    if (!k) return; // righe solo sul server (es. dettaglio estratti)
     const id = op.action === 'upsert' ? op.row.id : op.id;
     db[k] = db[k].filter(r => String(r.id) !== String(id));
     if (op.action === 'upsert') db[k].push(op.row);
@@ -307,7 +310,8 @@
       queue = queue.slice(batch.length); save();
       online = true;
       // fase di passaggio: copia anche sul Foglio Google, così IA, Telegram e notifiche restano aggiornati
-      if (gas && tok) sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: batch }) }).catch(() => {});
+      const gops = batch.filter(o => o.sheet === 'Config' || KEY[o.sheet]);
+      if (gas && tok && gops.length) sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: gops }) }).catch(() => {});
     } catch (e) {
       if (e.message === 'AUTH_REQ') { /* serve di nuovo l'accesso */ }
       else if (e.net || !navigator.onLine) online = false;
@@ -1129,18 +1133,34 @@
   }
   async function uploadDoc(doc, cartella, name) {
     if (DEMO) { const id = 'demo:' + uid(); const bin = atob(doc.b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); demoFiles[id] = { blob: new Blob([arr], { type: doc.mime }), name: name || doc.name, mime: doc.mime }; return id; }
-    if (isLocal()) throw new Error('Gli allegati richiedono il collegamento al Foglio Google');
-    const r = await api('upload', { b64: doc.b64, mime: doc.mime, name: name || doc.name, cartella });
-    return r.id;
+    if (isLocal() || !sb || !hh) throw new Error('Accedi per salvare gli allegati');
+    const fname = String(name || doc.name || 'documento').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.\- ]/g, '_').slice(0, 80);
+    const path = `${hh}/${String(cartella || 'Documenti').replace(/[^\w\- ]/g, '_')}/${uid()}-${fname}`;
+    const { error } = await sb.storage.from(BUCKET).upload(path, b64Blob(doc.b64, doc.mime), { contentType: doc.mime, upsert: false });
+    if (error) throw new Error(netErr(error) ? 'Connessione assente: allegato non salvato' : 'Allegato non salvato: ' + error.message);
+    return 'sb:' + path;
+  }
+  // elimina un allegato (nuovo archivio o vecchio Google Drive)
+  function delFile(id) {
+    if (!id || DEMO) return;
+    if (String(id).startsWith('sb:')) { if (sb) sb.storage.from(BUCKET).remove([String(id).slice(3)]).catch(() => {}); return; }
+    if (gas) api('deleteFile', { id }).catch(() => {});
+  }
+  async function sbFile(id) {
+    const path = String(id).slice(3);
+    const { data, error } = await sb.storage.from(BUCKET).download(path);
+    if (error || !data) throw new Error(error && netErr(error) ? 'Connessione assente' : 'File non trovato');
+    const name = decodeURIComponent(path.split('/').pop()).replace(/^[a-z0-9]{6,}-/, '');
+    return { blob: data, name, mime: data.type || (/\.pdf$/i.test(name) ? 'application/pdf' : 'image/jpeg') };
   }
   // riquadro allegato dentro un form: gestisce file nuovo (in attesa) o già salvato
   function attachBox(opts) {
     const st = { pending: opts.pending || null, id: opts.id || '', removed: false };
     const box = $('#att-box');
     const draw = () => {
-      if (st.pending) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(st.pending.name)}</b><small>Verrà salvato su Google Drive</small></div>
+      if (st.pending) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(st.pending.name)}</b><small>Verrà salvato nel tuo archivio</small></div>
         ${opts.onRead && aiReady() ? `<button type="button" class="btn sm ai-inline" id="att-ai">${ICO.spark}Leggi con IA</button>` : ''}<button type="button" class="icon-btn" id="att-x" aria-label="Rimuovi">✕</button></div>`;
-      else if (st.id && !st.removed) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(opts.label)} allegata</b><small>Salvata su Google Drive</small></div>
+      else if (st.id && !st.removed) box.innerHTML = `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(opts.label)} allegata</b><small>Salvata nel tuo archivio</small></div>
         <button type="button" class="btn sm" id="att-open">Apri</button><button type="button" class="icon-btn" id="att-x" aria-label="Rimuovi">✕</button></div>`;
       else box.innerHTML = `<button type="button" class="att add" id="att-add">${ICO_CLIP}<span>Allega ${esc(opts.label.toLowerCase())} <small>PDF o foto</small></span></button>`;
       const a = $('#att-add'), x = $('#att-x'), o = $('#att-open'), ai = $('#att-ai');
@@ -1933,7 +1953,7 @@
       $('#st-pages').appendChild(wrap);
     });
     else $('#st-pages').innerHTML = `<div class="empty-state small-es"><div class="es-ic"><svg viewBox="0 0 24 24">${ICO_DOC.replace(/<\/?svg[^>]*>/g, '')}</svg></div>
-      <p class="muted small">${stmt.fileUrl ? 'Il file evidenziato è salvato nel tuo Google Drive.' : 'Anteprima non disponibile per le analisi salvate.'}</p>
+      <p class="muted small">${stmt.fileUrl ? 'Il file evidenziato è salvato nel tuo archivio.' : 'Anteprima non disponibile per le analisi salvate.'}</p>
       ${stmt.fileUrl && stmt.savedId ? `<button class="btn sm" data-stmt="getfile:${esc(stmt.savedId)}">Scarica il file</button>` : ''}</div>`;
   }
 
@@ -2058,48 +2078,59 @@
   const unpackMovs = txt => { try { return JSON.parse(txt || '[]').map(a => ({ id: uid(), data: a[0], descrizione: a[1], esercente: a[2], importo: Number(a[3]), segno: a[4] ? 'entrata' : 'uscita', categoria: a[5], box: a[6] ? a[6].split(',').map(Number) : null, st: a[7], match: a[8] || null, page: a[9] === '' ? null : Number(a[9]) })); } catch { return []; } };
 
   async function saveStatement() {
-    if (isLocal()) return toast('Il salvataggio richiede il collegamento al Foglio Google');
+    if (isLocal()) return toast('Accedi per salvare l\'analisi');
     busy('Salvo l\'analisi…');
     try {
       const ids = stmt.movs.filter(x => x.st === 'ok' && x.match).map(x => x.match);
       const ops = ids.map(id => db.spese.find(x => x.id === id)).filter(sp => sp && !sp.verificato).map(sp => ({ action: 'upsert', sheet: 'Spese', row: { ...sp, verificato: today() } }));
-      if (ops.length) { write(ops); await syncNow(); }
-      let pdf = '', mime = '', fileName = '';
-      if (stmt.pages && stmt.pages.length) { const f = await buildStatementFile(); pdf = await blobB64(f.blob); mime = f.mime; fileName = f.name; }
       const c = stmtCounts();
       const id = stmt.savedId || uid();
-      const row = { id, data: today(), nome: stmt.name, banca: stmt.banca || '', periodoDa: stmt.periodoDa || '', periodoA: stmt.periodoA || '', ok: c.ok, prob: c.prob, miss: c.miss, tot: c.tot, fileUrl: stmt.fileUrl || '', movimenti: packMovs(), onlyApp: JSON.stringify(stmt.onlyApp.map(s => s.id)) };
-      const r = await api('saveStatement', { row, pdf, mime, fileName });
-      stmt.savedId = id; stmt.fileUrl = r.fileUrl || stmt.fileUrl;
-      const meta = { ...row, fileUrl: stmt.fileUrl }; delete meta.movimenti; delete meta.onlyApp;
+      let fileUrl = stmt.fileUrl || '';
+      if (stmt.pages && stmt.pages.length) {
+        const f = await buildStatementFile();
+        const old = fileUrl;
+        fileUrl = await uploadDoc({ b64: await blobB64(f.blob), mime: f.mime, name: f.name }, 'Estratti conto', f.name);
+        if (old && old !== fileUrl && old.startsWith('sb:')) delFile(old);
+      }
+      const meta = { id, data: today(), nome: stmt.name, banca: stmt.banca || '', periodoDa: stmt.periodoDa || '', periodoA: stmt.periodoA || '', ok: c.ok, prob: c.prob, miss: c.miss, tot: c.tot, fileUrl };
+      // il dettaglio dei movimenti sta in una riga a parte: si carica solo quando apri l'analisi
+      const detail = { id, movimenti: packMovs(), onlyApp: JSON.stringify(stmt.onlyApp.map(s => s.id)) };
+      write([...ops, { action: 'upsert', sheet: 'Estratti', row: meta }, { action: 'upsert', sheet: 'EstrattiDettaglio', row: detail }]);
+      await syncNow();
+      stmt.savedId = id; stmt.fileUrl = fileUrl;
       db.estratti = [meta, ...(db.estratti || []).filter(x => x.id !== id)]; save();
-      busy(); renderStmt(); toast('Analisi salvata' + (r.fileUrl ? ' · file su Google Drive' : ''));
-    } catch (e) {
-      busy();
-      toast(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : 'Errore: ' + e.message);
-    }
+      busy(); renderStmt(); toast('Analisi salvata' + (fileUrl ? ' con il file evidenziato' : ''));
+    } catch (e) { busy(); toast('Errore: ' + e.message); }
   }
 
-  // scarica il file evidenziato salvato su Drive passando dallo script (funziona con qualsiasi account Google aperto nel browser)
   async function downloadSavedFile(id) {
     busy('Scarico il file…');
     try {
-      if (!gas) throw new Error(SOON);
+      const x = (db.estratti || []).find(e => e.id === id) || {};
+      if (String(x.fileUrl || '').startsWith('sb:')) { const f = await sbFile(x.fileUrl); busy(); return saveBlob(f.blob, f.name); }
+      if (!gas) throw new Error('il file è sul Google Drive della versione precedente: collega il Foglio da Altro → Account');
       const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
       const j = await r.json(); if (!j.ok) throw new Error(j.error);
-      const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-      busy(); saveBlob(new Blob([arr], { type: j.data.mime }), j.data.name);
-    } catch (e) { busy(); toast(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : 'Impossibile scaricare: ' + e.message); }
+      busy(); saveBlob(b64Blob(j.data.b64, j.data.mime), j.data.name);
+    } catch (e) { busy(); toast('Impossibile scaricare: ' + e.message); }
   }
 
   async function openSavedStatement(id) {
     busy('Apro l\'analisi…');
     try {
-      if (!gas) throw new Error(SOON);
-      const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
-      const j = await r.json(); if (!j.ok) throw new Error(j.error);
-      const d = j.data;
+      const meta = (db.estratti || []).find(e => e.id === id) || {};
+      let d = null;
+      if (sb && hh) {
+        const { data, error } = await sb.from('records').select('data').eq('household_id', hh).eq('sheet', 'EstrattiDettaglio').eq('id', id).limit(1);
+        sbErr(error);
+        if (data && data.length) d = { ...meta, ...data[0].data };
+      }
+      if (!d) {
+        if (!gas) throw new Error('il dettaglio è sul Foglio Google della versione precedente: collegalo da Altro → Account');
+        const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estratto&id=' + encodeURIComponent(id) + '&t=' + Date.now());
+        const j = await r.json(); if (!j.ok) throw new Error(j.error);
+        d = j.data;
+      }
       let only = []; try { only = JSON.parse(d.onlyApp || '[]'); } catch {}
       stmt = { savedId: d.id, kind: 'saved', name: d.nome, banca: d.banca, periodoDa: d.periodoDa, periodoA: d.periodoA, fileUrl: d.fileUrl, movs: unpackMovs(d.movimenti), pages: [], onlyApp: only.map(x => db.spese.find(s => s.id === x)).filter(Boolean) };
       Object.keys(stF).forEach(k => (stF[k] = '')); stmtFilter = 'all'; stView = 'list';
@@ -2120,8 +2151,10 @@
     if (act.startsWith('getfile:')) return downloadSavedFile(act.slice(8));
     if (act.startsWith('del:')) {
       const id = act.slice(4);
-      if (!confirm('Eliminare questa analisi salvata? Il file su Google Drive resta.')) return;
-      write([{ action: 'delete', sheet: 'Estratti', id }]);
+      if (!confirm('Eliminare questa analisi salvata e il suo file?')) return;
+      const x = (db.estratti || []).find(e => e.id === id);
+      write([{ action: 'delete', sheet: 'Estratti', id }, { action: 'delete', sheet: 'EstrattiDettaglio', id }]);
+      if (x && String(x.fileUrl || '').startsWith('sb:')) delFile(x.fileUrl);
       if (stmt && stmt.savedId === id) stmt.savedId = null;
       renderStmt(); toast('Analisi eliminata'); return;
     }
@@ -3517,7 +3550,7 @@
     db.spese.filter(s => s.allegato).forEach(s => out.push({ key: 's:' + s.id, fileId: s.allegato, nome: s.descrizione || s.categoria || 'Scontrino', cat: 'Scontrini', data: s.data, importo: s.importo, logo: iconHTML(s.descrizione, s.categoria, s.sito), note: s.categoria, ref: { k: 'spesa', id: s.id } }));
     db.entrate.filter(e => e.allegato).forEach(e => { const p = personaById(e.personaId); out.push({ key: 'e:' + e.id, fileId: e.allegato, nome: e.descrizione || e.tipo || 'Busta paga', cat: 'Buste paga', data: e.data, importo: e.importo, note: p ? p.nome : '', ref: { k: 'entrata', id: e.id } }); });
     db.fatture.filter(f => f.allegato).forEach(f => { const b = db.bollette.find(x => x.id === f.bollettaId); out.push({ key: 'f:' + f.id, fileId: f.allegato, nome: (b ? b.nome : 'Bolletta') + (f.numero ? ' n. ' + f.numero : ''), cat: 'Bollette', data: f.emissione || f.scadenza, importo: f.importo, logo: b ? iconHTML(b.nome) : '', ref: { k: 'fattura', id: f.id } }); });
-    (db.estratti || []).forEach(x => { const m = String(x.fileUrl || '').match(/[-\w]{25,}/); if (m) out.push({ key: 'x:' + x.id, fileId: m[0], nome: x.nome || 'Estratto conto', cat: 'Estratti conto', data: x.periodoA || x.data, note: x.banca, ref: { k: 'estratto', id: x.id } }); });
+    (db.estratti || []).forEach(x => { const fu = String(x.fileUrl || ''), m = fu.startsWith('sb:') ? [fu] : fu.match(/[-\w]{25,}/); if (m) out.push({ key: 'x:' + x.id, fileId: m[0], nome: x.nome || 'Estratto conto', cat: 'Estratti conto', data: x.periodoA || x.data, note: x.banca, ref: { k: 'estratto', id: x.id } }); });
     return out.filter(d => d.fileId).sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
   }
   function renderDocs() {
@@ -3546,7 +3579,7 @@
     const isNew = !d;
     d = d || { id: uid(), nome: file ? file.name.replace(/\.[^.]+$/, '') : '', tipo: docF.cat && DOC_TIPI.includes(docF.cat) ? docF.cat : 'Garanzie', data: today(), scadenza: '', note: '' };
     openSheet(isNew ? 'Nuovo documento' : 'Modifica documento', `
-      ${file ? `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(file.name)}</b><small>Verrà salvato su Google Drive</small></div></div><div style="height:12px"></div>` : ''}
+      ${file ? `<div class="att on">${ICO_CLIP}<div class="att-m"><b>${esc(file.name)}</b><small>Verrà salvato nel tuo archivio</small></div></div><div style="height:12px"></div>` : ''}
       <label class="f"><span>Nome</span><input name="nome" value="${esc(d.nome)}" placeholder="Es. Garanzia lavatrice, Contratto luce…" required data-focus></label>
       <label class="f"><span>Tipo</span><div class="dt-tipi">${DOC_TIPI.map(t => `<label class="tp"><input type="radio" name="tipo" value="${t}" ${t === d.tipo ? 'checked' : ''}><span>${docIco(t)}${t}</span></label>`).join('')}</div></label>
       <div class="f-row">
@@ -3560,20 +3593,20 @@
         if (file) {
           busy('Carico il documento…');
           try { row.fileId = await uploadDoc(file, row.tipo, nome + (file.mime === 'application/pdf' ? '.pdf' : '.jpg')); row.mime = file.mime; busy(); }
-          catch (e) { busy(); return toast(/drive|permission|permess|autorizz/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message); }
+          catch (e) { busy(); return toast(e.message); }
         }
         write([{ action: 'upsert', sheet: 'Documenti', row }]); closeSheet(); toast(isNew ? 'Documento salvato' : 'Documento aggiornato');
       },
       isNew ? null : () => delDoc(d));
   }
   function delDoc(d) {
-    if (!confirm('Eliminare questo documento? Il file viene spostato nel cestino di Google Drive.')) return;
+    if (!confirm('Eliminare questo documento e il suo file?')) return;
     write([{ action: 'delete', sheet: 'Documenti', id: d.id }]);
-    if (!isLocal() && d.fileId) api('deleteFile', { id: d.fileId }).catch(() => {});
+    if (!isLocal() && d.fileId) delFile(d.fileId);
     closeSheet(); closeViewer(); toast('Documento eliminato');
   }
   async function newDoc() {
-    if (isLocal() && !DEMO) return toast('I documenti richiedono il collegamento al Foglio Google');
+    if (isLocal() && !DEMO) return toast('Accedi per salvare i documenti');
     let file; try { file = await pickDoc(); } catch (e) { if (e.message !== 'annullato') toast(e.message); return; }
     formDoc(null, file);
   }
@@ -3583,7 +3616,12 @@
     if (DEMO) { if (!demoFiles[id]) demoFiles[id] = { blob: await demoDocBlob(id), name: ((demoMeta[id] || {}).title || 'documento') + '.png', mime: 'image/png' }; return demoFiles[id]; }
     const key = new URL('__doc/' + encodeURIComponent(id), location.href).href;
     try { const c = await caches.open('sc-docs'); const hit = await c.match(key); if (hit) { const blob = await hit.blob(); return { blob, name: decodeURIComponent(hit.headers.get('x-name') || 'documento'), mime: blob.type }; } } catch {}
-    if (!gas) throw new Error(SOON);
+    if (String(id).startsWith('sb:')) {
+      const f = await sbFile(id);
+      try { const c = await caches.open('sc-docs'); await c.put(key, new Response(f.blob, { headers: { 'content-type': f.mime, 'x-name': encodeURIComponent(f.name) } })); } catch {}
+      return f;
+    }
+    if (!gas) throw new Error('Questo file è sul Google Drive della versione precedente: collega il Foglio da Altro → Account per aprirlo.');
     const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=file&id=' + encodeURIComponent(id) + '&t=' + Date.now());
     const j = await r.json(); if (!j.ok) throw new Error(j.error);
     const bin = atob(j.data.b64), arr = new Uint8Array(bin.length);
