@@ -183,7 +183,7 @@
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   async function listModels(key) {
-    const r = await fetch(GEMINI_BASE + 'models?pageSize=200', { headers: { 'x-goog-api-key': key } });
+    const r = await tfetch(GEMINI_BASE + 'models?pageSize=200', { headers: { 'x-goog-api-key': key } }, null, 15000);
     const j = await r.json().catch(() => ({}));
     return (j.models || []).filter(m => (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0).map(m => m.name.replace('models/', ''));
   }
@@ -197,26 +197,33 @@
     return list[0] || null;
   }
 
-  async function gemini(key, parts, schema, signal) {
+  // fetch con limite di tempo: se Google non risponde non resto bloccato
+  async function tfetch(url, opts, signal, ms) {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), ms);
+    const onAbort = () => ctl.abort();
+    if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener('abort', onAbort); }
+    try { return await fetch(url, Object.assign({}, opts, { signal: ctl.signal })); }
+    catch (e) {
+      if (signal && signal.aborted) throw e;
+      if (e.name === 'AbortError') throw new Error('Google non risponde: controlla la connessione e riprova');
+      throw new Error('Connessione assente, riprova');
+    } finally { clearTimeout(tm); if (signal) signal.removeEventListener('abort', onAbort); }
+  }
+
+  async function gemini(key, parts, schema, signal, ms) {
     const tried = {};
     let model = lsGet(MODEL_KEY) || 'gemini-flash-latest';
     let ripiego = false;
     for (let attempt = 0; attempt < 3; attempt++) {
       tried[model] = true;
-      let res;
-      try {
-        res = await fetch(GEMINI_BASE + 'models/' + model + ':generateContent', {
-          method: 'POST', signal: signal,
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: parts }],
-            generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: schema }
-          })
-        });
-      } catch (e) {
-        if (e.name === 'AbortError') throw e;
-        throw new Error('Connessione assente, riprova');
-      }
+      const res = await tfetch(GEMINI_BASE + 'models/' + model + ':generateContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: parts }],
+          generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: schema }
+        })
+      }, signal, ms || 90000);
       const code = res.status;
       const body = await res.json().catch(() => ({}));
       if (code === 200) {
@@ -227,7 +234,7 @@
         return JSON.parse(txt);
       }
       const msg = (body.error && body.error.message) || ('Errore ' + code);
-      if ((code === 400 || code === 403) && /API key|API_KEY|permission/i.test(msg)) throw new Error('Chiave IA non valida');
+      if (code === 401 || ((code === 400 || code === 403) && /API key|API_KEY|permission|credential/i.test(msg))) throw new Error('Google rifiuta la chiave: ' + msg.split('. ')[0]);
       if (code === 429) throw new Error('Limite gratuito IA raggiunto, riprova tra poco');
       if (code === 503 || code === 500 || /high demand|overloaded|unavailable/i.test(msg)) {
         // Gemini sovraccarico: aspetto un attimo e provo anche un altro modello
@@ -249,7 +256,7 @@
   }
 
   // req: { task, categorie, oggi, image?, mime?, ...dati del compito }
-  async function run(key, req, signal) {
+  async function run(key, req, signal, ms) {
     if (!key) throw new Error('Chiave IA non impostata');
     const T = PROMPTS[req.task];
     if (!T) throw new Error('Funzione IA sconosciuta');
@@ -257,7 +264,7 @@
     const oggi = req.oggi || new Date().toISOString().slice(0, 10);
     const parts = [{ text: T.prompt(cats, oggi, req) }];
     if (req.image) parts.push({ inline_data: { mime_type: req.mime || 'image/jpeg', data: req.image } });
-    return gemini(key, parts, T.schema(cats), signal);
+    return gemini(key, parts, T.schema(cats), signal, ms);
   }
 
   window.SC_AI = { run: run, tasks: Object.keys(PROMPTS), resetModel: () => lsSet(MODEL_KEY, null) };

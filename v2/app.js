@@ -3276,7 +3276,7 @@
         key = key.replace(/\s+/g, '');
         if (!/^[\w.\-]{20,}$/.test(key)) throw new Error('Chiave non valida: copiala intera da Google AI Studio');
         if (!window.SC_AI) throw new Error('IA non caricata: ricarica la pagina');
-        await window.SC_AI.run(key, { task: 'test' });
+        await window.SC_AI.run(key, { task: 'test' }, null, 25000);
         LS.set('sc_aikey', key);
       } else {
         try { localStorage.removeItem(LK('sc_aikey')); } catch {}
