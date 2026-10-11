@@ -54,22 +54,23 @@
 
   <!-- Schermata collegamento -->
   <section id="setup" class="setup" hidden>
+    <div class="setup-card">
+      <img src="logo.svg" alt="Spese Casa" width="64" height="64">
+      <h1>Spese Casa</h1>
+      <p class="muted">Incolla l'URL dell'App web di Google Apps Script per salvare i dati sul tuo Foglio Google.</p>
+      <input id="setup-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+      <button id="setup-go" class="btn primary block">Collega</button>
+      <p id="setup-err" class="err" hidden></p>
+      <button id="setup-local" class="btn ghost block">Usa solo su questo dispositivo</button>
+      <button id="setup-demo" class="btn ghost block">Guarda la demo</button>
+    </div>
     <div class="setup-card code-card">
       <img src="logo.svg" alt="Spese Casa" width="64" height="64">
       <h1>Spese Casa</h1>
-      <p class="muted" id="login-msg">Accedi con la tua email: ti mandiamo un codice, niente password.</p>
-      <div id="login-step1">
-        <input id="login-email" type="email" inputmode="email" placeholder="La tua email" autocomplete="email" autocapitalize="off">
-        <button id="login-send" class="btn primary block">Invia codice</button>
-      </div>
-      <div id="login-step2" hidden>
-        <input id="setup-code" type="text" inputmode="numeric" placeholder="Codice" autocomplete="one-time-code" maxlength="10" class="code-in">
-        <button id="code-go" class="btn primary block">Entra</button>
-        <button id="login-resend" class="btn ghost block">Invia di nuovo</button>
-        <button id="login-back" class="btn ghost block">Cambia email</button>
-      </div>
+      <p class="muted">Inserisci il codice di accesso. Lo chiedo solo la prima volta su questo dispositivo.</p>
+      <input id="setup-code" type="password" placeholder="Codice" autocomplete="off" autocapitalize="off" class="code-in">
+      <button id="code-go" class="btn primary block">Entra</button>
       <p id="code-err" class="err" hidden></p>
-      <button id="setup-demo" class="btn ghost block">Guarda la demo</button>
     </div>
   </section>
 
@@ -486,13 +487,12 @@
           <a href="#estratto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg></span><b>Estratto conto</b><small>Verifica con l'IA</small></a>
         </div>
         <div class="card">
-          <h3>Account</h3>
+          <h3>Collegamento</h3>
           <p id="conn-info" class="muted small"></p>
           <div class="row-btns">
             <button id="btn-sync" class="btn">Sincronizza ora</button>
-            <button id="btn-conn" class="btn ghost" hidden>Esci</button>
+            <button id="btn-conn" class="btn ghost">Cambia collegamento</button>
           </div>
-          <div id="acct-set" style="margin-top:12px"></div>
         </div>
         <div class="card">
           <h3>Codice di accesso</h3>
@@ -601,7 +601,6 @@
     </div>
   </div>
 
-  <script src="lib-supabase.js?v=1"></script>
-  <script src="app.js?v=v2-1"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>

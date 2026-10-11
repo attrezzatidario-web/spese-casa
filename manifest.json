@@ -1,6 +1,6 @@
 {
-  "name": "Spese Casa 2",
-  "short_name": "Spese Casa 2",
+  "name": "Spese Casa",
+  "short_name": "Spese Casa",
   "description": "Gestione delle spese e delle bollette di casa",
   "start_url": "./",
   "scope": "./",
