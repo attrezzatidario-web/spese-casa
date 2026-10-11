@@ -2974,7 +2974,9 @@
     mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
     spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>'
   };
-  const aiReady = () => DEMO || (!isLocal() && !!db.ai);
+  // IA: chiave Gemini dell'utente salvata solo su questo dispositivo
+  const aiKey = () => LS.get('sc_aikey', '');
+  const aiReady = () => DEMO || (!isLocal() && (!!aiKey() || (!!gas && !!db.ai)));
 
   function busy(txt) {
     let el = $('#busy');
@@ -2986,6 +2988,13 @@
 
   async function aiCall(task, extra) {
     if (DEMO) return demoAI(task, extra || {});
+    if (aiKey() && window.SC_AI) {
+      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 100000);
+      try { return await window.SC_AI.run(aiKey(), { task, categorie: cats(), oggi: today(), ...(extra || {}) }, ctl.signal); }
+      catch (e) { throw new Error(e.name === 'AbortError' ? 'L\'IA non ha risposto in tempo. Riprova tra poco o compila a mano: l\'allegato resta salvato.' : (e.message || 'Errore IA')); }
+      finally { clearTimeout(tm); }
+    }
+    if (!gas) throw new Error('Attiva prima l\'IA in Altro → Intelligenza artificiale');
     // tempo massimo di attesa: senza risposta non resto bloccato all'infinito
     const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 100000);
     let r;
@@ -3242,27 +3251,42 @@
   function renderAISettings() {
     const box = $('#ai-set');
     if (DEMO) { box.innerHTML = '<p class="small" style="margin:0"><span class="chip paid">Attiva</span> Nella demo l\'IA risponde con esempi.</p>'; return; }
-    if ((isLocal() || !gas)) { box.innerHTML = '<p class="muted small" style="margin:0">Per ora funziona con il Foglio Google collegato (Altro → Account).</p>'; return; }
-    box.innerHTML = db.ai
-      ? `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati.</p>
-         <button class="btn ghost" id="ai-off">Rimuovi chiave</button>`
-      : `<p class="muted small" style="margin:0 0 10px">Incolla la chiave gratuita di Google Gemini. Viene salvata solo nel tuo Google Apps Script.</p>
-         <div class="inline-add"><input id="ai-key" type="password" placeholder="Chiave API (AIza…)" autocomplete="off"><button class="btn primary" id="ai-save">Attiva</button></div>
-         <a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Ottieni la chiave gratuita →</a>`;
+    if (aiKey()) {
+      box.innerHTML = `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati su questo dispositivo.</p>
+        <button class="btn ghost" id="ai-off">Rimuovi chiave</button>`;
+      return;
+    }
+    box.innerHTML = `${gas && db.ai ? '<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Ora l\'IA passa dal Foglio Google. Inserisci la chiave per usarla direttamente su questo dispositivo.</p>' : ''}
+      <p class="muted small" style="margin:0 0 10px">Usa la tua chiave gratuita di Google Gemini: resta solo su questo dispositivo e le foto vanno direttamente a Google, senza passare da noi.</p>
+      <div class="inline-add"><input id="ai-key" type="password" placeholder="Chiave API (AIza…)" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" id="ai-save">Attiva</button></div>
+      <details class="ai-howto"><summary class="link">Come ottengo la chiave? (1 minuto)</summary>
+        <ol class="small muted" style="margin:8px 0 0;padding-left:18px">
+          <li>Apri <a class="link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> con il tuo account Google.</li>
+          <li>Premi <b>Create API key</b> (o <b>Crea chiave API</b>).</li>
+          <li>Copia la chiave, che inizia con <b>AIza</b>, e incollala qui sopra.</li>
+        </ol>
+        <p class="small muted" style="margin:8px 0 0">Con il piano gratuito Google può usare i contenuti inviati per migliorare i suoi servizi.</p>
+      </details>`;
   }
 
   async function setAIKey(key) {
     busy(key ? 'Verifico la chiave…' : 'Rimuovo…');
     try {
-      if (!gas) throw new Error(SOON);
-      const r = await sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'setKey', key }) });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error);
-      db.ai = !!key; save(); render();
-      toast(key ? 'IA attivata' : 'IA disattivata');
+      if (key) {
+        if (!/^AIza[\w-]{20,}$/.test(key)) throw new Error('Chiave non valida: deve iniziare con AIza');
+        if (!window.SC_AI) throw new Error('IA non caricata: ricarica la pagina');
+        await window.SC_AI.run(key, { task: 'test' });
+        LS.set('sc_aikey', key);
+      } else {
+        try { localStorage.removeItem(LK('sc_aikey')); } catch {}
+        if (window.SC_AI) window.SC_AI.resetModel();
+      }
+      render();
+      toast(key ? 'IA attivata' : 'IA disattivata su questo dispositivo');
     } catch (e) { toast(e.message || 'Errore'); }
     busy();
   }
+
 
 
   /* ================= BLOCCO FACE ID / IMPRONTA ================= */
