@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths: ['app.js', 'ai.js', 'index.html', 'style.css', 'nativa/**', '.github/workflows/android.yml']
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,11 +16,11 @@ jobs:
       run:
         working-directory: nativa
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -28,7 +31,11 @@ jobs:
       - name: Compila APK di prova
         working-directory: nativa/android
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
-      - uses: actions/upload-artifact@v4
-        with:
-          name: spese-casa-android-prova
-          path: nativa/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Pubblica l'APK di prova (link fisso)
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp nativa/android/app/build/outputs/apk/debug/app-debug.apk spese-casa.apk
+          gh release view android-prova >/dev/null 2>&1 || gh release create android-prova --title "Spese Casa · Android di prova" --notes "Versione di prova da installare a mano su Android. Si aggiorna da sola a ogni modifica." --prerelease
+          gh release upload android-prova spese-casa.apk --clobber
