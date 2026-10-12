@@ -1001,7 +1001,7 @@
 
     // notifiche
     const n = db.config.notifiche || {};
-    const pOn = LS.get('sc_push', '') && pushSupported() && Notification.permission === 'granted';
+    const pOn = LS.get('sc_push', '') && pushSupported() && pushGranted();
     $('#r-notify').innerHTML = `<p class="muted small" style="margin:0">${pOn
       ? `Promemoria sul telefono ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima e ' : ''}il giorno della scadenza, alle ${pad(Number(n.ora ?? 9))}:00, solo se non hai ancora pagato.`
       : 'Notifiche non attive su questo dispositivo: attivale da Altro → Notifiche.'}</p>`;
@@ -1153,7 +1153,7 @@
     gas = ''; tok = ''; LS.set('sc_gas', ''); LS.set('sc_tok', '');
     await pull();
     // notifiche e resoconto seguono la casa nuova
-    if (LS.get('sc_push', '') && pushSupported() && Notification.permission === 'granted') { try { await pushEnable(); } catch {} }
+    if (LS.get('sc_push', '') && pushSupported() && pushGranted()) { try { await pushEnable(); } catch {} }
     try { const { data: k } = await sb.rpc('get_ai_key'); if (k) LS.set('sc_aikey', k); else if (aiKey()) await sb.rpc('set_ai_key', { k: aiKey() }); } catch {}
     route();
   }
@@ -1356,17 +1356,21 @@
   const VAPID_PUBLIC = 'BOmeNL_VFB4WwSPylaBuisV2pi0A-GsmoeJK2CgeLpZVQ_HczJIn5T0wgKijQlFQPCECjPKFCApTyqzkruYu28c';
   const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  const pushSupported = () => !NATIVE && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const PN = () => NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
+  const pushSupported = () => NATIVE ? !!PN() : ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+  const pushGranted = () => NATIVE ? !!LS.get('sc_push', '') : (typeof Notification !== 'undefined' && Notification.permission === 'granted');
   const b64uKey = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
   let pushState = null; // { on, endpoint }
   async function pushCurrent() {
     if (!pushSupported()) return null;
+    if (NATIVE) { const e = LS.get('sc_push', ''); return e ? { endpoint: e } : null; }
     try { const reg = await navigator.serviceWorker.getRegistration(); return reg ? await reg.pushManager.getSubscription() : null; } catch { return null; }
   }
   async function pushEnable() {
     if (!sb || !hh) throw new Error('Accedi per attivare le notifiche');
     if (!pushSupported()) throw new Error('Questo browser non supporta le notifiche');
     pauseLock(60000);
+    if (NATIVE) return pushEnableNative();
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') throw new Error(perm === 'denied' ? 'Notifiche bloccate: riattivale dalle impostazioni del telefono per questa app' : 'Permesso non concesso');
     const reg = await navigator.serviceWorker.ready;
@@ -1382,11 +1386,41 @@
   async function pushDisable(silent) {
     const sub = await pushCurrent();
     const ep = (sub && sub.endpoint) || LS.get('sc_push', '');
-    try { if (sub) await sub.unsubscribe(); } catch {}
+    try { if (sub && sub.unsubscribe) await sub.unsubscribe(); } catch {}
+    if (NATIVE) { try { await PN().unregister(); } catch {} }
     if (ep && sb) { try { await sb.from('push_subscriptions').delete().eq('endpoint', ep); } catch {} }
     try { localStorage.removeItem(LK('sc_push')); } catch {}
     pushState = { on: false, endpoint: '' };
     if (!silent) toast('Notifiche disattivate su questo dispositivo');
+  }
+  // notifiche dell'app installata dagli store (Firebase su Android, Apple su iPhone)
+  function pushEnableNative() {
+    const P = PN();
+    return new Promise(async (resolve, reject) => {
+      try {
+        let perm = await P.checkPermissions();
+        if (perm.receive !== 'granted') perm = await P.requestPermissions();
+        if (perm.receive !== 'granted') return reject(new Error('Notifiche non consentite: attivale dalle impostazioni del telefono per Spese Casa'));
+        const tm = setTimeout(() => reject(new Error('Registrazione delle notifiche non riuscita, riprova')), 20000);
+        const h1 = await P.addListener('registration', async t => {
+          clearTimeout(tm); h1.remove(); h2.remove();
+          const ios = window.Capacitor.getPlatform() === 'ios';
+          const endpoint = (ios ? 'apns:' : 'fcm:') + t.value;
+          const { error } = await sb.from('push_subscriptions').upsert({ household_id: hh, endpoint, p256dh: '-', auth: '-', device: ios ? 'iPhone (app)' : 'Android (app)' }, { onConflict: 'endpoint' });
+          if (error) return reject(new Error(netErr(error) ? 'Connessione assente, riprova' : 'Iscrizione non salvata: ' + error.message));
+          LS.set('sc_push', endpoint); pushState = { on: true, endpoint }; resolve();
+        });
+        const h2 = await P.addListener('registrationError', e => { clearTimeout(tm); h1.remove(); h2.remove(); reject(new Error('Notifiche non disponibili: ' + (e && e.error || 'errore'))); });
+        if (window.Capacitor.getPlatform() === 'android') { try { await P.createChannel({ id: 'promemoria', name: 'Promemoria', description: 'Scadenze, bollette e resoconti', importance: 4 }); } catch {} }
+        await P.register();
+      } catch (e) { reject(e); }
+    });
+  }
+  if (NATIVE && PN()) {
+    // tocco sulla notifica: apre la sezione giusta
+    PN().addListener('pushNotificationActionPerformed', a => { const u = String((a.notification && a.notification.data && a.notification.data.url) || ''); const h = u.indexOf('#'); if (h >= 0) location.hash = u.slice(h); });
+    // notifica arrivata con l'app aperta
+    PN().addListener('pushNotificationReceived', n => { if (n && n.title) toast(n.title); });
   }
   // tipi di avviso: [chiave, titolo, descrizione, attivo di default]
   const NOTIF_GRP = [
@@ -1415,7 +1449,7 @@
     const attivi = NOTIF_GRP.flatMap(([, l]) => l).filter(([k, , , def]) => notifOn(n, k, def)).map(([, t]) => t.toLowerCase());
     const cosa = attivi.length > 4 ? attivi.slice(0, 4).join(', ') + ' e altri ' + (attivi.length - 4) : attivi.join(', ');
     const quando = `ogni giorno alle ${pad(Number(n.ora ?? 9))}:00 · ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima' : 'il giorno stesso'}`;
-    if (!pushSupported() || (isIOS() && !isStandalone())) {
+    if (!pushSupported() || (!NATIVE && isIOS() && !isStandalone())) {
       box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${isIOS()
         ? 'Su iPhone le notifiche arrivano solo con l\'app aggiunta alla schermata Home: in Safari premi <b>Condividi</b> → <b>Aggiungi alla schermata Home</b>, poi apri l\'app dall\'icona e torna qui.'
         : 'Questo browser non supporta le notifiche. Prova con Chrome, Edge o Safari aggiornati.'}</p>
@@ -1423,7 +1457,7 @@
       return;
     }
     if (!pushState) { const s = await pushCurrent(); pushState = { on: !!s && LS.get('sc_push', '') === s.endpoint, endpoint: s ? s.endpoint : '' }; }
-    const on = pushState.on && Notification.permission === 'granted';
+    const on = pushState.on && pushGranted();
     box.innerHTML = `<div class="nt-status"><div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${on ? 'Attive su questo dispositivo' : 'Non attive su questo dispositivo'}</b><small>${on ? esc(quando) : 'Promemoria di ' + esc(cosa) + ' direttamente sul telefono.'}</small></div></div></div>
       <div class="row-btns">${on
         ? '<button class="btn primary" id="nt-test">Invia prova</button><button class="btn" data-rent="notify">Cosa avvisare</button><button class="btn ghost" id="nt-off">Disattiva</button>'

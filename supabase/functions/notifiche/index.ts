@@ -335,7 +335,54 @@ async function caricaCasa(sb: any, hh: string, today: string) {
   return out;
 }
 
+/* ---------------- notifiche dell'app nativa (Firebase Cloud Messaging) ---------------- */
+// Segreto FIREBASE_SERVICE_ACCOUNT: il file JSON dell'account di servizio Firebase (Impostazioni progetto → Account di servizio)
+const b64u = (b: ArrayBuffer | Uint8Array | string) => {
+  const bytes = typeof b === 'string' ? new TextEncoder().encode(b) : new Uint8Array(b as ArrayBuffer);
+  let s = ''; bytes.forEach(x => (s += String.fromCharCode(x)));
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+let fcmCache: { token: string; exp: number; project: string } | null = null;
+async function fcmAccesso() {
+  if (fcmCache && fcmCache.exp > Date.now() + 60000) return fcmCache;
+  const raw = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
+  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT mancante');
+  const sa = JSON.parse(raw), now = Math.floor(Date.now() / 1000);
+  const head = b64u(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim = b64u(JSON.stringify({ iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
+  const pem = String(sa.private_key).replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+  const der = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(head + '.' + claim));
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + head + '.' + claim + '.' + b64u(sig) });
+  const j = await r.json();
+  if (!j.access_token) throw new Error('Firebase: ' + (j.error_description || j.error || r.status));
+  fcmCache = { token: j.access_token, exp: Date.now() + (Number(j.expires_in) || 3600) * 1000, project: sa.project_id };
+  return fcmCache;
+}
+export function messaggioFcm(token: string, p: any) {
+  return { message: { token, notification: { title: String(p.title || 'Spese Casa'), body: String(p.body || '') },
+    data: { url: String(p.url || ''), tag: String(p.tag || '') },
+    android: { priority: 'HIGH', notification: { channel_id: 'promemoria', tag: String(p.tag || 'spese-casa') } },
+    apns: { payload: { aps: { sound: 'default' } } } } };
+}
+async function inviaFcm(sb: any, sub: any, payload: any) {
+  try {
+    const a = await fcmAccesso();
+    const r = await fetch('https://fcm.googleapis.com/v1/projects/' + a.project + '/messages:send', { method: 'POST',
+      headers: { Authorization: 'Bearer ' + a.token, 'Content-Type': 'application/json' }, body: JSON.stringify(messaggioFcm(String(sub.endpoint).slice(4), payload)) });
+    if (r.ok) { await sb.from('push_subscriptions').update({ last_ok: new Date().toISOString() }).eq('id', sub.id); return 'ok'; }
+    const j = await r.json().catch(() => ({}));
+    const code = j && j.error && (j.error.status || (j.error.details || []).map((d: any) => d.errorCode).join(','));
+    if (r.status === 404 || /UNREGISTERED|NOT_FOUND/.test(String(code))) { await sb.from('push_subscriptions').delete().eq('id', sub.id); return 'scaduta'; }
+    return 'errore ' + r.status + ' ' + (code || '');
+  } catch (e: any) { return 'errore ' + (e && e.message); }
+}
+
 async function invia(sb: any, sub: any, payload: unknown) {
+  if (String(sub.endpoint).startsWith('fcm:')) return inviaFcm(sb, sub, payload);
+  if (String(sub.endpoint).startsWith('apns:')) return 'errore iPhone non ancora collegato';
   try {
     await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify(payload), { TTL: 6 * 3600, urgency: 'normal' });
     await sb.from('push_subscriptions').update({ last_ok: new Date().toISOString() }).eq('id', sub.id);

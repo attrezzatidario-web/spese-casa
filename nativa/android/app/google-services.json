@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1049454493596",
+    "project_id": "spese-casa-e151f",
+    "storage_bucket": "spese-casa-e151f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1049454493596:android:10c473920e73ce6a7a5259",
+        "android_client_info": {
+          "package_name": "com.tettostudio.spesecasa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoOeSeWdIS9kImq4fjKpRCd_y7kT8gRNE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
