@@ -907,7 +907,7 @@
   async function signOut() {
     if (queue.length && !confirm(`Ci sono ${queue.length} modifiche non ancora salvate. Uscire comunque?`)) return;
     await pushDisable(true).catch(() => {});
-    if (sb) await sb.auth.signOut().catch(() => {});
+    if (sb) await sb.auth.signOut({ scope: 'local' }).catch(() => {});
     Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
     location.reload();
   }
@@ -3830,7 +3830,7 @@
     $('#lock-go').onclick = unlock;
     $('#lock-reset').onclick = () => {
       if (!confirm('Esco dall\'account su questo dispositivo: i dati restano al sicuro e potrai rientrare con la tua email. Continuare?')) return;
-      if (sb) sb.auth.signOut().catch(() => {});
+      if (sb) sb.auth.signOut({ scope: 'local' }).catch(() => {});
       Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
       location.reload();
     };

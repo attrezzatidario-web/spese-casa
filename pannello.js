@@ -421,13 +421,24 @@
   const err = m => { const e = $('#login-err'); e.textContent = m || ''; e.hidden = !m; };
   function step(n) { $('#login-step1').hidden = n !== 1; $('#login-step2').hidden = n !== 2; err(''); setTimeout(() => (n === 1 ? $('#login-email') : $('#login-code')).focus(), 60); }
   function mostraLogin(msg) { $('#app').hidden = true; $('#setup').hidden = false; $('#login-msg').textContent = msg || 'Accesso riservato al proprietario dell\'app.'; step(1); }
-  async function nonAutorizzato() { await sb.auth.signOut().catch(() => {}); mostraLogin('Questo account non è autorizzato ad aprire il pannello.'); }
+  async function nonAutorizzato() { await sb.auth.signOut({ scope: 'local' }).catch(() => {}); mostraLogin('Questo account non è autorizzato ad aprire il pannello.'); }
   async function entra() {
     const { data } = await sb.auth.getSession(); const s = data && data.session;
     if (!s) return mostraLogin();
     sessionEmail = s.user.email || '';
-    let ok = false; try { ok = await rpc('is_app_admin'); } catch (e) { if (/function|schema cache|does not exist/i.test(e.message)) return mostraLogin('Il pannello non è ancora attivo sul server: esegui il file 08_pannello.sql su Supabase.'); }
-    if (!ok) return nonAutorizzato();
+    // controllo amministratore: se la rete o il token scaduto danno errore NON esco dall'account,
+    // rinnovo la sessione e riprovo; esco solo se il server dice chiaramente "non sei amministratore"
+    let ok = null;
+    for (let giro = 0; giro < 3 && ok === null; giro++) {
+      try { ok = await rpc('is_app_admin'); }
+      catch (e) {
+        if (/function|schema cache|does not exist/i.test(e.message)) return mostraLogin('Il pannello non è ancora attivo sul server: esegui il file 08_pannello.sql su Supabase.');
+        await sb.auth.refreshSession().catch(() => {});
+        await new Promise(r => setTimeout(r, 800 * (giro + 1)));
+      }
+    }
+    if (ok === null) { $('#setup').hidden = true; $('#app').hidden = false; route(); toast('Connessione assente: riprovo da solo'); setTimeout(entra, 8000); return; }
+    if (ok !== true) return nonAutorizzato();
     $('#setup').hidden = true; $('#app').hidden = false;
     route(); carica(true); swReg(); statoAvvisi();
   }
@@ -450,7 +461,7 @@
   $('#login-email').addEventListener('keydown', e => { if (e.key === 'Enter') $('#login-send').click(); });
   $('#login-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('#login-go').click(); });
   $('#login-back').onclick = () => step(1);
-  $('#pn-out').onclick = async () => { await sb.auth.signOut().catch(() => {}); location.reload(); };
+  $('#pn-out').onclick = async () => { await sb.auth.signOut({ scope: 'local' }).catch(() => {}); location.reload(); };
   $('#pn-ref').onclick = () => carica(true);
 
   /* ---------- eventi ---------- */
