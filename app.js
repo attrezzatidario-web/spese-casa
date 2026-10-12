@@ -1280,11 +1280,32 @@
     pushState = { on: false, endpoint: '' };
     if (!silent) toast('Notifiche disattivate su questo dispositivo');
   }
+  // tipi di avviso: [chiave, titolo, descrizione, attivo di default]
+  const NOTIF_GRP = [
+    ['Scadenze', [
+      ['affitto', 'Affitto', 'Il canone del mese finché non risulta pagato.', true],
+      ['bollette', 'Bollette', 'Le bollette in scadenza.', true],
+      ['fisse', 'Spese fisse', 'Abbonamenti, rate e addebiti automatici.', true],
+      ['auto', 'Auto', 'Assicurazione, bollo, revisione, tagliando e cambio gomme.', true],
+      ['manutenzioni', 'Manutenzioni', 'Caldaia, filtri e controlli periodici.', true],
+      ['documenti', 'Documenti e garanzie', 'Un mese e una settimana prima della scadenza.', true],
+      ['faccende', 'Cose da fare', 'Il giorno prima e se sono in ritardo.', true]]],
+    ['Soldi', [
+      ['budget', 'Budget', 'All\'80% del limite e quando lo superi.', true],
+      ['progetti', 'Progetti', 'Quando un progetto supera il suo budget.', true],
+      ['riepilogo', 'Riepilogo del mese', 'Il primo del mese: totale, confronto e categoria più cara.', true],
+      ['detrazioni', 'Promemoria 730', 'A maggio, il totale delle spese detraibili dell\'anno prima.', true]]],
+    ['Abitudini', [
+      ['lista', 'Lista della spesa', 'Il sabato mattina, se ci sono prodotti da prendere.', false],
+      ['registra', 'Registra le spese', 'Se non aggiungi spese da qualche giorno.', false]]]
+  ];
+  const notifOn = (n, k, def) => n[k] === undefined ? def : n[k] !== false;
   async function renderNotifyCard() {
     const box = $('#nt-set'); if (!box) return;
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Nella demo le notifiche non sono attive.</p>'; return; }
     const n = db.config.notifiche || {};
-    const cosa = [n.bollette !== false && 'bollette', 'affitto', n.fisse !== false && 'spese fisse', n.auto !== false && 'auto', n.manutenzioni !== false && 'manutenzioni', 'cose da fare', 'budget'].filter(Boolean).join(', ');
+    const attivi = NOTIF_GRP.flatMap(([, l]) => l).filter(([k, , , def]) => notifOn(n, k, def)).map(([, t]) => t.toLowerCase());
+    const cosa = attivi.length > 4 ? attivi.slice(0, 4).join(', ') + ' e altri ' + (attivi.length - 4) : attivi.join(', ');
     const quando = `ogni giorno alle ${pad(Number(n.ora ?? 9))}:00 · ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima' : 'il giorno stesso'}`;
     if (!pushSupported() || (isIOS() && !isStandalone())) {
       box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${isIOS()
@@ -1324,24 +1345,20 @@
   }
   function formNotify() {
     if (DEMO) return toast('Nella demo le notifiche non sono attive');
-    const n = { bollette: true, giorniPrima: 3, ora: 9, ...(db.config.notifiche || {}) };
+    const n = { giorniPrima: 3, ora: 9, ...(db.config.notifiche || {}) };
     const hours = Array.from({ length: 16 }, (_, i) => i + 6);
     openSheet('Cosa avvisare', `
-      <p class="muted small" style="margin:0 0 12px">Valgono per tutta la casa. Affitto, cose da fare e budget superati sono sempre inclusi.</p>
-      <label class="sw"><input type="checkbox" name="bollette" ${n.bollette !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Bollette</b><small>Le bollette in scadenza.</small></span></label>
-      <label class="sw"><input type="checkbox" name="fisse" ${n.fisse !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Spese fisse</b><small>Abbonamenti, rate e assicurazioni con l'avviso attivo.</small></span></label>
-      <label class="sw"><input type="checkbox" name="auto" ${n.auto !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Scadenze auto</b><small>Assicurazione, bollo, revisione e tagliando (anche un mese prima).</small></span></label>
-      <label class="sw"><input type="checkbox" name="manutenzioni" ${n.manutenzioni !== false ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>Manutenzioni</b><small>Caldaia, filtri e controlli periodici di casa.</small></span></label>
-      <div class="f-row" style="margin-top:6px">
-        <label class="f"><span>Avvisami</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
+      <p class="muted small" style="margin:0 0 4px">Valgono per tutta la casa. Arriva una sola notifica al giorno con tutto insieme.</p>
+      ${NOTIF_GRP.map(([g, list]) => `<div class="nt-grp">${g}</div>` + list.map(([k, t, d, def]) => `<label class="sw"><input type="checkbox" name="${k}" ${notifOn(n, k, def) ? 'checked' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>${t}</b><small>${d}</small></span></label>`).join('')).join('')}
+      <div class="nt-grp">Quando</div>
+      <div class="f-row">
+        <label class="f"><span>Scadenze</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
         <label class="f"><span>Orario</span><select name="ora">${hours.map(h => `<option value="${h}"${Number(n.ora) === h ? ' selected' : ''}>${pad(h)}:00</option>`).join('')}</select></label>
       </div>`,
       async fd => {
-        const v = { ...(db.config.notifiche || {}), bollette: fd.get('bollette') === 'on', fisse: fd.get('fisse') === 'on', auto: fd.get('auto') === 'on', manutenzioni: fd.get('manutenzioni') === 'on', giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
+        const v = { ...(db.config.notifiche || {}), giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
+        NOTIF_GRP.forEach(([, list]) => list.forEach(([k]) => { v[k] = fd.get(k) === 'on'; }));
         setConfig('notifiche', v);
         closeSheet(); toast('Salvato'); render();
       }, null, 'Salva');

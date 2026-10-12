@@ -1,7 +1,8 @@
 // Spese Casa — funzione "notifiche" (Supabase Edge Function)
 // Ogni ora (alle :05) controlla le case che hanno scelto questo orario e manda
-// sul telefono i promemoria: affitto, bollette, spese fisse, auto, manutenzioni,
-// cose da fare e budget superato. Una sola notifica al giorno per dispositivo.
+// sul telefono i promemoria: affitto, bollette, spese fisse, auto (anche gomme), manutenzioni,
+// documenti, cose da fare, budget, progetti, riepilogo del mese, 730, lista e
+// promemoria per registrare le spese. Una sola notifica al giorno per dispositivo.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
 
@@ -41,7 +42,7 @@ export function promemoria(dati: any, today: string): Item[] {
 
   // affitto: mese corrente, precedente e prossimo, solo se non ancora pagato
   const a = cfg.affitto || {};
-  if (a.attivo && Number(a.giorno) > 0) {
+  if (n.affitto !== false && a.attivo && Number(a.giorno) > 0) {
     const t = D(today);
     [0, -1, 1].forEach(off => {
       const ref = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + off, 1, 12));
@@ -84,7 +85,7 @@ export function promemoria(dati: any, today: string): Item[] {
       if (avvisa(dd) || dd === 14) items.push({ titolo: 'Manutenzione: ' + m.nome, dettaglio: quando(dd) + ' (' + dm(m.prossima) + ')', importo: Number(m.costo) || 0 });
     });
   }
-  (dati.faccende || []).filter((f: any) => !on(f.fatto, false) && f.scadenza).forEach((f: any) => {
+  if (n.faccende !== false) (dati.faccende || []).filter((f: any) => !on(f.fatto, false) && f.scadenza).forEach((f: any) => {
     const dd = diffDays(f.scadenza, today);
     if (dd === 1 || dd === 0 || dd === -1 || dd === -3) items.push({ titolo: 'Da fare: ' + f.titolo, dettaglio: dd === 1 ? 'domani' : dd === 0 ? 'oggi' : 'in ritardo di ' + (-dd) + (dd === -1 ? ' giorno' : ' giorni') });
   });
@@ -92,23 +93,77 @@ export function promemoria(dati: any, today: string): Item[] {
   // budget del mese (una volta al mese, grazie alla chiave)
   const mese = today.slice(0, 7), b = cfg.budget || {}, lim = Number(b.limite) || 0;
   const delMese = spese.filter(s => String(s.data).slice(0, 7) === mese);
-  if (lim && b.email !== false) {
+  const budOn = n.budget !== false;
+  if (budOn && lim && b.email !== false) {
     const tot = delMese.filter(s => !(b.escludiAffitto && String(s.bollettaId || '').startsWith('affitto:'))).reduce((x, s) => x + (Number(s.importo) || 0), 0);
     if (tot > lim) items.push({ titolo: 'Limite di spesa superato', dettaglio: 'speso ' + eur(tot) + ' su ' + eur(lim), key: 'budget:' + mese });
+    else if (tot >= lim * 0.8) items.push({ titolo: 'Limite di spesa quasi raggiunto', dettaglio: 'speso ' + eur(tot) + ' su ' + eur(lim) + ' (' + Math.round(tot / lim * 100) + '%)', key: 'budget80:' + mese });
   }
   const bc = cfg.budgetCat || {}, limiti = bc.limiti || {};
-  if (bc.email !== false) Object.keys(limiti).forEach(c => {
+  if (budOn && bc.email !== false) Object.keys(limiti).forEach(c => {
     const l = Number(limiti[c]) || 0; if (!l) return;
     const t = delMese.filter(s => s.categoria === c).reduce((x, s) => x + (Number(s.importo) || 0), 0);
     if (t > l) items.push({ titolo: 'Budget superato: ' + c, dettaglio: 'speso ' + eur(t) + ' su ' + eur(l), key: 'cat:' + mese + ':' + c });
   });
+
+  // documenti e garanzie in scadenza
+  if (n.documenti !== false) {
+    (dati.documenti || []).filter((d: any) => d.scadenza).forEach((d: any) => {
+      const dd = diffDays(d.scadenza, today);
+      if (dd === 30 || dd === 7 || dd === 1 || dd === 0) items.push({ titolo: (d.tipo === 'Garanzie' ? 'Garanzia: ' : 'Scadenza: ') + (d.nome || 'documento'), dettaglio: quando(dd) + ' (' + dm(d.scadenza) + ')' });
+    });
+  }
+  // cambio gomme (obbligo invernale dal 15 novembre al 15 aprile)
+  if (n.auto !== false && (dati.veicoli || []).some((v: any) => on(v.attiva))) {
+    const md = today.slice(5);
+    if (md === '11-05') items.push({ titolo: 'Gomme invernali', dettaglio: 'dal 15 novembre servono gomme invernali o catene a bordo' });
+    if (md === '04-05') items.push({ titolo: 'Gomme estive', dettaglio: 'dal 15 aprile puoi rimontare le estive (entro il 15 maggio)' });
+  }
+  // budget dei progetti
+  if (n.progetti !== false) {
+    const sp: any[] = dati.speseProgetti || [];
+    (dati.progetti || []).filter((p: any) => Number(p.budget) > 0 && (p.attivo === '' || p.attivo == null || on(p.attivo))).forEach((p: any) => {
+      const tot = sp.filter(s => s.progetto === p.id).reduce((x, s) => x + (Number(s.importo) || 0), 0), l = Number(p.budget);
+      if (tot > l) items.push({ titolo: 'Progetto oltre il budget: ' + p.nome, dettaglio: 'speso ' + eur(tot) + ' su ' + eur(l), key: 'prj:' + p.id + ':' + Math.floor(tot / l * 10) });
+    });
+  }
+  // riepilogo del mese appena chiuso (il primo del mese)
+  if (n.riepilogo !== false && today.slice(8) === '01') {
+    const t = D(today), ym = (k: number) => ymdOf(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + k, 1, 12))).slice(0, 7);
+    const m1 = ym(-1), m2 = ym(-2), totM = (m: string) => spese.filter(s => String(s.data).slice(0, 7) === m).reduce((x, s) => x + (Number(s.importo) || 0), 0);
+    const a1 = totM(m1), a2 = totM(m2);
+    if (a1 > 0) {
+      const cat: Record<string, number> = {};
+      spese.filter(s => String(s.data).slice(0, 7) === m1).forEach(s => { cat[s.categoria || 'Altro'] = (cat[s.categoria || 'Altro'] || 0) + (Number(s.importo) || 0); });
+      const top = Object.entries(cat).sort((x, y) => y[1] - x[1])[0];
+      const diff = a2 ? Math.round((a1 - a2) / a2 * 100) : 0;
+      items.push({ titolo: 'Mese chiuso: ' + eur(a1), dettaglio: (a2 ? (diff > 0 ? '+' : '') + diff + '% rispetto al mese prima · ' : '') + 'più spesa: ' + top[0] + ' (' + eur(top[1]) + ')', key: 'mese:' + m1 });
+    }
+  }
+  // 730: spese detraibili dell'anno scorso (2 maggio)
+  if (n.detrazioni !== false && today.slice(5) === '05-02') {
+    const d730: any[] = dati.spese730 || [];
+    const tot = d730.reduce((x, s) => x + (Number(s.importo) || 0), 0);
+    if (tot > 0) items.push({ titolo: 'Dichiarazione 730', dettaglio: d730.length + ' spese detraibili nel ' + (Number(today.slice(0, 4)) - 1) + ' per ' + eur(tot) + ': trovi il riepilogo in Altro → Riepilogo 730' });
+  }
+  // lista della spesa (sabato mattina)
+  if (n.lista === true && D(today).getUTCDay() === 6) {
+    const aperti = (dati.lista || []).filter((x: any) => !on(x.fatto, false));
+    if (aperti.length) items.push({ titolo: 'Lista della spesa: ' + aperti.length + (aperti.length === 1 ? ' prodotto' : ' prodotti'), dettaglio: aperti.slice(0, 4).map((x: any) => x.nome).join(', ') + (aperti.length > 4 ? '…' : '') });
+  }
+  // nessuna spesa registrata da 3 giorni
+  if (n.registra === true && spese.length) {
+    const ultima = spese.map(s => String(s.data).slice(0, 10)).sort().pop() as string;
+    const dd = diffDays(ultima, today);
+    if (dd === -3 || dd === -7) items.push({ titolo: 'Spese da registrare?', dettaglio: 'nessuna spesa da ' + (-dd) + ' giorni: aggiungi gli scontrini rimasti in tasca' });
+  }
   return items;
 }
 
 export function messaggio(items: Item[]) {
   const riga = (i: Item) => i.titolo + (i.importo ? ' · ' + eur(i.importo) : '') + ' — ' + i.dettaglio;
   if (items.length === 1) return { title: items[0].titolo + (items[0].importo ? ' · ' + eur(items[0].importo) : ''), body: items[0].dettaglio };
-  const max = 4;
+  const max = 5;
   return {
     title: 'Spese Casa · ' + items.length + ' promemoria',
     body: items.slice(0, max).map(riga).join('\n') + (items.length > max ? '\n…e altri ' + (items.length - max) : '')
@@ -235,9 +290,9 @@ export async function resoconto(sb: any, hh: string, subs: any[], dati: any, tod
 
 /* ---------------- server ---------------- */
 async function caricaCasa(sb: any, hh: string, today: string) {
-  const fogli = ['Config', 'Bollette', 'Fisse', 'Veicoli', 'Manutenzioni', 'Faccende', 'Lista', 'Persone'];
-  const out: any = { config: {}, bollette: [], fisse: [], veicoli: [], manutenzioni: [], faccende: [], lista: [], persone: [], spese: [], entrate: [] };
-  const map: Record<string, string> = { Bollette: 'bollette', Fisse: 'fisse', Veicoli: 'veicoli', Manutenzioni: 'manutenzioni', Faccende: 'faccende', Lista: 'lista', Persone: 'persone' };
+  const fogli = ['Config', 'Bollette', 'Fisse', 'Veicoli', 'Manutenzioni', 'Faccende', 'Lista', 'Persone', 'Documenti', 'Progetti'];
+  const out: any = { config: {}, bollette: [], fisse: [], veicoli: [], manutenzioni: [], faccende: [], lista: [], persone: [], documenti: [], progetti: [], spese: [], entrate: [], speseProgetti: [], spese730: [] };
+  const map: Record<string, string> = { Bollette: 'bollette', Fisse: 'fisse', Veicoli: 'veicoli', Manutenzioni: 'manutenzioni', Faccende: 'faccende', Lista: 'lista', Persone: 'persone', Documenti: 'documenti', Progetti: 'progetti' };
   for (let from = 0; ; from += 1000) {
     const { data, error } = await sb.from('records').select('sheet,id,data').eq('household_id', hh).in('sheet', fogli).range(from, from + 999);
     if (error) throw error;
@@ -247,13 +302,24 @@ async function caricaCasa(sb: any, hh: string, today: string) {
     });
     if (data.length < 1000) break;
   }
-  // spese dal primo giorno del mese scorso (affitto pagato e budget)
-  const t = D(today), da = ymdOf(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - 1, 1, 12)));
+  // spese dal primo giorno di due mesi fa (affitto pagato, budget, riepilogo del mese)
+  const t = D(today), da = ymdOf(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - 2, 1, 12)));
   for (let from = 0; ; from += 1000) {
     const { data, error } = await sb.from('records').select('data').eq('household_id', hh).eq('sheet', 'Spese').gte('data->>data', da).range(from, from + 999);
     if (error) throw error;
     data.forEach((r: any) => out.spese.push(r.data));
     if (data.length < 1000) break;
+  }
+  // spese collegate ai progetti con un budget
+  if (out.progetti.some((p: any) => Number(p.budget) > 0)) {
+    const { data, error } = await sb.from('records').select('data').eq('household_id', hh).eq('sheet', 'Spese').neq('data->>progetto', '').limit(5000);
+    if (!error) data.forEach((r: any) => out.speseProgetti.push(r.data));
+  }
+  // spese detraibili dell'anno scorso (solo il 2 maggio)
+  if (today.slice(5) === '05-02') {
+    const y = Number(today.slice(0, 4)) - 1;
+    const { data, error } = await sb.from('records').select('data').eq('household_id', hh).eq('sheet', 'Spese').gte('data->>data', y + '-01-01').lte('data->>data', y + '-12-31').neq('data->>detrazione', '').neq('data->>detrazione', 'no').limit(5000);
+    if (!error) data.forEach((r: any) => out.spese730.push(r.data));
   }
   {
     const { data, error } = await sb.from('records').select('data').eq('household_id', hh).eq('sheet', 'Entrate').gte('data->>data', da).limit(1000);
@@ -298,7 +364,7 @@ async function gestisciCasa(sb: any, hh: string, subs: any[], today: string, for
     for (const i of tutti) { if (!i.key || forza || !(await giaInviato(sb, sub.id, i.key))) items.push(i); }
     if (!items.length) { if (!forza) await segna(sb, sub.id, dailyKey); continue; }
     const m = messaggio(items);
-    const esito = await invia(sb, sub, { ...m, url: APP_URL + '#bollette', tag: 'spese-casa-' + today });
+    const esito = await invia(sb, sub, { ...m, url: APP_URL + (items.length === 1 && items[0].titolo.startsWith('Lista') ? '#lista' : '#home'), tag: 'spese-casa-' + today });
     res.push(esito);
     if (esito === 'ok' && !forza) { await segna(sb, sub.id, dailyKey); for (const i of items) if (i.key) await segna(sb, sub.id, i.key); }
   }
