@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Pannello · Spese Casa</title>
+  <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Pannello">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=4-2">
+  <link rel="stylesheet" href="pannello.css?v=1">
+</head>
+<body class="pn">
+
+  <!-- Accesso -->
+  <section id="setup" class="setup" hidden>
+    <div class="setup-card pn-login">
+      <img src="logo.svg" alt="" width="64" height="64">
+      <h1>Pannello di controllo</h1>
+      <p class="muted" id="login-msg">Accesso riservato al proprietario dell'app.</p>
+      <div id="login-step1">
+        <input id="login-email" type="email" inputmode="email" placeholder="La tua email" autocomplete="email" autocapitalize="off">
+        <button id="login-send" class="btn primary block">Invia codice</button>
+      </div>
+      <div id="login-step2" hidden>
+        <input id="login-code" type="text" inputmode="numeric" placeholder="Codice" autocomplete="one-time-code" maxlength="10" class="code-in">
+        <button id="login-go" class="btn primary block">Entra</button>
+        <button id="login-back" class="btn ghost block">Cambia email</button>
+      </div>
+      <p id="login-err" class="err" hidden></p>
+    </div>
+  </section>
+
+  <div id="app" class="app" hidden>
+    <nav class="nav">
+      <div class="brand"><img src="logo.svg" alt="" width="34" height="34"><div><strong>Spese Casa</strong><span>Pannello di controllo</span></div></div>
+      <a href="#panoramica" data-view="panoramica"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Panoramica</span></a>
+      <a href="#utenti" data-view="utenti"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.3A6.5 6.5 0 0 1 21.5 20"/></svg><span>Utenti</span></a>
+      <a href="#abbonamenti" data-view="abbonamenti"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg><span class="lbl-d">Abbonamenti</span><span class="lbl-m">Premium</span></a>
+      <a href="#inviti" data-view="inviti"><svg viewBox="0 0 24 24"><path d="M3 12l18-8-6 18-3-7z"/><path d="M12 15l9-11"/></svg><span>Inviti</span></a>
+      <a href="#sistema" data-view="sistema"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12L17 12h4"/></svg><span>Sistema</span></a>
+      <div class="nav-foot"><span class="pn-live"><i></i><span class="pn-live-t">In tempo reale</span></span><button class="link-btn pn-out" id="pn-out">Esci</button></div>
+    </nav>
+
+    <main>
+      <header class="top">
+        <div class="top-l"><img class="top-logo" src="logo.svg" alt="" width="32" height="32"><div><h2 id="title">Panoramica</h2><span id="subtitle" class="subtitle"></span></div></div>
+        <div class="top-r pn-top-r">
+          <span class="pn-live only-mob"><i></i></span>
+          <button class="icon-btn pn-ref" id="pn-ref" aria-label="Aggiorna" title="Aggiorna"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v3h3M4 13a8 8 0 0 0 14.6 4.5M20 20v-3h-3"/></svg></button>
+        </div>
+      </header>
+
+      <!-- PANORAMICA -->
+      <section id="v-panoramica" class="view">
+        <div class="kpis pn-kpis">
+          <div class="card kpi kpi-hero">
+            <div id="k-spark" class="hero-spark" aria-hidden="true"></div>
+            <div class="kpi-h"><span class="label">Utenti</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.3A6.5 6.5 0 0 1 21.5 20"/></svg></span></div>
+            <div id="k-users" class="big" data-n="0">0</div>
+            <span id="k-users-s" class="muted small"></span>
+          </div>
+          <div class="card kpi">
+            <div class="kpi-h"><span class="label">Nuovi oggi</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div>
+            <div id="k-new" class="big" data-n="0">0</div>
+            <span id="k-new-s" class="muted small"></span>
+          </div>
+          <div class="card kpi">
+            <div class="kpi-h"><span class="label">Attivi oggi</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12L17 12h4"/></svg></span></div>
+            <div id="k-act" class="big" data-n="0">0</div>
+            <span id="k-act-s" class="muted small"></span>
+          </div>
+          <div class="card kpi link-card" data-go="abbonamenti">
+            <div class="kpi-h"><span class="label">Case Premium</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg></span></div>
+            <div id="k-prem" class="big" data-n="0">0</div>
+            <span id="k-prem-s" class="muted small"></span>
+          </div>
+        </div>
+        <div class="pn-grid">
+          <div class="pn-col">
+            <div class="card">
+              <div class="card-h"><h3>Nuovi iscritti</h3><span class="muted small">ultimi 30 giorni · <b id="c-sign-tot">0</b></span></div>
+              <div id="c-sign" class="pn-chart"></div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>Utenti attivi</h3><span class="muted small">al giorno · ultimi 30 giorni</span></div>
+              <div id="c-act" class="pn-chart"></div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>Notifiche attive</h3><span class="muted small" id="c-push-tot"></span></div>
+              <div id="c-push" class="pn-bars"></div>
+            </div>
+          </div>
+          <div class="pn-col">
+            <div class="card">
+              <div class="card-h"><h3>Piani delle case</h3><span class="muted small" id="c-plan-tot"></span></div>
+              <div id="c-plan"></div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>Ultimi iscritti</h3><a href="#utenti" class="link small">Tutti</a></div>
+              <div id="c-last" class="list"></div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>Risorse</h3><span class="muted small">piano gratuito Supabase</span></div>
+              <div id="c-res" class="pn-bars"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- UTENTI -->
+      <section id="v-utenti" class="view" hidden>
+        <div class="pn-filters">
+          <div class="pn-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><input id="u-q" type="search" placeholder="Cerca per email…" autocomplete="off" autocapitalize="off"></div>
+          <div class="pn-seg" id="u-f">
+            <button data-f="tutti" class="on">Tutti</button><button data-f="premium">Premium</button><button data-f="prova">In prova</button><button data-f="gratis">Gratis</button>
+          </div>
+        </div>
+        <div class="card pn-table-card">
+          <div class="card-h"><h3 id="u-count">Utenti</h3><span class="muted small">tocca un utente per i dettagli</span></div>
+          <div id="u-list" class="list"></div>
+        </div>
+      </section>
+
+      <!-- ABBONAMENTI -->
+      <section id="v-abbonamenti" class="view" hidden>
+        <div class="kpis pn-kpis">
+          <div class="card kpi kpi-hero">
+            <div class="kpi-h"><span class="label">Incasso stimato al mese</span><span class="kpi-ic"><svg viewBox="0 0 24 24"><path d="M3 7h15a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"/><path d="M3 7l12-3v3M16 13.5h2"/></svg></span></div>
+            <div id="a-mrr" class="big">0 €</div>
+            <span class="muted small">netto commissioni store (15%)</span>
+          </div>
+          <div class="card kpi"><div class="kpi-h"><span class="label">Abbonati</span></div><div id="a-paid" class="big" data-n="0">0</div><span class="muted small">App Store e Google Play</span></div>
+          <div class="card kpi"><div class="kpi-h"><span class="label">In prova</span></div><div id="a-trial" class="big" data-n="0">0</div><span id="a-trial-s" class="muted small"></span></div>
+          <div class="card kpi"><div class="kpi-h"><span class="label">Regalati</span></div><div id="a-man" class="big" data-n="0">0</div><span class="muted small">Premium manuale</span></div>
+        </div>
+        <div class="pn-grid">
+          <div class="pn-col">
+            <div class="card">
+              <div class="card-h"><h3>Case Premium</h3><span class="muted small" id="a-list-n"></span></div>
+              <div id="a-list" class="list"></div>
+            </div>
+          </div>
+          <div class="pn-col">
+            <div class="card">
+              <div class="card-h"><h3>Conversione</h3><span class="muted small">prove → abbonati</span></div>
+              <div id="a-conv"></div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>Prove in scadenza</h3><span class="muted small">le più vicine prima</span></div>
+              <div id="a-exp" class="list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- INVITI -->
+      <section id="v-inviti" class="view" hidden>
+        <div class="card">
+          <div class="card-h"><h3>Codici d'invito</h3><span class="muted small" id="i-n"></span></div>
+          <div id="i-list" class="list"></div>
+        </div>
+      </section>
+
+      <!-- SISTEMA -->
+      <section id="v-sistema" class="view" hidden>
+        <div class="pn-grid">
+          <div class="pn-col">
+            <div class="card">
+              <div class="card-h"><h3>Orologio delle notifiche</h3><span class="muted small">ogni ora alle :05 · ultime 24 ore</span></div>
+              <div id="s-runs" class="pn-runs"></div>
+              <div id="s-runs-t" class="muted small" style="margin-top:10px"></div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h3>Ultime risposte del server</h3></div>
+              <div id="s-resp" class="list"></div>
+            </div>
+          </div>
+          <div class="pn-col">
+            <div class="card">
+              <div class="card-h"><h3>Collegamenti rapidi</h3></div>
+              <div id="s-links" class="list pn-links"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Pannello modale (stesso dell'app) -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-bg" data-close></div>
+    <form id="sheet-form" class="sheet-panel" autocomplete="off">
+      <div class="sheet-h"><h3 id="sheet-title"></h3><button type="button" class="icon-btn" data-close aria-label="Chiudi">✕</button></div>
+      <div id="sheet-body"></div>
+      <div class="sheet-f"><button type="submit" class="btn primary" id="sheet-ok">Chiudi</button></div>
+    </form>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+  <div id="pn-tip" class="pn-tip" hidden></div>
+
+  <script src="lib-supabase.js?v=1"></script>
+  <script src="pannello.js?v=1"></script>
+</body>
+</html>
