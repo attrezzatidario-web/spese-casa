@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=4-3">
+  <link rel="stylesheet" href="style.css?v=4-4">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -84,6 +84,7 @@
       <a href="#auto" data-view="auto"><svg viewBox="0 0 24 24"><path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3zM5 11h14"/></svg><span>Auto</span><i id="badge-auto" class="badge" hidden></i></a>
       <a href="#estratto" data-view="estratto" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg><span>Estratto conto</span></a>
       <a href="#affitto" data-view="affitto" class="nav-desk"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg><span>Affitto</span><i id="badge-rent" class="badge" hidden></i></a>
+      <a href="#contanti" data-view="contanti" class="nav-desk"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/></svg><span>Contanti</span></a>
       <a href="#lista" data-view="lista" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.5L21 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg><span>Lista spesa</span></a>
       <a href="#documenti" data-view="documenti" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Documenti</span></a>
       <a href="#detrazioni" data-view="detrazioni" class="nav-desk"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 15l6-6"/><circle cx="9.5" cy="9.5" r=".9"/><circle cx="14.5" cy="14.5" r=".9"/></svg><span>Riepilogo 730</span></a>
@@ -160,6 +161,11 @@
             </div>
           </div>
           <div class="col-side">
+            <div class="card c-cash link-card" id="h-cash" data-go="contanti" hidden>
+              <div class="cash-h"><span class="cash-ic"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/></svg></span><span class="label">Contanti</span><button class="btn sm" data-cashact="prelievo">+ Prelievo</button></div>
+              <div id="h-cash-v" class="cash-v">0,00 €</div>
+              <span id="h-cash-s" class="muted small"></span>
+            </div>
             <div class="card c-avv" id="h-avv" hidden>
               <div class="card-h"><h3 class="ai-title"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6v4l-2 3h16l-2-3V9a6 6 0 0 0-6-6zM10 19a2 2 0 0 0 4 0"/></svg>Avvisi <i id="h-avv-n" class="avv-n"></i></h3></div>
               <div id="h-avv-body"></div>
@@ -477,10 +483,16 @@
       </section>
 
       <!-- IMPOSTAZIONI -->
+      <!-- CONTANTI -->
+      <section id="v-contanti" class="view" hidden>
+        <div id="ct-body"></div>
+      </section>
+
       <section id="v-lock" class="view" hidden></section>
       <section id="v-impostazioni" class="view settings-grid" hidden>
         <div class="more-tiles">
           <a href="#affitto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg></span><b>Affitto</b><small>Canone e pagamenti</small><i id="tile-rent-badge" class="badge" hidden></i></a>
+          <a href="#contanti" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/></svg></span><b>Contanti</b><small>Portafoglio e prelievi</small></a>
           <a href="#lista" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.5L21 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg></span><b>Lista spesa</b><small>Condivisa in famiglia</small></a>
           <a href="#documenti" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><b>Documenti</b><small>Scontrini, buste paga…</small></a>
           <a href="#detrazioni" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 15l6-6"/><circle cx="9.5" cy="9.5" r=".9"/><circle cx="14.5" cy="14.5" r=".9"/></svg></span><b>Riepilogo 730</b><small>Spese detraibili</small></a>
@@ -611,6 +623,6 @@
 
   <script src="lib-supabase.js?v=1"></script>
   <script src="ai.js?v=4"></script>
-  <script src="app.js?v=4-4"></script>
+  <script src="app.js?v=4-5"></script>
 </body>
 </html>

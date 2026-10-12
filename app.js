@@ -50,7 +50,7 @@
   }
   let db = LS.get('sc_data', { spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [] });
   if (!db.estratti) db.estratti = [];
-  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni', 'progetti', 'faccende', 'resoconti'].forEach(k => { if (!db[k]) db[k] = []; });
+  ['persone', 'entrate', 'entrateFisse', 'obiettivi', 'lista', 'documenti', 'manutenzioni', 'progetti', 'faccende', 'resoconti', 'contanti'].forEach(k => { if (!db[k]) db[k] = []; });
   if (!db.fisse) db.fisse = [];
   if (!db.veicoli) db.veicoli = [];
   if (!db.config) db.config = {};
@@ -219,7 +219,7 @@
   /* ================= Data layer ================= */
   const BUCKET = 'documenti';
   const b64Blob = (b64, mime) => { const bin = atob(b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
-  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni', Progetti: 'progetti', Faccende: 'faccende', Resoconti: 'resoconti' };
+  const KEY = { Spese: 'spese', Bollette: 'bollette', Categorie: 'categorie', Fatture: 'fatture', Fisse: 'fisse', Veicoli: 'veicoli', Estratti: 'estratti', Persone: 'persone', Entrate: 'entrate', EntrateFisse: 'entrateFisse', Obiettivi: 'obiettivi', Lista: 'lista', Documenti: 'documenti', Manutenzioni: 'manutenzioni', Progetti: 'progetti', Faccende: 'faccende', Resoconti: 'resoconti', Contanti: 'contanti' };
 
   function applyLocal(op) {
     const k = KEY[op.sheet];
@@ -265,7 +265,7 @@
     return j.result;
   }
 
-  const emptyDb = () => ({ resoconti: [], spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [], persone: [], entrate: [], entrateFisse: [], obiettivi: [], lista: [], documenti: [], manutenzioni: [], progetti: [], faccende: [] });
+  const emptyDb = () => ({ resoconti: [], spese: [], bollette: [], categorie: [], config: {}, fatture: [], fisse: [], veicoli: [], estratti: [], persone: [], entrate: [], entrateFisse: [], obiettivi: [], lista: [], documenti: [], manutenzioni: [], progetti: [], faccende: [], contanti: [] });
   const recId = op => op.sheet === 'Config' ? String(op.row.chiave) : op.sheet === 'Categorie' ? String(op.row.nome) : String(op.row.id);
   const netErr = e => e instanceof TypeError || /fetch|network|load failed/i.test(String(e && e.message));
   const chunks = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
@@ -317,7 +317,7 @@
       queue = queue.slice(batch.length); save();
       online = true;
       // fase di passaggio: copia anche sul Foglio Google, per i file su Drive
-      const gops = batch.filter(o => o.sheet === 'Config' || (KEY[o.sheet] && o.sheet !== 'Resoconti'));
+      const gops = batch.filter(o => o.sheet === 'Config' || (KEY[o.sheet] && o.sheet !== 'Resoconti' && o.sheet !== 'Contanti'));
       if (gas && tok && gops.length) sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: gops }) }).catch(() => {});
     } catch (e) {
       if (e.message === 'AUTH_REQ') { /* serve di nuovo l'accesso */ }
@@ -405,8 +405,8 @@
   }
 
   /* ================= Router ================= */
-  const TITLES = { home: 'Home', spese: 'Spese', entrate: 'Entrate', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', lista: 'Lista della spesa', documenti: 'Documenti', detrazioni: 'Riepilogo 730', manutenzioni: 'Manutenzioni', anno: 'Il tuo anno', progetti: 'Progetti', faccende: 'Cose da fare', impostazioni: 'Impostazioni' };
-  const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', lista: 'Condivisa con la famiglia', documenti: 'Tutti i tuoi file', detrazioni: 'Spese detraibili e rimborso stimato', manutenzioni: 'Caldaia, filtri e controlli periodici', anno: 'Il riepilogo in numeri', progetti: 'Viaggi, lavori ed eventi con budget', faccende: 'Lavori e commissioni di casa', impostazioni: 'Account, casa, IA e preferenze' };
+  const TITLES = { home: 'Home', spese: 'Spese', entrate: 'Entrate', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', lista: 'Lista della spesa', documenti: 'Documenti', detrazioni: 'Riepilogo 730', manutenzioni: 'Manutenzioni', anno: 'Il tuo anno', progetti: 'Progetti', faccende: 'Cose da fare', contanti: 'Contanti', impostazioni: 'Impostazioni' };
+  const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', lista: 'Condivisa con la famiglia', documenti: 'Tutti i tuoi file', detrazioni: 'Spese detraibili e rimborso stimato', manutenzioni: 'Caldaia, filtri e controlli periodici', anno: 'Il riepilogo in numeri', progetti: 'Viaggi, lavori ed eventi con budget', faccende: 'Lavori e commissioni di casa', contanti: 'Portafoglio e cronologia', impostazioni: 'Account, casa, IA e preferenze' };
   function route() { routeAnimated(doRoute); }
   function doRoute(vt) {
     view = (location.hash || '#home').slice(1);
@@ -416,9 +416,9 @@
     $$('.view').forEach(v => (v.hidden = lockM ? v.id !== 'v-lock' : v.id !== 'v-' + view));
     document.body.classList.toggle('locked', !!lockM);
     if (lockM) renderLock(lockM);
-    $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto', 'lista', 'documenti', 'detrazioni', 'manutenzioni', 'anno', 'progetti', 'faccende'].includes(view) && !isDesk())));
+    $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto', 'lista', 'documenti', 'detrazioni', 'manutenzioni', 'anno', 'progetti', 'faccende', 'contanti'].includes(view) && !isDesk())));
     $('#title').textContent = TITLES[view];
-    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : view === 'entrate' ? 'Nuova entrata' : view === 'documenti' ? 'Carica documento' : view === 'manutenzioni' ? 'Nuova manutenzione' : view === 'progetti' ? 'Nuovo progetto' : view === 'faccende' ? 'Aggiungi' : view === 'lista' ? 'Aggiungi prodotto' : 'Nuova spesa';
+    $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : view === 'entrate' ? 'Nuova entrata' : view === 'documenti' ? 'Carica documento' : view === 'manutenzioni' ? 'Nuova manutenzione' : view === 'progetti' ? 'Nuovo progetto' : view === 'faccende' ? 'Aggiungi' : view === 'lista' ? 'Aggiungi prodotto' : view === 'contanti' ? 'Prelievo' : 'Nuova spesa';
     const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     animate = true;
@@ -449,6 +449,7 @@
     if (view === 'anno') renderAnno();
     if (view === 'progetti') renderPrj();
     if (view === 'faccende') renderFc();
+    if (view === 'contanti') renderContanti();
     setSync();
   }
 
@@ -529,6 +530,7 @@
     const tot = sum(ms);
     countTo($('#h-total'), tot);
     heroSpark(ms);
+    renderHomeCash();
 
     const [y, m] = homeMonth.split('-').map(Number);
     const prevKey = ymOf(new Date(y, m - 2, 1));
@@ -831,7 +833,7 @@
     j = await r.json(); if (!j.ok) throw new Error(j.error || 'Lettura non riuscita');
     const d = j.data, rows = [];
     Object.entries(KEY).forEach(([sheet, k]) => {
-      if (sheet === 'Resoconti') return;
+      if (sheet === 'Resoconti' || sheet === 'Contanti') return;
       if (sheet === 'Categorie') (d.categorie || []).forEach(nome => rows.push({ household_id: hh, sheet, id: String(nome), data: { nome } }));
       else (d[k] || []).forEach(row => { if (row && row.id != null && row.id !== '') rows.push({ household_id: hh, sheet, id: String(row.id), data: row }); });
     });
@@ -2255,6 +2257,7 @@
   }
 
   // abbinamento movimenti ↔ spese registrate (uno a uno, i migliori per primi)
+  const ATM_RE = /prelev|\batm\b|bancomat|sportello|cash ?withdraw|contanti/i;
   function reconcile() {
     const out = stmt.movs.filter(m => m.segno !== 'entrata');
     if (!out.length) { stmt.movs.forEach(m => { m.st = 'in'; m.match = null; }); stmt.onlyApp = []; return; }
@@ -2282,6 +2285,13 @@
     stmt.movs.filter(m => m.segno === 'entrata').forEach(m => {
       const e2 = db.entrate.filter(x => !usedE.has(x.id) && Math.abs((Number(x.importo) || 0) - m.importo) < 0.01 && dDiff(x.data, m.data) <= 7).sort((a, b) => dDiff(a.data, m.data) - dDiff(b.data, m.data))[0];
       if (e2) { usedE.add(e2.id); m.st = 'inok'; m.matchIn = e2.id; }
+    });
+    // prelievi registrati nel portafoglio contanti ↔ prelievi bancomat dell'estratto
+    const usedC = new Set();
+    stmt.movs.forEach(m => { m.matchCash = null; });
+    out.forEach(m => {
+      const p2 = db.contanti.filter(x => x.tipo === 'prelievo' && !usedC.has(x.id) && Math.abs(Math.abs(Number(x.importo) || 0) - m.importo) < 0.01 && dDiff(x.data, m.data) <= 4).sort((a, b) => dDiff(a.data, m.data) - dDiff(b.data, m.data))[0];
+      if (p2) { usedC.add(p2.id); usedM.add(m.id); m.st = 'ok'; m.matchCash = p2.id; }
     });
     pairs.forEach(p => {
       if (usedM.has(p.m.id) || usedS.has(p.s.id)) return;
@@ -2410,10 +2420,10 @@
         rows = l.map(m => {
           const s2 = m.match && sp(m.match);
           return `<div class="st-row st-${m.st}"><div class="st-d">${dl(m.data)}</div>
-            <div class="st-m">${iconHTML(escName(m), escName(m))}<div><b>${esc(m.descrizione)}</b><small>${s2 ? `In app: ${esc(s2.descrizione)} · ${esc(shortDate(s2.data))}${Math.abs(s2.importo - m.importo) > 0.004 ? ' · ' + eur(s2.importo) : ''}` : m.st === 'inok' ? (() => { const e2 = db.entrate.find(x => x.id === m.matchIn); const p = e2 && personaById(e2.personaId); return 'In app: ' + esc(e2 ? e2.tipo + (p ? ' · ' + p.nome : '') : 'entrata'); })() : m.st === 'in' ? 'Accredito non registrato' : esc(m.categoria || '')}${m.page != null ? ' · pag. ' + (m.page + 1) : ''}</small></div></div>
+            <div class="st-m">${iconHTML(escName(m), escName(m))}<div><b>${esc(m.descrizione)}</b><small>${m.matchCash ? (() => { const c2 = db.contanti.find(x => x.id === m.matchCash); return 'In app: prelievo contanti' + (c2 ? ' · ' + esc(shortDate(c2.data)) : ''); })() : s2 ? `In app: ${esc(s2.descrizione)} · ${esc(shortDate(s2.data))}${Math.abs(s2.importo - m.importo) > 0.004 ? ' · ' + eur(s2.importo) : ''}` : m.st === 'inok' ? (() => { const e2 = db.entrate.find(x => x.id === m.matchIn); const p = e2 && personaById(e2.personaId); return 'In app: ' + esc(e2 ? e2.tipo + (p ? ' · ' + p.nome : '') : 'entrata'); })() : m.st === 'in' ? 'Accredito non registrato' : esc(m.categoria || '')}${m.page != null ? ' · pag. ' + (m.page + 1) : ''}</small></div></div>
             <span class="chip ${m.st === 'ok' || m.st === 'inok' ? 'paid' : m.st === 'prob' ? 'soon' : m.st === 'miss' ? 'late' : ''}">${ST_LBL[m.st]}</span>
             <div class="amt">${m.segno === 'entrata' ? '+' : '−'}${eur(m.importo)}</div>
-            <div class="st-act">${m.st === 'miss' ? `<button class="btn sm" data-stmt="add:${m.id}">Aggiungi</button>` : m.st === 'prob' ? `<button class="btn sm" data-stmt="ok:${m.id}">Conferma</button><button class="icon-btn" data-stmt="un:${m.id}" title="Non coincide">✕</button>` : m.st === 'ok' ? `<button class="icon-btn" data-stmt="un:${m.id}" title="Scollega">✕</button>` : m.st === 'in' ? `<button class="btn sm" data-stmt="addin:${m.id}">Registra</button>` : ''}</div></div>`;
+            <div class="st-act">${m.st === 'miss' ? (ATM_RE.test(m.descrizione + ' ' + (m.esercente || '')) ? `<button class="btn sm" data-stmt="cash:${m.id}">Prelievo</button>` : `<button class="btn sm" data-stmt="add:${m.id}">Aggiungi</button>`) : m.st === 'prob' ? `<button class="btn sm" data-stmt="ok:${m.id}">Conferma</button><button class="icon-btn" data-stmt="un:${m.id}" title="Non coincide">✕</button>` : m.st === 'ok' ? `<button class="icon-btn" data-stmt="un:${m.id}" title="Scollega">✕</button>` : m.st === 'in' ? `<button class="btn sm" data-stmt="addin:${m.id}">Registra</button>` : ''}</div></div>`;
         }).join('');
       }
     }
@@ -2592,11 +2602,14 @@
       const en = { id: uid(), data: m.data, importo: m.importo, personaId: p ? p.id : '', tipo, descrizione: m.esercente || m.descrizione, note: 'Da estratto conto', ricorrenteId: '', creato: new Date().toISOString() };
       write([{ action: 'upsert', sheet: 'Entrate', row: en }]); m.st = 'inok'; m.matchIn = en.id; renderStmt(); toast('Entrata registrata' + (p ? ' per ' + p.nome : '')); return;
     }
+    if (act.startsWith('cash:') && m) { formPrelievo(null, { importo: m.importo, data: m.data, note: 'Da estratto conto: ' + String(m.descrizione).slice(0, 60), _stmt: m }); return; }
     if (act.startsWith('add:') && m) { const sp = toSpesa(m); write([{ action: 'upsert', sheet: 'Spese', row: sp }]); m.st = 'ok'; m.match = sp.id; renderStmt(); toast('Spesa aggiunta'); return; }
     if (act.startsWith('ok:') && m) { m.st = 'ok'; renderStmt(); return; }
-    if (act.startsWith('un:') && m) { m.st = 'miss'; m.match = null; reconcileOnlyApp(); renderStmt(); return; }
+    if (act.startsWith('un:') && m) { m.st = 'miss'; m.match = null; m.matchCash = null; reconcileOnlyApp(); renderStmt(); return; }
     if (act === 'addall') {
-      const miss = stmt.movs.filter(x => x.st === 'miss');
+      // i prelievi bancomat non sono spese: si registrano dal pulsante "Prelievo"
+      const miss = stmt.movs.filter(x => x.st === 'miss' && !ATM_RE.test(x.descrizione + ' ' + (x.esercente || '')));
+      if (!miss.length) return toast('Restano solo prelievi: registrali con il pulsante Prelievo');
       if (!confirm(`Aggiungere ${miss.length} spese all'app?`)) return;
       const ops = miss.map(x => { const sp = toSpesa(x); x.st = 'ok'; x.match = sp.id; return { action: 'upsert', sheet: 'Spese', row: sp }; });
       write(ops); renderStmt(); toast(`${ops.length} spese aggiunte`); return;
@@ -5201,6 +5214,7 @@
       ${isNew && !pre && aiReady() ? `<div class="ai-row">
         <button type="button" class="ai-btn" data-ai="receipt">${ICO.camera}<span>Foto scontrino</span></button>
         <button type="button" class="ai-btn" data-ai="text">${ICO.mic}<span>Scrivi o detta</span></button></div>` : ''}
+      ${isNew && !pre ? segSpesaPrelievo('spesa') : ''}
       ${pre && pre._ai ? `<div class="ai-note">${ICO.spark}<span>Compilato dall'IA: controlla e salva</span></div>` : ''}
       <label class="f"><span>Importo (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(s.importo))}" required data-focus></label>
       <label class="f"><span>Descrizione / negozio</span><div class="desc-wrap"><span id="desc-ic">${iconHTML(s.descrizione, '?', s.sito)}</span><input name="descrizione" placeholder="Es. Conad, Enel, Leroy Merlin…" value="${esc(s.descrizione)}"></div><div class="hint" id="desc-hint"></div></label>
@@ -5212,6 +5226,7 @@
         <label class="f"><span>Metodo di pagamento</span><select name="metodo">${opt(METODI, s.metodo)}</select></label>
         <label class="f"><span>Detrazione 730</span><select name="detrazione"><option value="">Nessuna</option>${Object.keys(DETR).map(k => `<option value="${k}" ${s.detrazione === k ? 'selected' : ''}>${esc(DETR[k].nome)}</option>`).join('')}</select></label>
       </div>
+      <div class="cash-hint" id="cash-hint" hidden></div>
       ${pp.length > 1 ? `<div class="f" id="sp-who"><span class="f-l">Pagata da</span><div class="who-pick"><label class="wp"><input type="radio" name="personaId" value="" ${!whoSel ? 'checked' : ''}><span>Conto comune</span></label>${pp.map(p => `<label class="wp"><input type="radio" name="personaId" value="${esc(p.id)}" ${p.id === whoSel ? 'checked' : ''}><span>${avatar(p, 'xxs')}${esc(p.nome)}</span></label>`).join('')}</div></div>` : ''}
       ${prjOpts.length ? `<label class="f"><span>Progetto</span><select name="progetto"><option value="">Nessuno</option>${prjOpts.map(p => `<option value="${esc(p.id)}" ${p.id === s.progetto ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>` : ''}
       ${lsItems.length ? `<div class="ai-note ls-note"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Spunterò dalla lista: ${esc(lsItems.map(x => x.nome).join(', '))}</span></div>` : ''}
@@ -5235,7 +5250,8 @@
         write(ops);
         const dupA = isNew && smartAlerts().find(a => a.key.startsWith('dup_') && a.key.includes(row.id));
         if (dupA) { closeSheet(); toast('Attenzione: sembra un doppione di una spesa già registrata'); return; }
-        closeSheet(); toast((isNew ? 'Spesa aggiunta' : 'Spesa aggiornata') + (lsItems.length ? ` · ${lsItems.length} prodott${lsItems.length === 1 ? 'o' : 'i'} spuntat${lsItems.length === 1 ? 'o' : 'i'}` : ''));
+        const cashTxt = row.metodo === 'Contanti' && cashCfg() && row.data >= cashCfg().inizio ? ' · contanti rimasti ' + eur(cashBalance()) : '';
+        closeSheet(); toast((isNew ? 'Spesa aggiunta' : 'Spesa aggiornata') + cashTxt + (lsItems.length ? ` · ${lsItems.length} prodott${lsItems.length === 1 ? 'o' : 'i'} spuntat${lsItems.length === 1 ? 'o' : 'i'}` : ''));
       },
       isNew ? null : () => {
         if (!confirm('Eliminare questa spesa?')) return;
@@ -5260,6 +5276,7 @@
         } catch (er) { busy(); toast(er.message); }
         finally { box.classList.remove('reading'); }
       } });
+    bindCashHint(s, isNew);
     const dsel = $('#sheet-body [name=detrazione]'), csel = $('#sheet-body [name=categoria]');
     const syncWho = () => {};
     dsel.addEventListener('change', syncWho);
@@ -5269,6 +5286,203 @@
       const auto = () => { if (dTouched) return; dsel.value = csel.value === 'Salute' ? 'sanitarie' : ''; syncWho(); };
       csel.addEventListener('change', auto); $('#sheet-body [name=descrizione]').addEventListener('input', () => setTimeout(auto)); auto();
     }
+  }
+
+
+  /* ================= Contanti: portafoglio, prelievi e cronologia ================= */
+  // Il prelievo NON è una spesa: sposta soldi dal conto al portafoglio. Le spese pagate "Contanti"
+  // (dalla data di attivazione in poi) vengono scalate dal saldo.
+  const cashCfg = () => { const c = db.config && db.config.contanti; return c && c.inizio ? c : null; };
+  const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const CASH_ORD = { iniziale: 0, prelievo: 1, correzione: 2, spesa: 3 };
+  function cashMoves() {
+    const c = cashCfg(); if (!c) return [];
+    const mv = db.contanti.map(x => ({ id: x.id, tipo: x.tipo || 'prelievo', data: x.data, ord: x.creato || '', importo: x.tipo === 'correzione' ? r2(x.importo) : Math.abs(r2(x.importo)), rec: x }));
+    db.spese.filter(sp => sp.metodo === 'Contanti' && sp.data >= c.inizio).forEach(sp => mv.push({ id: sp.id, tipo: 'spesa', data: sp.data, ord: sp.creato || '', importo: -Math.abs(r2(sp.importo)), rec: sp }));
+    mv.sort((a, b) => String(a.data).localeCompare(String(b.data)) || (a.tipo === 'iniziale' ? -1 : 0) - (b.tipo === 'iniziale' ? -1 : 0) || String(a.ord).localeCompare(String(b.ord)) || CASH_ORD[a.tipo] - CASH_ORD[b.tipo]);
+    let run = 0; mv.forEach(m => { run = r2(run + m.importo); m.saldo = run; });
+    return mv;
+  }
+  const cashBalance = skipId => r2(cashMoves().filter(m => m.id !== skipId).reduce((a, m) => a + m.importo, 0));
+  const ICO_CASH = '<svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/></svg>';
+  const ICO_CASH_IN = '<svg viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>';
+  const ICO_CASH_FIX = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+
+  const segSpesaPrelievo = on => `<div class="seg sp-mode" role="tablist"><button type="button" data-spmode="spesa" class="${on === 'spesa' ? 'on' : ''}">Spesa</button><button type="button" data-spmode="prelievo" class="${on === 'prelievo' ? 'on' : ''}">Prelievo</button></div>`;
+
+  // saldo contanti sotto il metodo di pagamento, aggiornato mentre scrivi
+  function bindCashHint(s, isNew) {
+    const box = $('#cash-hint'); if (!box) return;
+    const F = n => $('#sheet-body [name=' + n + ']');
+    const upd = () => {
+      const c = cashCfg();
+      if (F('metodo').value !== 'Contanti') { box.hidden = true; return; }
+      if (!c) {
+        box.hidden = !isNew; box.className = 'cash-hint';
+        box.innerHTML = `${ICO_CASH}<span>Vuoi tenere il conto dei contanti? <button type="button" class="link-btn" data-spmode="prelievo">Registra un prelievo</button></span>`;
+        return;
+      }
+      if (F('data').value < c.inizio) { box.hidden = true; return; }
+      const saldo = cashBalance(isNew ? null : s.id), imp = num(F('importo').value), dopo = r2(saldo - imp);
+      box.hidden = false;
+      box.className = 'cash-hint' + (imp > 0 && dopo < 0 ? ' warn' : '');
+      box.innerHTML = `${ICO_CASH}<span>${imp > 0 && dopo < 0 ? `Nel portafoglio hai solo <b>${eur(saldo)}</b>: puoi salvare lo stesso` : `Nel portafoglio <b>${eur(saldo)}</b>${imp > 0 ? ` · dopo questa spesa <b>${eur(dopo)}</b>` : ''}`}</span>`;
+    };
+    ['metodo', 'importo', 'data'].forEach(n => { F(n).addEventListener('input', upd); F(n).addEventListener('change', upd); });
+    upd();
+  }
+
+  function formPrelievo(p, pre) {
+    const isNew = !p, c = cashCfg();
+    p = p || { id: uid(), tipo: 'prelievo', data: today(), importo: '', note: '' };
+    if (pre) p = { ...p, ...pre };
+    const saldo = c ? cashBalance(isNew ? null : p.id) : 0;
+    openSheet(isNew ? 'Nuovo prelievo' : 'Modifica prelievo', `
+      ${isNew && !(pre && pre._stmt) ? segSpesaPrelievo('prelievo') : ''}
+      <label class="f"><span>Importo prelevato (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(p.importo))}" required data-focus></label>
+      <div class="f-row">
+        <label class="f"><span>Data</span><input name="data" type="date" value="${esc(p.data)}" required></label>
+        ${c ? `<div class="f"><span class="f-l">Nel portafoglio</span><div class="cash-now" id="cash-now">${eur(saldo)}</div></div>`
+            : `<label class="f"><span>Contanti che avevi già (€)</span><input name="iniziale" inputmode="decimal" placeholder="0,00"></label>`}
+      </div>
+      <label class="f"><span>Note</span><input name="note" placeholder="Es. Bancomat di via Roma" value="${esc(p.note || '')}"></label>
+      <div class="cash-info">${ICO_CASH}<span>Il prelievo non conta come spesa: sposta i soldi dal conto al portafoglio. Le spese pagate in contanti vengono scalate da qui.</span></div>`,
+      fd => {
+        const importo = num(fd.get('importo'));
+        if (importo <= 0) return toast('Inserisci un importo valido');
+        const data = fd.get('data');
+        const row = { ...p, tipo: 'prelievo', importo, data, note: String(fd.get('note') || '').trim(), creato: p.creato || new Date().toISOString() };
+        Object.keys(row).forEach(k => { if (k.startsWith('_')) delete row[k]; });
+        const ops = [{ action: 'upsert', sheet: 'Contanti', row }];
+        if (!c) {
+          const inizio = data < today() ? data : today();
+          ops.unshift({ action: 'upsert', sheet: 'Config', row: { chiave: 'contanti', valore: JSON.stringify({ inizio, attivato: new Date().toISOString() }) } });
+          const ini = num(fd.get('iniziale'));
+          if (ini > 0) ops.push({ action: 'upsert', sheet: 'Contanti', row: { id: uid(), tipo: 'iniziale', importo: ini, data: inizio, note: 'Contanti che avevi già', creato: new Date(Date.now() - 1000).toISOString() } });
+        }
+        if (pre && pre._stmt) { pre._stmt.st = 'ok'; pre._stmt.matchCash = row.id; }
+        write(ops); closeSheet();
+        toast((isNew ? 'Prelievo registrato' : 'Prelievo aggiornato') + ' · nel portafoglio ' + eur(cashBalance()));
+        if (pre && pre._stmt) renderStmt();
+      },
+      isNew ? null : () => {
+        if (!confirm('Eliminare questo prelievo?')) return;
+        write([{ action: 'delete', sheet: 'Contanti', id: p.id }]); closeSheet(); toast('Prelievo eliminato');
+      }, isNew ? 'Salva prelievo' : 'Salva');
+    if (c) {
+      const inp = $('#sheet-body [name=importo]'), out = $('#cash-now');
+      inp.addEventListener('input', () => { const v = num(inp.value); out.innerHTML = v > 0 ? `${eur(saldo)} <small>→ ${eur(r2(saldo + v))}</small>` : eur(saldo); });
+    }
+  }
+
+  // "Correggi saldo": scrivi quanti contanti hai davvero, l'app registra la differenza
+  function formCashFix() {
+    const c = cashCfg(), saldo = c ? cashBalance() : 0;
+    openSheet(c ? 'Correggi saldo' : 'Contanti che hai', `
+      <label class="f"><span>Quanti contanti hai adesso (€)</span><input name="ora" class="amount-input" inputmode="decimal" placeholder="0,00" value="${c ? esc(fmtAmt(Math.max(0, saldo))) : ''}" required data-focus></label>
+      ${c ? `<div class="cash-info" id="fix-diff">${ICO_CASH_FIX}<span>Secondo l'app ne hai <b>${eur(saldo)}</b>. La differenza resta nella cronologia.</span></div>` : ''}
+      <label class="f"><span>Motivo</span><input name="note" placeholder="${c ? 'Es. resto, regalo, contanti ricevuti' : 'Facoltativo'}"></label>
+      ${c ? '' : `<div class="cash-info">${ICO_CASH}<span>Da oggi le spese pagate in contanti vengono scalate da qui. Le spese passate restano come sono.</span></div>`}`,
+      fd => {
+        const ora = num(fd.get('ora'));
+        if (ora < 0) return toast('Inserisci un importo valido');
+        const note = String(fd.get('note') || '').trim(), ops = [];
+        if (!c) {
+          ops.push({ action: 'upsert', sheet: 'Config', row: { chiave: 'contanti', valore: JSON.stringify({ inizio: today(), attivato: new Date().toISOString() }) } });
+          if (ora > 0) ops.push({ action: 'upsert', sheet: 'Contanti', row: { id: uid(), tipo: 'iniziale', importo: ora, data: today(), note: note || 'Contanti che avevi già', creato: new Date().toISOString() } });
+        } else {
+          const diff = r2(ora - saldo);
+          if (!diff) { closeSheet(); return toast('Il saldo è già giusto'); }
+          ops.push({ action: 'upsert', sheet: 'Contanti', row: { id: uid(), tipo: 'correzione', importo: diff, data: today(), note, creato: new Date().toISOString() } });
+        }
+        write(ops); closeSheet(); toast(c ? 'Saldo corretto · ' + eur(ora) : 'Portafoglio attivato · ' + eur(ora));
+        if (view !== 'contanti') location.hash = 'contanti';
+      }, null, c ? 'Correggi' : 'Attiva');
+    if (c) {
+      const inp = $('#sheet-body [name=ora]'), box = $('#fix-diff');
+      inp.addEventListener('input', () => {
+        const d = r2(num(inp.value) - saldo);
+        box.querySelector('span').innerHTML = `Secondo l'app ne hai <b>${eur(saldo)}</b>${d ? ` · correzione <b class="${d > 0 ? 'pos-t' : 'neg-t'}">${d > 0 ? '+' : '−'}${eur(Math.abs(d))}</b>` : ''}. La differenza resta nella cronologia.`;
+      });
+    }
+  }
+
+  function cashDetail(rec) {
+    const lbl = rec.tipo === 'iniziale' ? 'Contanti iniziali' : 'Correzione del saldo';
+    openSheet(lbl, `<div class="cash-det"><div class="cash-det-v ${rec.tipo === 'correzione' && rec.importo < 0 ? 'neg-t' : 'pos-t'}">${rec.importo < 0 ? '−' : '+'}${eur(Math.abs(rec.importo))}</div>
+      <div class="muted">${esc(dayLabel(rec.data))}${rec.note ? ' · ' + esc(rec.note) : ''}</div></div>`,
+      () => closeSheet(),
+      () => { if (!confirm('Eliminare questo movimento? Il saldo verrà ricalcolato.')) return; write([{ action: 'delete', sheet: 'Contanti', id: rec.id }]); closeSheet(); toast('Movimento eliminato'); }, 'Chiudi');
+  }
+
+  function cashItem(m) {
+    const r = m.rec, neg = m.importo < 0;
+    const sign = `${neg ? '−' : '+'}${eur(Math.abs(m.importo))}`;
+    if (m.tipo === 'spesa') return `<div class="item ct-it" data-spesa="${esc(r.id)}">${iconHTML(r.descrizione, r.categoria, r.sito)}
+      <div class="main"><div class="t">${esc(r.descrizione || r.categoria || 'Spesa')}</div><div class="s">${esc(shortDate(r.data))}${r.categoria ? ' · ' + esc(r.categoria) : ''}</div></div>
+      <div class="right ct-r"><div class="amt">${sign}</div><small>saldo ${eur(m.saldo)}</small></div></div>`;
+    const t = m.tipo === 'prelievo' ? 'Prelievo' : m.tipo === 'iniziale' ? 'Contanti iniziali' : 'Correzione saldo';
+    return `<div class="item ct-it" data-cash="${esc(r.id)}"><div class="ic ct-ic ${m.tipo}">${m.tipo === 'correzione' ? ICO_CASH_FIX : m.tipo === 'iniziale' ? ICO_CASH : ICO_CASH_IN}</div>
+      <div class="main"><div class="t">${t}</div><div class="s">${esc(shortDate(r.data))}${r.note ? ' · ' + esc(r.note) : ''}</div></div>
+      <div class="right ct-r"><div class="amt ${neg ? '' : 'pos-t'}">${sign}</div><small>saldo ${eur(m.saldo)}</small></div></div>`;
+  }
+
+  let cashLimit = 60;
+  function renderContanti() {
+    const el = $('#ct-body'); if (!el) return;
+    const c = cashCfg();
+    if (!c) {
+      el.innerHTML = `<div class="card ct-empty">
+        <div class="ct-empty-ic">${ICO_CASH}</div>
+        <h3>Il tuo portafoglio contanti</h3>
+        <p class="muted">Registra i prelievi: ogni spesa pagata in contanti viene scalata da sola e vedi sempre quanti contanti ti restano e dove sono finiti.</p>
+        <div class="ct-empty-a"><button class="btn primary" data-cashact="prelievo">Registra un prelievo</button><button class="btn" data-cashact="fix">Ho già dei contanti</button></div>
+      </div>`;
+      return;
+    }
+    const mv = cashMoves(), saldo = mv.length ? mv[mv.length - 1].saldo : 0, mk = ymOf(new Date());
+    const mese = mv.filter(m => ym(m.data) === mk);
+    const prel = mese.filter(m => m.tipo === 'prelievo'), spese = mese.filter(m => m.tipo === 'spesa');
+    const last = [...mv].reverse().find(m => m.tipo === 'prelievo');
+    el.innerHTML = `<div class="kpis ct-kpis">
+        <div class="card kpi kpi-hero">
+          <div class="kpi-h"><span class="label">Nel portafoglio</span><span class="kpi-ic">${ICO_CASH}</span></div>
+          <div id="ct-saldo" class="big">${eur(0)}</div>
+          <span class="muted small">${saldo < 0 ? 'Saldo sotto zero: correggilo se hai ricevuto contanti' : last ? 'Ultimo prelievo ' + esc(shortDate(last.data)) : 'Nessun prelievo ancora'}</span>
+        </div>
+        <div class="card kpi"><div class="kpi-h"><span class="label">Prelevati nel mese</span></div><div class="big">${eur(prel.reduce((a, m) => a + m.importo, 0))}</div><span class="muted small">${prel.length === 1 ? '1 prelievo' : prel.length + ' prelievi'}</span></div>
+        <div class="card kpi"><div class="kpi-h"><span class="label">Spesi in contanti</span></div><div class="big">${eur(-spese.reduce((a, m) => a + m.importo, 0))}</div><span class="muted small">${spese.length === 1 ? '1 spesa' : spese.length + ' spese'} nel mese</span></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Cronologia</h3><div class="ct-acts"><button class="btn sm" data-cashact="fix">Correggi saldo</button><button class="btn sm primary" data-cashact="prelievo">+ Prelievo</button></div></div>
+        <div id="ct-list" class="list"></div>
+      </div>`;
+    const rev = [...mv].reverse(), shown = rev.slice(0, cashLimit);
+    let html = '', cur = '';
+    shown.forEach(m => {
+      const k = ym(m.data);
+      if (k !== cur) {
+        cur = k;
+        const g = mv.filter(x => ym(x.data) === k), pin = g.filter(x => x.importo > 0).reduce((a, x) => a + x.importo, 0), pout = -g.filter(x => x.importo < 0).reduce((a, x) => a + x.importo, 0);
+        html += `<div class="ct-m"><span>${esc(monthName(k))}</span><small>${pin ? '<b class="pos-t">+' + eur(pin) + '</b>' : ''}${pin && pout ? ' · ' : ''}${pout ? '−' + eur(pout) : ''}</small></div>`;
+      }
+      html += cashItem(m);
+    });
+    if (rev.length > shown.length) html += `<button class="btn ct-more" data-cashact="more">Mostra altri ${Math.min(60, rev.length - shown.length)}</button>`;
+    $('#ct-list').innerHTML = html || `<div class="empty">Nessun movimento. Le spese pagate in contanti dal ${esc(shortDate(c.inizio))} compariranno qui.</div>`;
+    const sEl = $('#ct-saldo');
+    if (animate && !reduced()) countTo(sEl, saldo); else sEl.textContent = eur(saldo);
+    sEl.classList.toggle('ct-neg', saldo < 0);
+  }
+
+  function renderHomeCash() {
+    const card = $('#h-cash'); if (!card) return;
+    const c = cashCfg(); card.hidden = !c; if (!c) return;
+    const mv = cashMoves(), saldo = mv.length ? mv[mv.length - 1].saldo : 0;
+    const spesi = -mv.filter(m => m.tipo === 'spesa' && ym(m.data) === homeMonth).reduce((a, m) => a + m.importo, 0);
+    $('#h-cash-v').textContent = eur(saldo);
+    $('#h-cash-v').classList.toggle('neg-t', saldo < 0);
+    $('#h-cash-s').textContent = spesi ? `${eur(spesi)} spesi in contanti nel mese` : 'Nessuna spesa in contanti nel mese';
   }
 
   function bindMerchantField(autoCat, s0) {
@@ -5357,7 +5571,7 @@
     ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
     let lastTouch = 0;
     document.addEventListener('touchend', e => { const n = Date.now(); if (n - lastTouch < 300 && !e.target.closest('input,select,textarea')) e.preventDefault(); lastTouch = n; }, { passive: false });
-    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : view === 'entrate' ? (db.persone.length ? formEntrata() : formPersona()) : view === 'documenti' ? newDoc() : view === 'manutenzioni' ? formMnt() : view === 'progetti' ? formPrj() : view === 'faccende' ? $('#fc-in').focus() : view === 'lista' ? $('#ls-in').focus() : formSpesa());
+    $('#fab').onclick = $('#add-top').onclick = () => (view === 'fisse' ? formFissa() : view === 'auto' ? (curVeh() ? formRifornimento() : formVeicolo()) : view === 'entrate' ? (db.persone.length ? formEntrata() : formPersona()) : view === 'documenti' ? newDoc() : view === 'manutenzioni' ? formMnt() : view === 'progetti' ? formPrj() : view === 'faccende' ? $('#fc-in').focus() : view === 'lista' ? $('#ls-in').focus() : view === 'contanti' ? (cashCfg() ? formPrelievo() : formCashFix()) : formSpesa());
     $('#add-bill').onclick = () => formBill();
     $('#st-file').addEventListener('change', e => { const fl = [...e.target.files]; e.target.value = ''; if (fl.length) analyzeStatement(fl); });
     const dz = $('#st-drop');
@@ -5366,6 +5580,18 @@
     dz.addEventListener('drop', e => { const fl = [...e.dataTransfer.files]; if (fl.length) analyzeStatement(fl); });
 
     document.addEventListener('click', e => {
+      const spm = e.target.closest('[data-spmode]');
+      if (spm) {
+        e.preventDefault();
+        if (spm.classList.contains('on')) return;
+        const imp = $('#sheet-body [name=importo]'), v = imp ? num(imp.value) : 0;
+        if (spm.dataset.spmode === 'prelievo') formPrelievo(null, v > 0 ? { importo: v } : null); else { formSpesa(); if (v > 0) $('#sheet-body [name=importo]').value = fmtAmt(v); }
+        return;
+      }
+      const ca = e.target.closest('[data-cashact]');
+      if (ca) { const a = ca.dataset.cashact; if (a === 'prelievo') formPrelievo(); if (a === 'fix') formCashFix(); if (a === 'more') { cashLimit += 60; renderContanti(); } return; }
+      const cs = e.target.closest('[data-cash]');
+      if (cs) { const r = db.contanti.find(x => x.id === cs.dataset.cash); if (r) (r.tipo === 'prelievo' || !r.tipo ? formPrelievo(r) : cashDetail(r)); return; }
       const pay = e.target.closest('[data-pay]');
       if (pay) { e.stopPropagation(); const b = db.bollette.find(x => x.id === pay.dataset.pay); if (b) formPay(b); return; }
       const sp = e.target.closest('[data-spesa]');
