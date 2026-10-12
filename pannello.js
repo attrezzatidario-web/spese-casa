@@ -37,7 +37,7 @@
     clearTimeout(toast._t); toast._t = setTimeout(() => { t.classList.add('out'); setTimeout(() => (t.hidden = true), 250); }, 2800);
   }
   function countTo(el, to, fmt) {
-    fmt = fmt || N; to = Number(to) || 0;
+    fmt = fmt || (v => N(Math.round(v))); to = Number(to) || 0;
     const from = Number(el.dataset.n || 0); el.dataset.n = to;
     if (REDUCED || from === to) { el.textContent = fmt(to); return; }
     if (from !== 0) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
@@ -406,6 +406,25 @@
     const g = e.target.closest('[data-go]'); if (g) { location.hash = g.dataset.go; }
   });
   let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (view === 'panoramica' && ov) { barChart($('#c-sign'), ov.signups_30 || [], ['iscritto', 'iscritti']); lineChart($('#c-act'), ov.active_30 || [], ['utente attivo', 'utenti attivi']); } pillSeg(); }, 200); });
+
+  /* ---------- apertura animata ---------- */
+  (function apertura() {
+    const sp = $('#pn-splash'); if (!sp) return;
+    if (REDUCED) { sp.remove(); return; }
+    let chiusa = false;
+    const chiudi = () => {
+      if (chiusa) return; chiusa = true;
+      sp.classList.add('out');
+      // il pannello vero prende il posto delle sagome: numeri e grafici ripartono
+      if (!$('#app').hidden) {
+        $$('#v-' + view + ' .big[data-n]').forEach(e => (e.dataset.n = 0));
+        primo[view] = true; render();
+      }
+      setTimeout(() => sp.remove(), 500);
+    };
+    sp.addEventListener('click', chiudi);
+    setTimeout(chiudi, 2650);
+  })();
 
   entra();
 })();

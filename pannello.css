@@ -182,3 +182,55 @@ html, body.pn { overflow-x: hidden; }
 .pn-col > .card, .pn-grid > .card, .view > .card { min-width: 0; }
 .pn-col .item .main, .pn-col .item .t { min-width: 0; }
 .pn-kpis > .card { min-width: 0; }
+
+/* ===== Apertura animata: Tetto Studio → pannello ===== */
+.pns { position: fixed; inset: 0; z-index: 200; overflow: hidden; background: radial-gradient(120% 90% at 50% 35%, #1d2321 0%, #111413 55%, #0a0c0b 100%); display: grid; place-items: center; cursor: pointer; }
+.pns::after { content: ""; position: absolute; inset: 0; background: var(--bg); opacity: 0; animation: pns-light .5s var(--out) 1.95s forwards; }
+.pns-stage { position: relative; z-index: 2; display: grid; justify-items: center; gap: 0; animation: pns-away .6s var(--spring) 1.7s forwards; }
+.pns-mark { width: 132px; height: 132px; overflow: visible; }
+.pns-roof { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pns-draw .75s cubic-bezier(.65, 0, .35, 1) .15s forwards; }
+.pns-bar { transform-box: fill-box; transform-origin: 50% 100%; transform: scaleY(0); animation: pns-grow .55s var(--spring) forwards; }
+.pns-b1 { animation-delay: .55s; } .pns-b2 { animation-delay: .65s; } .pns-b3 { animation-delay: .75s; }
+.pns-word { margin-top: 18px; font-size: 34px; font-weight: 700; letter-spacing: -.035em; color: #fff; display: flex; overflow: hidden; padding-bottom: 4px; }
+.pns-word span { display: inline-block; transform: translateY(105%); opacity: 0; animation: pns-letter .6s var(--spring) forwards; animation-delay: calc(.78s + var(--i) * 32ms); }
+.pns-tag { margin-top: 6px; font-size: 13px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: #4fd1a0; opacity: 0; transform: translateY(6px); animation: pns-tag .6s var(--out) 1.18s forwards; }
+/* sagome del pannello che salgono e diventano le schede vere */
+.pns-dash { position: absolute; inset: 0; z-index: 1; display: flex; gap: 0; pointer-events: none; }
+.pns-dash i { display: block; border-radius: 20px; background: rgba(255, 255, 255, .07); opacity: 0; transform: translateY(26px) scale(.98); animation: pns-card .7s var(--spring) forwards, pns-card-light .5s var(--out) 1.95s forwards; }
+.pns-side { width: 248px; flex: none; border-radius: 0 !important; animation-delay: 1.78s, 1.95s !important; }
+.pns-main { flex: 1; padding: 28px 40px; display: grid; gap: 16px; align-content: start; }
+.pns-main > * { width: 100%; max-width: 1240px; margin: 0 auto; }
+.pns-main > .pns-h { margin: 0; justify-self: start; }
+.pns-h { height: 54px; width: 260px; border-radius: 12px !important; animation-delay: 1.8s, 1.95s !important; }
+.pns-kpis { display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr; gap: 16px; }
+.pns-kpis i { height: 158px; } .pns-kpis i:nth-child(1) { animation-delay: 1.84s, 1.95s; } .pns-kpis i:nth-child(2) { animation-delay: 1.88s, 1.95s; } .pns-kpis i:nth-child(3) { animation-delay: 1.92s, 1.95s; } .pns-kpis i:nth-child(4) { animation-delay: 1.96s, 1.97s; }
+.pns-kpis i.hero { animation-name: pns-card, pns-card-hero; }
+.pns-cols { display: grid; grid-template-columns: 1.75fr 1fr; gap: 16px; }
+.pns-cols > div { display: grid; gap: 16px; align-content: start; }
+.pns-cols i { height: 200px; animation-delay: 2s, 2s; } .pns-cols i.tall { height: 290px; }
+.pns-cols > div:last-child i { animation-delay: 2.06s, 2.04s; }
+.pns.out { animation: pns-out .45s var(--out) forwards !important; }
+
+@keyframes pns-draw { to { stroke-dashoffset: 0; } }
+@keyframes pns-grow { to { transform: scaleY(1); } }
+@keyframes pns-letter { to { transform: none; opacity: 1; } }
+@keyframes pns-tag { to { opacity: 1; transform: none; } }
+@keyframes pns-away { to { transform: translateY(-14vh) scale(.62); opacity: 0; } }
+@keyframes pns-light { to { opacity: 1; } }
+@keyframes pns-card { to { opacity: 1; transform: none; } }
+@keyframes pns-card-light { to { background: var(--surface); box-shadow: var(--shadow); } }
+@keyframes pns-card-hero { to { background: var(--grad, #17795a); box-shadow: 0 18px 40px -18px rgba(12, 80, 57, .65); } }
+@keyframes pns-out { to { opacity: 0; visibility: hidden; } }
+.pns-dash { z-index: 3; }
+
+@media (max-width: 899px) {
+  .pns-side { display: none !important; }
+  .pns-main { padding: 70px 16px 16px; }
+  .pns-h { width: 180px; height: 44px; }
+  .pns-kpis { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pns-kpis i { height: 118px; } .pns-kpis i.hero { grid-column: 1 / -1; height: 156px; } .pns-kpis i:last-child { grid-column: 1 / -1; height: 96px; }
+  .pns-cols { grid-template-columns: 1fr; gap: 12px; } .pns-cols > div { gap: 12px; }
+  .pns-cols > div:last-child { display: none; }
+  .pns-word { font-size: 30px; }
+}
+@media (prefers-reduced-motion: reduce) { .pns { display: none !important; } }

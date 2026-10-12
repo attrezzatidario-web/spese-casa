@@ -8,20 +8,44 @@
   <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Pannello">
-  <link rel="icon" href="logo.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Tetto Studio">
+  <link rel="icon" href="pannello-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="pannello-touch.png">
+  <link rel="manifest" href="pannello.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=4-2">
-  <link rel="stylesheet" href="pannello.css?v=2">
+  <link rel="stylesheet" href="pannello.css?v=4">
 </head>
 <body class="pn">
+
+  <!-- Apertura animata: Tetto Studio → pannello -->
+  <div id="pn-splash" class="pns" aria-hidden="true">
+    <div class="pns-stage">
+      <svg class="pns-mark" viewBox="0 0 512 512">
+        <defs><linearGradient id="pns-br" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4fd1a0"/><stop offset="1" stop-color="#1f9a6c"/></linearGradient></defs>
+        <path class="pns-roof" pathLength="1" d="M120 236 L256 124 L392 236" fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect class="pns-bar pns-b1" x="168" y="300" width="44" height="92" rx="14" fill="url(#pns-br)" opacity=".75"/>
+        <rect class="pns-bar pns-b2" x="234" y="262" width="44" height="130" rx="14" fill="url(#pns-br)" opacity=".9"/>
+        <rect class="pns-bar pns-b3" x="300" y="226" width="44" height="166" rx="14" fill="url(#pns-br)"/>
+      </svg>
+      <div class="pns-word"><span style="--i:0">T</span><span style="--i:1">e</span><span style="--i:2">t</span><span style="--i:3">t</span><span style="--i:4">o</span><span style="--i:5">&nbsp;</span><span style="--i:6">S</span><span style="--i:7">t</span><span style="--i:8">u</span><span style="--i:9">d</span><span style="--i:10">i</span><span style="--i:11">o</span></div>
+      <div class="pns-tag">Pannello di controllo</div>
+    </div>
+    <div class="pns-dash">
+      <i class="pns-side"></i>
+      <div class="pns-main">
+        <i class="pns-h"></i>
+        <div class="pns-kpis"><i class="hero"></i><i></i><i></i><i></i></div>
+        <div class="pns-cols"><div><i class="tall"></i><i></i></div><div><i></i><i class="tall"></i></div></div>
+      </div>
+    </div>
+  </div>
 
   <!-- Accesso -->
   <section id="setup" class="setup" hidden>
     <div class="setup-card pn-login">
-      <img src="logo.svg" alt="" width="64" height="64">
+      <img src="pannello-icon.svg" alt="" width="64" height="64">
       <h1>Pannello di controllo</h1>
       <p class="muted" id="login-msg">Accesso riservato al proprietario dell'app.</p>
       <div id="login-step1">
@@ -39,7 +63,7 @@
 
   <div id="app" class="app" hidden>
     <nav class="nav">
-      <div class="brand"><img src="logo.svg" alt="" width="34" height="34"><div><strong>Spese Casa</strong><span>Pannello di controllo</span></div></div>
+      <div class="brand"><img src="pannello-icon.svg" alt="" width="34" height="34"><div><strong>Tetto Studio</strong><span>Pannello · Spese Casa</span></div></div>
       <a href="#panoramica" data-view="panoramica"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Panoramica</span></a>
       <a href="#utenti" data-view="utenti"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.3A6.5 6.5 0 0 1 21.5 20"/></svg><span>Utenti</span></a>
       <a href="#abbonamenti" data-view="abbonamenti"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg><span class="lbl-d">Abbonamenti</span><span class="lbl-m">Premium</span></a>
@@ -50,7 +74,7 @@
 
     <main>
       <header class="top">
-        <div class="top-l"><img class="top-logo" src="logo.svg" alt="" width="32" height="32"><div><h2 id="title">Panoramica</h2><span id="subtitle" class="subtitle"></span></div></div>
+        <div class="top-l"><img class="top-logo" src="pannello-icon.svg" alt="" width="32" height="32"><div><h2 id="title">Panoramica</h2><span id="subtitle" class="subtitle"></span></div></div>
         <div class="top-r pn-top-r">
           <span class="pn-live only-mob"><i></i></span>
           <button class="icon-btn pn-ref" id="pn-ref" aria-label="Aggiorna" title="Aggiorna"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v3h3M4 13a8 8 0 0 0 14.6 4.5M20 20v-3h-3"/></svg></button>
@@ -206,6 +230,6 @@
   <div id="pn-tip" class="pn-tip" hidden></div>
 
   <script src="lib-supabase.js?v=1"></script>
-  <script src="pannello.js?v=2"></script>
+  <script src="pannello.js?v=4"></script>
 </body>
 </html>
