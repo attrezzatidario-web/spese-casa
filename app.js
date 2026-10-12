@@ -4612,7 +4612,7 @@
   const ICO_PAY = '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>';
   function swipeTarget(el) {
     const sp = el.closest('.item[data-spesa]');
-    if (sp && !sp.closest('.hist, .sheet, .dt-c')) { const s = db.spese.find(x => String(x.id) === sp.dataset.spesa); if (s) return { el: sp, left: { cls: 'del', ico: ICO_TRASH, txt: 'Elimina', run: () => { write([{ action: 'delete', sheet: 'Spese', id: s.id }]); toastUndo('Spesa eliminata', () => write([{ action: 'upsert', sheet: 'Spese', row: s }])); } }, right: { cls: 'edit', ico: ICO_EDIT, txt: 'Modifica', run: () => formSpesa(s) } }; }
+    if (sp && !sp.closest('.hist, .sheet, .dt-c')) { const s = db.spese.find(x => String(x.id) === sp.dataset.spesa); if (s) return { el: sp, left: { cls: 'del', ask: true, ico: ICO_TRASH, txt: 'Elimina', run: () => confirmDelSpesa(s) }, right: { cls: 'edit', ico: ICO_EDIT, txt: 'Modifica', run: () => formSpesa(s) } }; }
     const fc = el.closest('.fc-it');
     if (fc) { const f = db.faccende.find(x => x.id === fc.dataset.lsid); if (f) return { el: fc, left: { cls: 'del', ico: ICO_TRASH, txt: 'Elimina', run: () => { write([{ action: 'delete', sheet: 'Faccende', id: f.id }]); toastUndo('Eliminata', () => write([{ action: 'upsert', sheet: 'Faccende', row: f }])); } }, right: { cls: 'ok', ico: ICO_OK, txt: isOn(f.fatto) ? 'Da fare' : 'Fatto', run: () => { write([{ action: 'upsert', sheet: 'Faccende', row: { ...f, fatto: !isOn(f.fatto), fattoIl: isOn(f.fatto) ? '' : today() } }]); fcCelebrate(); } } }; }
     const ls = el.closest('.ls-it');
@@ -4620,6 +4620,13 @@
     const bl = el.closest('.bill[data-bill]');
     if (bl) { const b = db.bollette.find(x => x.id === bl.dataset.bill); if (b && activeBills().includes(b)) return { el: bl, right: { cls: 'ok', ico: ICO_PAY, txt: 'Paga', run: () => formPay(b) }, left: { cls: 'edit', ico: ICO_EDIT, txt: 'Modifica', run: () => formBill(b) } }; }
     return null;
+  }
+  function confirmDelSpesa(s) {
+    openSheet('Eliminare questa spesa?', `
+      <div class="del-sum">${iconHTML(s.descrizione, s.categoria, s.sito)}<div class="del-m"><b>${esc(s.descrizione || s.categoria || 'Spesa')}</b><small>${esc(shortDate(s.data))} · ${esc(s.categoria || '')}</small></div><b class="del-amt">${eur(s.importo)}</b></div>`,
+      () => { closeSheet(); write([{ action: 'delete', sheet: 'Spese', id: s.id }]); haptic(12); toastUndo('Spesa eliminata', () => write([{ action: 'upsert', sheet: 'Spese', row: s }])); }, () => closeSheet(), 'Elimina');
+    $('#sheet-ok').classList.add('danger');
+    const no = $('#sheet-del'); no.textContent = 'Annulla'; no.className = 'btn';
   }
   let swipeJust = 0;
   function swipeInit() {
@@ -4652,7 +4659,7 @@
       const side = s.dx < 0 ? s.left : s.right;
       if (side && Math.abs(s.dx) > 80) {
         haptic(12);
-        if (side.cls === 'del') { s.el.style.transition = 'transform .22s ease-in, opacity .22s'; s.el.style.transform = `translateX(${Math.sign(s.dx) * s.w}px)`; s.el.style.opacity = 0; setTimeout(() => { swipeEnd(s); side.run(); }, 220); return; }
+        if (side.cls === 'del' && !side.ask) { s.el.style.transition = 'transform .22s ease-in, opacity .22s'; s.el.style.transform = `translateX(${Math.sign(s.dx) * s.w}px)`; s.el.style.opacity = 0; setTimeout(() => { swipeEnd(s); side.run(); }, 220); return; }
         s.el.style.transition = 'transform .3s var(--spring)'; s.el.style.transform = ''; setTimeout(() => { swipeEnd(s); side.run(); }, 160); return;
       }
       s.el.style.transition = 'transform .35s var(--spring)'; s.el.style.transform = ''; setTimeout(() => swipeEnd(s), 350);
@@ -4986,8 +4993,8 @@
   function openSheet(title, html, submit, del, okLabel = 'Salva') {
     $('#sheet-title').textContent = title;
     $('#sheet-body').innerHTML = html;
-    $('#sheet-ok').textContent = okLabel;
-    $('#sheet-del').hidden = !del; $('#sheet-del').textContent = 'Elimina';
+    $('#sheet-ok').textContent = okLabel; $('#sheet-ok').classList.remove('danger');
+    $('#sheet-del').hidden = !del; $('#sheet-del').textContent = 'Elimina'; $('#sheet-del').className = 'btn danger-ghost';
     onSubmit = submit; onDelete = del;
     clearTimeout(closeSheet._t);
     $('#sheet').classList.remove('closing');

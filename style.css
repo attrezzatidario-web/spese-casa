@@ -2091,3 +2091,26 @@ div.f { margin-bottom: 14px; }
 .acc-act { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .acc-act .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; margin-right: 4px; vertical-align: -3px; }
 .acc-act #casa-esci { margin-left: auto; }
+
+/* ===== Barra mobile: allineamento preciso (pillola solo dietro l'icona) ===== */
+@media (max-width: 899px) {
+  .nav { padding: 8px 6px; border-radius: 28px; align-items: stretch; }
+  .nav a { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; padding: 0 2px; font-size: 10.5px; font-weight: 550; letter-spacing: -.01em; color: var(--muted); }
+  .nav a.active { color: var(--accent); font-weight: 650; }
+  .nav a svg { width: 22px; height: 22px; margin: 5px 0; flex: none; }
+  .nav a span { line-height: 13px; }
+  .nav a::before { top: 0; height: 32px; width: 54px; margin-left: -27px; border-radius: 16px; }
+  .nav a .badge { top: -3px; right: auto; left: calc(50% + 5px); min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; font-size: 10px; line-height: 1; box-shadow: 0 0 0 2px var(--surface); }
+}
+@media (max-width: 380px) {
+  .nav a::before { width: 46px; margin-left: -23px; }
+  .nav a { font-size: 10px; }
+}
+
+/* conferma eliminazione */
+.del-sum { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: var(--bg); }
+.del-m { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.del-m b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.del-m small { color: var(--muted); font-size: 13px; }
+.del-amt { font-size: 17px; font-variant-numeric: tabular-nums; }
+.btn.primary.danger { background: var(--danger); border-color: var(--danger); color: #fff; box-shadow: none; }
