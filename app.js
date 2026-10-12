@@ -4715,7 +4715,7 @@
   /* --- Tira giù per aggiornare --- */
   function ptrInit() {
     const el = document.createElement('div'); el.id = 'ptr'; el.className = 'ptr';
-    el.innerHTML = '<img src="logo.svg" alt="" width="30" height="30">';
+    el.innerHTML = '<svg viewBox="0 0 40 40"><circle class="ptr-track" cx="20" cy="20" r="16"/><circle class="ptr-arc" cx="20" cy="20" r="16" pathLength="100"/><path class="ptr-arrow" d="M20 13v13M15 21l5 5 5-5"/></svg>';
     document.body.appendChild(el);
     let p = null;
     document.addEventListener('touchstart', e => {
@@ -4728,18 +4728,19 @@
       if (dy <= 0 || window.scrollY > 0) { if (p.d) { el.style.transform = ''; el.classList.remove('on'); } p = dy < -4 ? null : p; return; }
       p.d = Math.min(120, dy * 0.45);
       el.classList.add('on');
-      el.style.transform = `translateY(${p.d}px) rotate(${p.d * 3}deg)`;
+      el.style.transform = `translateY(${p.d}px)`;
+      el.style.setProperty('--ptr', Math.min(1, p.d / 70));
       el.classList.toggle('ready', p.d > 70);
       if (p.d > 70 && !p.rd) haptic(6); p.rd = p.d > 70;
     }, { passive: true });
     document.addEventListener('touchend', async () => {
       if (!p) return;
       const go = p.d > 70; p = null;
-      if (!go) { el.style.transform = ''; el.classList.remove('on', 'ready'); return; }
+      if (!go) { el.style.transform = ''; el.classList.remove('on', 'ready'); el.style.setProperty('--ptr', 0); return; }
       el.classList.add('spin'); el.style.transform = 'translateY(70px)';
       if (isLocal()) { await sleep(500); render(); toast(DEMO ? 'Dati aggiornati' : 'Modalità solo dispositivo'); }
       else await pull(true);
-      el.classList.remove('spin', 'ready'); el.style.transform = ''; setTimeout(() => el.classList.remove('on'), 300);
+      el.classList.remove('spin', 'ready'); el.style.transform = ''; setTimeout(() => { el.classList.remove('on'); el.style.setProperty('--ptr', 0); }, 300);
     });
   }
 

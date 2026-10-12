@@ -1623,12 +1623,16 @@ body.is-locked #app, body.is-locked .sheet { visibility: hidden; }
 @keyframes sheetup { from { transform: translateY(100%); } }
 
 /* --- tira giù per aggiornare --- */
-.ptr { position: fixed; top: calc(-44px + env(safe-area-inset-top)); left: 50%; margin-left: -22px; width: 44px; height: 44px; border-radius: 50%; background: var(--surface); box-shadow: 0 6px 20px rgba(0,0,0,.15); display: grid; place-items: center; z-index: 40; opacity: 0; transition: transform .3s cubic-bezier(.32,.72,0,1), opacity .2s; pointer-events: none; }
-.ptr img { border-radius: 8px; transition: transform .2s; }
+.ptr { --ptr: 0; position: fixed; top: calc(-40px + env(safe-area-inset-top)); left: 50%; margin-left: -16px; width: 32px; height: 32px; z-index: 40; opacity: 0; transition: transform .35s cubic-bezier(.32,.72,0,1), opacity .2s; pointer-events: none; color: var(--accent); }
+.ptr svg { width: 32px; height: 32px; display: block; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.ptr-track { stroke-width: 2.5; opacity: .14; }
+.ptr-arc { stroke-width: 2.5; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--ptr) * 100); transform: rotate(-90deg); transform-origin: 20px 20px; }
+.ptr-arrow { stroke-width: 2.2; transform-origin: 20px 20px; transition: transform .25s cubic-bezier(.32,.72,0,1), opacity .15s; opacity: calc(.35 + var(--ptr) * .65); }
 .ptr.on { opacity: 1; transition: opacity .2s; }
-.ptr.ready img { transform: scale(1.12); }
-.ptr.spin img { animation: ptrspin .9s linear infinite; }
-@keyframes ptrspin { to { transform: rotate(360deg); } }
+.ptr.ready .ptr-arrow { transform: rotate(180deg); }
+.ptr.spin .ptr-arrow { opacity: 0; }
+.ptr.spin .ptr-arc { stroke-dashoffset: 72; animation: ptrspin .8s linear infinite; }
+@keyframes ptrspin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
 
 /* --- sagome di caricamento --- */
 .skel-wrap { display: grid; gap: 10px; padding: 6px 0; }
