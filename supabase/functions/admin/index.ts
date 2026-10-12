@@ -12,6 +12,15 @@ const VAPID_PUBLIC = 'BOmeNL_VFB4WwSPylaBuisV2pi0A-GsmoeJK2CgeLpZVQ_HczJIn5T0wgK
 
 type Nuovo = { user_id: string; email: string | null; totale: number | null; created_at: string };
 
+// id dell'utente scritto nel token (la firma la verifica il database nella chiamata is_app_admin)
+export function utenteDalToken(jwt: string): string {
+  try {
+    const p = jwt.split('.')[1]; if (!p) return '';
+    const j = JSON.parse(atob(p.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - p.length % 4) % 4)));
+    return typeof j.sub === 'string' && /^[0-9a-f-]{36}$/i.test(j.sub) ? j.sub : '';
+  } catch { return ''; }
+}
+
 // testo della notifica per uno o più nuovi iscritti
 export function testoAvviso(lista: Nuovo[]) {
   const ultimo = lista[lista.length - 1];
@@ -70,11 +79,16 @@ if (import.meta.main) Deno.serve(async req => {
       return json({ ok: true, nuovi: presi.length, ...r });
     }
 
+    // chi sta chiamando: si controlla con la stessa strada che usa il pannello (il database verifica l'accesso)
     const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-    const { data: u } = await sb.auth.getUser(jwt);
-    if (!u || !u.user) return json({ ok: false, error: 'Accedi di nuovo' }, 401);
-    const { data: adm } = await sb.from('app_admins').select('user_id').eq('user_id', u.user.id).maybeSingle();
-    if (!adm) return json({ ok: false, error: 'Accesso non autorizzato' }, 403);
+    const sub = utenteDalToken(jwt);
+    if (!sub) return json({ ok: false, error: 'Accedi di nuovo (sessione mancante)' }, 401);
+    const chiaveApp = req.headers.get('apikey') || Deno.env.get('SUPABASE_ANON_KEY') || '';
+    const comeUtente = createClient(Deno.env.get('SUPABASE_URL')!, chiaveApp, { auth: { persistSession: false }, global: { headers: { Authorization: 'Bearer ' + jwt } } });
+    const { data: admin, error: errAdmin } = await comeUtente.rpc('is_app_admin');
+    if (errAdmin) return json({ ok: false, error: 'Accedi di nuovo (' + errAdmin.message + ')' }, 401);
+    if (admin !== true) return json({ ok: false, error: 'Accesso non autorizzato' }, 403);
+    const u = { user: { id: sub } };
 
     if (body.azione === 'prova_avvisi') {
       const r = await inviaAdmin(sb, { title: 'Avvisi attivi', body: 'Da ora ti avviso qui ogni volta che si iscrive qualcuno.', url: 'pannello.html#utenti', tag: 'pn-prova', icon: 'pannello-192.png', badge: 'pannello-192.png' });

@@ -343,8 +343,12 @@
   const b64uKey = k => { const p = '='.repeat((4 - k.length % 4) % 4), b = atob((k + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
   const swReg = () => ('serviceWorker' in navigator && location.protocol !== 'file:') ? navigator.serviceWorker.register('sw.js').catch(() => null) : Promise.resolve(null);
   const iscrizione = async () => { try { const r = await navigator.serviceWorker.getRegistration(); return r ? await r.pushManager.getSubscription() : null; } catch (e) { return null; } };
-  const invoca = async body => {
-    const { data, error } = await sb.functions.invoke('admin', { body });
+  const invoca = async (body, giro) => {
+    const { data: ss } = await sb.auth.getSession();
+    const tok = ss && ss.session && ss.session.access_token;
+    const { data, error } = await sb.functions.invoke('admin', { body, headers: tok ? { Authorization: 'Bearer ' + tok } : {} });
+    // sessione scaduta: la rinnovo e riprovo una volta
+    if (!giro && error && error.context && error.context.status === 401) { await sb.auth.refreshSession().catch(() => {}); return invoca(body, true); }
     let msg = error && error.message; if (error) { try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (e) {} }
     if (error || !data || !data.ok) throw new Error(msg || (data && data.error) || 'Operazione non riuscita');
     return data;
