@@ -61,7 +61,7 @@
   };
 
   /* ---------- stato ---------- */
-  let campagne = null, contenuti = null, stats = null, errore = '';
+  let campagne = null, contenuti = null, stats = null, errore = '', firma = '';
   let tab = 'panoramica';
   try { tab = localStorage.getItem('pn_mk_tab') || 'panoramica'; } catch (e) {}
   const oggiD = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
@@ -97,7 +97,14 @@
         sb.from('mk_contenuti').select('*').order('data', { ascending: true }),
         sb.rpc('admin_marketing', { da, a: oggi() })
       ]);
-      campagne = sbErr(a) || []; contenuti = sbErr(b) || []; stats = sbErr(c) || null; errore = '';
+      const n = [sbErr(a) || [], sbErr(b) || [], sbErr(c) || null], f = JSON.stringify(n);
+      if (f === firma && !errore) return;   // niente di nuovo: la pagina resta com'è
+      const primaVolta = campagne === null; firma = f;
+      [campagne, contenuti, stats] = n; errore = '';
+      if (P.view() !== 'marketing') return;
+      // aggiornamento in sottofondo: niente animazioni e niente ridisegno mentre trascini o hai un modulo aperto
+      if (primaVolta) render(false); else if (!dragId && $('#sheet').hidden) P.quieto(() => render(false));
+      return;
     } catch (e) { errore = e.message; if (!campagne) campagne = []; if (!contenuti) contenuti = []; }
     if (P.view() === 'marketing') render(false);
   }

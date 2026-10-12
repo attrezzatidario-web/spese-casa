@@ -504,3 +504,7 @@ html, body.pn { overflow-x: hidden; }
 .mk-can-leg span { display: inline-flex; align-items: center; gap: 6px; }
 .mk-can-leg i { width: 14px; height: 6px; border-radius: 3px; background: var(--ink-2); }
 .mk-link code b { color: var(--ink); font-weight: 650; } .mk-link-dom { color: var(--muted); }
+/* aggiornamenti in sottofondo: nessuna animazione d'ingresso */
+.pn-quiet .pn-li, .pn-quiet .pn-in, .pn-quiet .mk-anim, .pn-quiet .mk-chip, .pn-quiet .mk-card, .pn-quiet .mk-g-bar, .pn-quiet .pn-chart .bar, .pn-quiet .pn-chart .line, .pn-quiet .pn-chart .area, .pn-quiet .mk-band, .pn-quiet .mk-band-top, .pn-quiet .pn-runs i { animation: none !important; }
+.pn-quiet .pn-chart .line { stroke-dashoffset: 0 !important; } .pn-quiet .pn-chart .area { opacity: 1 !important; }
+.pn-quiet .bar-fill, .pn-quiet .mk-can-bar i, .pn-quiet .pn-seg-bar i, .pn-quiet .pn-pill { transition: none !important; }

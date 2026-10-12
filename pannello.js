@@ -415,8 +415,23 @@
 
   /* ---------- caricamento dati e tempo reale ---------- */
   let caricando = false;
-  async function carica(tutto) {
-    if (caricando) return; caricando = true; $('#pn-ref').classList.add('rot');
+  // aggiornamento in sottofondo: se i dati non cambiano non si tocca niente;
+  // se cambiano, si aggiorna senza animazioni d'ingresso (niente "lampo" ogni 20 secondi)
+  let firma = '';
+  const ANIMATI = '.pn-li, .pn-in, .mk-anim, .mk-chip, .mk-card, .mk-g-bar, .pn-chart .bar, .mk-band, .mk-band-top, .pn-runs i, .mk-swap';
+  const quieto = fn => {
+    document.body.classList.add('pn-quiet');
+    try { fn(); } finally {
+      // i nuovi elementi restano fermi: animazioni e transizioni spente solo su di loro
+      $$('main ' + ANIMATI.split(', ').join(', main ')).forEach(el => (el.style.animation = 'none'));
+      $$('main .pn-chart .line').forEach(el => { el.style.animation = 'none'; el.style.strokeDashoffset = '0'; });
+      $$('main .pn-chart .area').forEach(el => { el.style.animation = 'none'; el.style.opacity = '1'; });
+      $$('main .bar-fill, main .mk-can-bar i, main .pn-seg-bar i').forEach(el => (el.style.transition = 'none'));
+      document.body.classList.remove('pn-quiet');
+    }
+  };
+  async function carica(tutto, silenzioso) {
+    if (caricando) return; caricando = true; if (!silenzioso) $('#pn-ref').classList.add('rot');
     try {
       const jobs = [rpc('admin_overview').then(d => (ov = d))];
       if (tutto || view === 'utenti' || view === 'abbonamenti' || view === 'panoramica' || !users) jobs.push(rpc('admin_users', { q: '', lim: 500, off: 0 }).then(d => (users = d || [])));
@@ -425,15 +440,19 @@
       if (window.PNM && (view === 'marketing' || tutto)) jobs.push(window.PNM.load().catch(e => { if (!/non autorizzato/i.test(e.message)) console.warn(e); }));
       await Promise.all(jobs);
       aggiornato = new Date(); $$('.pn-live').forEach(e => e.classList.remove('off'));
-      render();
+      const nuova = JSON.stringify([ov && { ...ov, now: null }, users, inviti, sys]);
+      const cambiato = nuova !== firma; firma = nuova;
+      if (!silenzioso) render();
+      else if (cambiato && view !== 'marketing') quieto(render);
+      else sottotitolo();
     } catch (e) {
       $$('.pn-live').forEach(x => x.classList.add('off'));
       if (/non autorizzato/i.test(e.message)) return nonAutorizzato();
       toast(/Failed to fetch|NetworkError/i.test(e.message) ? 'Connessione assente' : e.message);
     } finally { caricando = false; $('#pn-ref').classList.remove('rot'); }
   }
-  setInterval(() => { if (!document.hidden && !$('#app').hidden) carica(false); }, POLL_MS);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#app').hidden) carica(false); });
+  setInterval(() => { if (!document.hidden && !$('#app').hidden) carica(false, true); }, POLL_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#app').hidden) carica(false, true); });
   setInterval(sottotitolo, 15000);
 
   /* ---------- accesso ---------- */
@@ -515,7 +534,7 @@
   })();
 
   // strumenti condivisi con il modulo Marketing (pannello-marketing.js)
-  window.PN = { sb, $, $$, esc, N, EUR, giorno, fa, tra, toast, openSheet, closeSheet, countTo, liAnim, stagger, rpc, showTip, hideTip, niceMax, animaBarre, REDUCED, inviaPush: () => sb.functions.invoke('admin', { body: { azione: 'prova_avvisi' } }), view: () => view, overview: () => ov, rerender: () => { if (view === 'marketing') render(); } };
+  window.PN = { sb, $, $$, esc, N, EUR, giorno, fa, tra, toast, openSheet, closeSheet, countTo, liAnim, stagger, rpc, showTip, hideTip, niceMax, animaBarre, REDUCED, inviaPush: () => sb.functions.invoke('admin', { body: { azione: 'prova_avvisi' } }), view: () => view, overview: () => ov, quieto, rerender: () => { if (view === 'marketing') render(); } };
 
   entra();
 })();
