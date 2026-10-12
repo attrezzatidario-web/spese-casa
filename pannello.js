@@ -54,7 +54,13 @@
   const liAnim = (html, i) => html.replace(/^<(div|a) /, `<$1 style="--d:${Math.min(i, 14) * 30}ms" `);
 
   /* ---------- pannello modale (come nell'app) ---------- */
-  function openSheet(title, html) {
+  let sheetSubmit = null, sheetDelete = null;
+  // opz: { ok: 'Salva', onSubmit(fd) → false per restare aperto, onDelete(), wide }
+  function openSheet(title, html, opz) {
+    opz = opz || {}; sheetSubmit = opz.onSubmit || null; sheetDelete = opz.onDelete || null;
+    $('#sheet-ok').textContent = opz.ok || 'Chiudi'; $('#sheet-ok').disabled = false;
+    $('#sheet-del').hidden = !sheetDelete;
+    $('#sheet-form').classList.toggle('pn-wide', !!opz.wide);
     $('#sheet-title').textContent = title; $('#sheet-body').innerHTML = html; $('#sheet-form').classList.remove('pn-det');
     $('#sheet').classList.remove('closing'); $('#sheet').hidden = false; document.body.style.overflow = 'hidden';
   }
@@ -63,7 +69,15 @@
     sh.classList.add('closing'); setTimeout(() => { sh.hidden = true; sh.classList.remove('closing'); }, 230);
   }
   $('#sheet').addEventListener('click', e => { if (e.target.closest('[data-close]')) closeSheet(); });
-  $('#sheet-form').addEventListener('submit', e => { e.preventDefault(); closeSheet(); });
+  $('#sheet-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!sheetSubmit) return closeSheet();
+    const b = $('#sheet-ok'); b.disabled = true;
+    try { const r = await sheetSubmit(new FormData($('#sheet-form'))); if (r !== false) closeSheet(); }
+    catch (er) { toast(er.message || String(er)); }
+    finally { b.disabled = false; }
+  });
+  $('#sheet-del').addEventListener('click', async () => { if (!sheetDelete) return; try { const r = await sheetDelete(); if (r !== false) closeSheet(); } catch (er) { toast(er.message || String(er)); } });
 
   /* ---------- tooltip ---------- */
   const tip = $('#pn-tip');
@@ -142,7 +156,7 @@
   };
 
   /* ---------- viste ---------- */
-  const TITOLI = { panoramica: 'Panoramica', utenti: 'Utenti', abbonamenti: 'Abbonamenti', inviti: 'Inviti', sistema: 'Sistema' };
+  const TITOLI = { panoramica: 'Panoramica', utenti: 'Utenti', abbonamenti: 'Abbonamenti', marketing: 'Marketing', inviti: 'Inviti', sistema: 'Sistema' };
   function route() {
     view = (location.hash || '#panoramica').slice(1); if (!TITOLI[view]) view = 'panoramica';
     $$('.view').forEach(v => (v.hidden = v.id !== 'v-' + view));
@@ -162,6 +176,7 @@
     if (view === 'abbonamenti') renderAbbonamenti();
     if (view === 'inviti') renderInviti();
     if (view === 'sistema') { renderSistema(); statoAvvisi(); }
+    if (view === 'marketing' && window.PNM) window.PNM.render(primo.marketing);
   }
 
   function renderPanoramica() {
@@ -407,6 +422,7 @@
       if (tutto || view === 'utenti' || view === 'abbonamenti' || view === 'panoramica' || !users) jobs.push(rpc('admin_users', { q: '', lim: 500, off: 0 }).then(d => (users = d || [])));
       if (tutto || view === 'inviti' || !inviti) jobs.push(rpc('admin_invites').then(d => (inviti = d || [])));
       if (tutto || view === 'sistema' || !sys) jobs.push(rpc('admin_system').then(d => (sys = d)));
+      if (window.PNM && (view === 'marketing' || tutto)) jobs.push(window.PNM.load().catch(e => { if (!/non autorizzato/i.test(e.message)) console.warn(e); }));
       await Promise.all(jobs);
       aggiornato = new Date(); $$('.pn-live').forEach(e => e.classList.remove('off'));
       render();
@@ -497,6 +513,9 @@
     sp.addEventListener('click', chiudi);
     setTimeout(chiudi, 2650);
   })();
+
+  // strumenti condivisi con il modulo Marketing (pannello-marketing.js)
+  window.PN = { sb, $, $$, esc, N, EUR, giorno, fa, tra, toast, openSheet, closeSheet, countTo, liAnim, stagger, rpc, showTip, hideTip, niceMax, animaBarre, REDUCED, inviaPush: () => sb.functions.invoke('admin', { body: { azione: 'prova_avvisi' } }), view: () => view, overview: () => ov, rerender: () => { if (view === 'marketing') render(); } };
 
   entra();
 })();

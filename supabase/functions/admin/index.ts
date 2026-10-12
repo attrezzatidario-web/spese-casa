@@ -3,6 +3,7 @@
 //   { azione: 'elimina_utente', user_id }  → elimina l'account, la sua casa (se è l'unico membro) e i file
 //   { azione: 'prova_avvisi' }              → manda una notifica di prova ai dispositivi del proprietario
 //   { azione: 'nuovi_iscritti' }            → chiamata dal database a ogni nuovo account: avvisa il proprietario
+//   { azione: 'marketing_domani' }          → chiamata ogni ora dal database: alle 18 avvisa delle pubblicazioni di domani
 // Solo chi è nella tabella app_admins può usarla (tranne 'nuovi_iscritti', che svuota soltanto la coda
 // degli avvisi già scritta dal database). Da pubblicare con "Verify JWT" disattivato.
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -19,6 +20,20 @@ export function utenteDalToken(jwt: string): string {
     const j = JSON.parse(atob(p.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - p.length % 4) % 4)));
     return typeof j.sub === 'string' && /^[0-9a-f-]{36}$/i.test(j.sub) ? j.sub : '';
   } catch { return ''; }
+}
+
+// data e ora italiane (per i promemoria del marketing)
+export function oraRoma(d = new Date()) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false }).formatToParts(d).map(x => [x.type, x.value]));
+  const oggi = `${p.year}-${p.month}-${p.day}`;
+  const t = new Date(oggi + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + 1);
+  return { oggi, domani: t.toISOString().slice(0, 10), ora: Number(p.hour) % 24 };
+}
+const CANALI: Record<string, string> = { instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook', youtube: 'YouTube', sito: 'Sito', store: 'Store', email: 'Email', altro: 'Altro' };
+export function testoMarketing(lista: { titolo: string; canale: string; ora?: string }[]) {
+  const n = lista.length;
+  const righe = lista.slice(0, 3).map(c => (c.ora ? c.ora + ' ' : '') + c.titolo + ' · ' + (CANALI[c.canale] || c.canale));
+  return { title: n === 1 ? 'Domani si pubblica' : `Domani: ${n} pubblicazioni`, body: righe.join('\n') + (n > 3 ? `\n+ altre ${n - 3}` : '') };
 }
 
 // testo della notifica per uno o più nuovi iscritti
@@ -80,6 +95,19 @@ if (import.meta.main) Deno.serve(async req => {
     }
 
     // chi sta chiamando: si controlla con la stessa strada che usa il pannello (il database verifica l'accesso)
+    // chiamata dal database ogni ora: alle 18 avvisa delle pubblicazioni di domani (una volta sola per contenuto)
+    if (body.azione === 'marketing_domani') {
+      const t = oraRoma();
+      if (t.ora !== 18 && body.forza !== true) return json({ ok: true, saltato: 'non è ora', ora: t.ora });
+      const { data: presi } = await sb.from('mk_contenuti').update({ avvisato: t.oggi })
+        .eq('data', t.domani).neq('stato', 'pubblicato').or(`avvisato.is.null,avvisato.lt.${t.oggi}`)
+        .select('titolo, canale, ora');
+      if (!presi || !presi.length) return json({ ok: true, inviate: 0 });
+      presi.sort((a: any, b: any) => String(a.ora || '').localeCompare(String(b.ora || '')));
+      const r = await inviaAdmin(sb, { ...testoMarketing(presi), url: 'pannello.html#marketing', tag: 'pn-marketing', icon: 'pannello-192.png', badge: 'pannello-192.png' });
+      return json({ ok: true, contenuti: presi.length, ...r });
+    }
+
     const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
     const sub = utenteDalToken(jwt);
     if (!sub) return json({ ok: false, error: 'Accedi di nuovo (sessione mancante)' }, 401);

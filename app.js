@@ -10,6 +10,11 @@
     get(k, d) { try { const v = localStorage.getItem(LK(k)); return v ? JSON.parse(v) : d; } catch { return d; } },
     set(k, v) { try { localStorage.setItem(LK(k), JSON.stringify(v)); } catch {} }
   };
+  // link di una campagna (…/spese-casa/?ref=CODICE): lo ricordo per contare l'iscrizione nella campagna
+  try {
+    const q = new URLSearchParams(location.search), ref = (q.get('ref') || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+    if (ref && !DEMO) { if (!LS.get('sc_ref_sent', false)) LS.set('sc_ref', { c: ref, t: Date.now() }); q.delete('ref'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); }
+  } catch {}
 
   const MAX_PERSONE_FREE = 2, MAX_BOLLETTE_FREE = 3; // limiti del piano gratis
   const METODI = ['Carta', 'Bancomat', 'Contanti', 'Bonifico', 'Addebito in conto', 'Altro'];
@@ -386,6 +391,7 @@
       if (showToast) toast('Dati aggiornati');
       pullGasFlags(showToast);
       loadPlan();
+      sendRef();
     } catch (e) {
       if (e.message === 'AUTH_REQ') return;
       online = false;
@@ -1260,6 +1266,13 @@
   // finché il piano non è noto (o il server non ha ancora i piani) non si blocca niente
   const isPremium = () => DEMO || isLocal() || !piano || !!(piano.premium && (!piano.expires_at || new Date(piano.expires_at) > new Date()));
   piano = LS.get('sc_plan', null);
+  // dopo l'accesso: comunica una volta sola da quale campagna è arrivato l'utente (vale solo per i nuovi account)
+  async function sendRef() {
+    const r = LS.get('sc_ref', null);
+    if (!r || !r.c || LS.get('sc_ref_sent', false) || !sb || !hh || isLocal()) return;
+    if (Date.now() - (r.t || 0) > 30 * 864e5) { LS.set('sc_ref', null); return; }
+    try { const { error } = await sb.rpc('record_signup_source', { codice: r.c }); if (error) return; LS.set('sc_ref_sent', true); LS.set('sc_ref', null); } catch {}
+  }
   async function loadPlan() {
     if (DEMO || isLocal() || !sb || !hh) return;
     try {

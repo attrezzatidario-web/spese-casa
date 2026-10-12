@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=4-2">
-  <link rel="stylesheet" href="pannello.css?v=6">
+  <link rel="stylesheet" href="pannello.css?v=8">
 </head>
 <body class="pn">
 
@@ -64,9 +64,10 @@
   <div id="app" class="app" hidden>
     <nav class="nav">
       <div class="brand"><img src="pannello-icon.svg" alt="" width="34" height="34"><div><strong>Tetto Studio</strong><span>Pannello · Spese Casa</span></div></div>
-      <a href="#panoramica" data-view="panoramica"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Panoramica</span></a>
+      <a href="#panoramica" data-view="panoramica"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span class="lbl-d">Panoramica</span><span class="lbl-m">Home</span></a>
       <a href="#utenti" data-view="utenti"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.3A6.5 6.5 0 0 1 21.5 20"/></svg><span>Utenti</span></a>
       <a href="#abbonamenti" data-view="abbonamenti"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg><span class="lbl-d">Abbonamenti</span><span class="lbl-m">Premium</span></a>
+      <a href="#marketing" data-view="marketing"><svg viewBox="0 0 24 24"><path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.8 6a8.5 8.5 0 0 1 0 12"/></svg><span class="lbl-d">Marketing</span><span class="lbl-m">Promo</span></a>
       <a href="#inviti" data-view="inviti"><svg viewBox="0 0 24 24"><path d="M3 12l18-8-6 18-3-7z"/><path d="M12 15l9-11"/></svg><span>Inviti</span></a>
       <a href="#sistema" data-view="sistema"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12L17 12h4"/></svg><span>Sistema</span></a>
       <div class="nav-foot"><span class="pn-live"><i></i><span class="pn-live-t">In tempo reale</span></span><button class="link-btn pn-out" id="pn-out">Esci</button></div>
@@ -192,6 +193,17 @@
         </div>
       </section>
 
+      <!-- MARKETING -->
+      <section id="v-marketing" class="view" hidden>
+        <div class="mk-bar">
+          <div class="pn-seg mk-tabs" id="mk-tabs" role="tablist">
+            <button data-t="panoramica" class="on">Panoramica</button><button data-t="calendario">Calendario</button><button data-t="campagne">Campagne</button><button data-t="contenuti">Contenuti</button>
+          </div>
+          <div class="mk-acts"><button class="btn" data-mk="nuova-campagna">+ Campagna</button><button class="btn primary" data-mk="nuovo-contenuto">+ Contenuto</button></div>
+        </div>
+        <div id="mk-body" class="mk-body"></div>
+      </section>
+
       <!-- SISTEMA -->
       <section id="v-sistema" class="view" hidden>
         <div class="pn-grid">
@@ -228,13 +240,14 @@
     <form id="sheet-form" class="sheet-panel" autocomplete="off">
       <div class="sheet-h"><h3 id="sheet-title"></h3><button type="button" class="icon-btn" data-close aria-label="Chiudi">✕</button></div>
       <div id="sheet-body"></div>
-      <div class="sheet-f"><button type="submit" class="btn primary" id="sheet-ok">Chiudi</button></div>
+      <div class="sheet-f"><button type="button" class="btn danger-ghost" id="sheet-del" hidden>Elimina</button><button type="submit" class="btn primary" id="sheet-ok">Chiudi</button></div>
     </form>
   </div>
   <div id="toast" class="toast" hidden></div>
   <div id="pn-tip" class="pn-tip" hidden></div>
 
   <script src="lib-supabase.js?v=1"></script>
-  <script src="pannello.js?v=8"></script>
+  <script src="pannello.js?v=9"></script>
+  <script src="pannello-marketing.js?v=2"></script>
 </body>
 </html>
