@@ -1,0 +1,8 @@
+{
+  "appId": "com.tettostudio.spesecasa",
+  "appName": "Spese Casa",
+  "webDir": "www",
+  "backgroundColor": "#f6f6f4",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "never", "backgroundColor": "#f6f6f4" }
+}

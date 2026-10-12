@@ -60,6 +60,10 @@
   let online = navigator.onLine;
 
   const isLocal = () => url === 'local' || url === 'demo';
+  // app installata da App Store / Google Play (Capacitor)
+  const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const WEB_URL = 'https://attrezzatidario-web.github.io/spese-casa/';
+  const appBase = () => NATIVE ? WEB_URL : location.origin + location.pathname;
   const save = () => { LS.set('sc_data', db); LS.set('sc_queue', queue); };
 
   /* ================= Utils ================= */
@@ -1079,7 +1083,7 @@
         ${tanti ? '<button class="btn ghost danger-ghost" id="casa-esci">Esci dalla casa</button>' : ''}
       </div>`;
   }
-  const inviteLink = c => location.origin + location.pathname + '?invito=' + c;
+  const inviteLink = c => appBase() + '?invito=' + c;
   async function casaInvita() {
     if (!needPremium('casa')) return;
     busy('Creo l\'invito…');
@@ -1333,7 +1337,7 @@
   const VAPID_PUBLIC = 'BOmeNL_VFB4WwSPylaBuisV2pi0A-GsmoeJK2CgeLpZVQ_HczJIn5T0wgKijQlFQPCECjPKFCApTyqzkruYu28c';
   const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const pushSupported = () => !NATIVE && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   const b64uKey = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
   let pushState = null; // { on, endpoint }
   async function pushCurrent() {
@@ -4495,7 +4499,7 @@
   }
   function renderShortcuts() {
     const box = $('#sc-set'); if (!box) return;
-    const base = location.origin + location.pathname;
+    const base = appBase();
     const links = [['Nuova spesa', '?add=spesa'], ['Foto scontrino', '?add=foto'], ['Lista della spesa', '?add=lista'], ['Nuova entrata', '?add=entrata'], ['Spesa dettata (Siri)', '?testo=']];
     box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Su iPhone: app <b>Comandi</b> → <b>+</b> → azione <b>Apri URL</b> → incolla un link e dai un nome al comando (es. “Nuova spesa”). Poi basta dire <i>“Ehi Siri, nuova spesa”</i>. Per dettare la spesa a Siri aggiungi prima l'azione <b>Detta testo</b> e mettila in fondo al link “Spesa dettata”.</p>
       <div class="list">${links.map(([n, q]) => `<div class="item sc-link" style="cursor:default"><div class="main"><div class="t">${esc(n)}</div><div class="s">${esc(base + q)}</div></div><button class="btn sm" data-copylink="${esc(base + q)}">Copia</button></div>`).join('')}</div>`;
@@ -5678,7 +5682,7 @@
     sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && url) showLogin(); });
   }
 
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  if (!NATIVE && 'serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 })();
