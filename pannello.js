@@ -55,7 +55,7 @@
 
   /* ---------- pannello modale (come nell'app) ---------- */
   function openSheet(title, html) {
-    $('#sheet-title').textContent = title; $('#sheet-body').innerHTML = html;
+    $('#sheet-title').textContent = title; $('#sheet-body').innerHTML = html; $('#sheet-form').classList.remove('pn-det');
     $('#sheet').classList.remove('closing'); $('#sheet').hidden = false; document.body.style.overflow = 'hidden';
   }
   function closeSheet() {
@@ -212,36 +212,50 @@
     let p = seg.querySelector('.pn-pill'); if (!p) { p = document.createElement('i'); p.className = 'pn-pill'; seg.prepend(p); }
     p.style.left = on.offsetLeft + 'px'; p.style.width = on.offsetWidth + 'px';
   }
+  const ICO = {
+    star: '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>',
+    cal: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg>',
+    back: '<svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+    trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>'
+  };
   function dettaglioUtente(id) {
     const u = (users || []).find(x => x.user_id === id); if (!u) return;
     const s = statoPiano(u), me = u.email && sessionEmail && u.email.toLowerCase() === sessionEmail.toLowerCase();
-    const casa = u.members > 1 ? `Casa condivisa da ${u.members} persone` : 'Casa personale';
-    openSheet('Utente', `
-      <div class="pn-det-h"><span class="pn-av${s === 'premium' ? ' prem' : ''}">${esc(iniziale(u.email))}</span><div><b>${esc(u.email)}</b><small>${esc(casa)} · ${u.role === 'owner' ? 'proprietario' : 'membro'}</small></div></div>
-      <div class="pn-kv">
-        <div><small>Piano</small><b>${s === 'gratis' ? 'Gratis' : s === 'prova' ? 'Prova fino al ' + giorno(new Date(u.expires_at)) : (u.source === 'manual' ? 'Premium regalato' : 'Premium · ' + (u.source === 'apple' ? 'App Store' : u.source === 'google' ? 'Google Play' : u.source)) + (s === 'premium' && u.expires_at ? ' · fino al ' + giorno(new Date(u.expires_at)) : '')}</b></div>
-        <div><small>Iscritto</small><b>${dataOra(D(u.created_at))}</b></div>
-        <div><small>Ultimo accesso</small><b>${fa(u.last_sign_in_at)}</b></div>
-        <div><small>Ultima attività</small><b>${fa(u.last_activity)}</b></div>
-        <div><small>Voci registrate (casa)</small><b>${N(u.records)}</b></div>
-        <div><small>Archivio</small><b>${B(u.storage_bytes)}</b></div>
-        <div><small>Dispositivi con notifiche</small><b>${N(u.devices)}</b></div>
-        <div><small>IA</small><b>${u.ai ? 'Attiva' : 'Non attiva'}${u.trial_used ? ' · prova usata' : ''}</b></div>
+    const casa = u.members > 1 ? `Casa di ${u.members} persone` : 'Casa personale';
+    const pianoTxt = s === 'gratis' ? 'Gratis' : s === 'prova' ? `Prova fino al ${giorno(new Date(u.expires_at))}` : u.source === 'manual' ? (u.expires_at ? `Regalato fino al ${giorno(new Date(u.expires_at))}` : 'Regalato per sempre') : `${u.source === 'apple' ? 'App Store' : u.source === 'google' ? 'Google Play' : 'Premium'}${u.product === 'premium_annuale' ? ' · annuale' : u.product ? ' · mensile' : ''}`;
+    const lim = s === 'gratis' ? 104857600 : 2147483648, pct = Math.min(100, (Number(u.storage_bytes) || 0) / lim * 100);
+    const riga = (k, v) => `<div class="pn-row"><span>${k}</span><b>${v}</b></div>`;
+    const azione = (a, ico, t, d, extra) => `<button type="button" class="pn-action${extra || ''}" data-pa="${a}" data-hh="${esc(u.household_id)}" data-u="${esc(u.user_id)}"><span class="pn-ic">${ico}</span><span class="pn-action-t"><b>${t}</b><small>${d}</small></span><span class="pn-arrow">›</span></button>`;
+    openSheet('', `
+      <div class="pn-det-h"><span class="pn-av${s === 'premium' ? ' prem' : ''}">${esc(iniziale(u.email))}</span>
+        <div class="pn-det-t"><b>${esc(u.email)}</b><small>${esc(casa)} · ${u.role === 'owner' ? 'proprietario' : 'membro'}</small></div>${chipPiano(u)}</div>
+      <div class="pn-strip">
+        <div><b>${N(u.records)}</b><small>voci della casa</small></div>
+        <div><b>${N(u.devices)}</b><small>dispositivi</small></div>
+        <div><b>${u.ai ? 'Sì' : 'No'}</b><small>IA attiva</small></div>
       </div>
-      ${u.household_id ? `<div class="pn-act">
-        <h4>Piano della casa</h4>
-        <div class="row-btns">
-          <button type="button" class="btn primary sm" data-pa="regala" data-hh="${esc(u.household_id)}">Regala Premium per sempre</button>
-          <button type="button" class="btn sm" data-pa="mese" data-hh="${esc(u.household_id)}">1 mese</button>
-          <button type="button" class="btn sm" data-pa="anno" data-hh="${esc(u.household_id)}">1 anno</button>
-        </div>
-        <div class="row-btns">
-          <button type="button" class="btn sm" data-pa="prova7" data-hh="${esc(u.household_id)}">Allunga la prova di 7 giorni</button>
-          ${s !== 'gratis' ? `<button type="button" class="btn ghost sm" data-pa="gratis" data-hh="${esc(u.household_id)}">Torna al piano gratis</button>` : ''}
-        </div>
-        ${me ? '' : `<h4>Account</h4><div class="row-btns"><button type="button" class="btn danger-ghost sm" data-pa="elimina" data-u="${esc(u.user_id)}" data-mail="${esc(u.email)}">Elimina account</button></div>`}
-        <p class="pn-note">Il piano vale per tutta la casa. Nel pannello non compaiono mai spese, importi o documenti degli utenti.</p>
-      </div>` : '<p class="pn-note">Questo utente non ha una casa.</p>'}`);
+      <div class="pn-sec"><h4>Attività</h4>
+        ${riga('Iscritto', dataOra(D(u.created_at)))}${riga('Ultimo accesso', fa(u.last_sign_in_at))}${riga('Ultima attività', fa(u.last_activity))}${riga('Prova gratuita', u.trial_used ? 'Già usata' : 'Non usata')}
+      </div>
+      <div class="pn-sec"><h4>Piano e archivio</h4>
+        ${riga('Piano', esc(pianoTxt))}
+        <div class="pn-row pn-row-bar"><span>Archivio</span><b>${B(u.storage_bytes)} <small>di ${s === 'gratis' ? '100 MB' : '2 GB'}</small></b><div class="bar-track"><div class="bar-fill" data-w="${pct.toFixed(1)}"></div></div></div>
+      </div>
+      ${u.household_id ? `<div class="pn-sec"><h4>Cambia piano della casa</h4><div class="pn-actions">
+        ${azione('regala', ICO.star, 'Regala Premium per sempre', 'Nessuna scadenza, per tutta la casa')}
+        ${azione('mese', ICO.cal, 'Premium per 1 mese', 'Torna gratis da solo tra 30 giorni')}
+        ${azione('anno', ICO.cal, 'Premium per 1 anno', 'Torna gratis da solo tra 12 mesi')}
+        ${azione('prova7', ICO.plus, 'Allunga la prova di 7 giorni', s === 'prova' ? 'Si aggiunge ai giorni rimasti' : 'Attiva una prova da oggi')}
+        ${s !== 'gratis' ? azione('gratis', ICO.back, 'Torna al piano gratis', 'Le funzioni Premium si bloccano, i dati restano') : ''}
+      </div></div>` : ''}
+      ${me ? '' : `<div class="pn-sec pn-danger"><h4>Zona pericolosa</h4>
+        <button type="button" class="btn danger-ghost pn-del" data-pa="elimina" data-u="${esc(u.user_id)}" data-mail="${esc(u.email)}"><span>${ICO.trash}</span>Elimina account e dati</button>
+        <p class="pn-note">Cancella account, casa (se è l'unico membro) e file. Non si può annullare.</p></div>`}
+      <p class="pn-note pn-priv">Nel pannello non compaiono mai spese, importi o documenti degli utenti.</p>`);
+    $('#sheet-form').classList.add('pn-det');
+    requestAnimationFrame(() => requestAnimationFrame(() => $$('#sheet-body .bar-fill[data-w]').forEach(b => (b.style.width = b.dataset.w + '%'))));
+    if (!REDUCED) $$('#sheet-body .pn-sec, #sheet-body .pn-strip').forEach((e, i) => { e.style.setProperty('--d', (80 + i * 50) + 'ms'); e.classList.add('pn-in'); });
   }
   async function azionePiano(btn) {
     const a = btn.dataset.pa, hh = btn.dataset.hh;
@@ -259,7 +273,7 @@
         if (error || !data || !data.ok) throw new Error(msg || (data && data.error) || 'Eliminazione non riuscita');
         closeSheet(); toast(`Account eliminato${data.file ? ` · ${data.file} file cancellati` : ''}`); await carica(true); return;
       }
-      toast('Piano aggiornato'); await carica(true); dettaglioUtente(btn.closest('[data-u]') ? btn.dataset.u : (users.find(x => x.household_id === hh) || {}).user_id);
+      toast('Piano aggiornato'); const uid = btn.dataset.u; await carica(true); dettaglioUtente(uid);
     } catch (e) { toast(e.message); btn.disabled = false; }
   }
 
