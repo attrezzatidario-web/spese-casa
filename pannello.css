@@ -288,12 +288,12 @@ html, body.pn { overflow-x: hidden; }
 .mk-empty p { max-width: 440px; margin: 0; line-height: 1.5; }
 
 /* canali e piccoli elementi */
-.mk-ch { width: 22px; height: 22px; border-radius: 7px; display: inline-grid; place-items: center; background: #fff; box-shadow: 0 0 0 1px var(--line); overflow: hidden; flex: none; vertical-align: middle; }
-.mk-ch img { width: 15px; height: 15px; }
-.mk-ch.sm { width: 18px; height: 18px; border-radius: 5px; } .mk-ch.sm img { width: 12px; height: 12px; }
-.mk-ch.g { background: color-mix(in srgb, var(--cc) 14%, var(--surface)); color: var(--cc); box-shadow: none; }
-.mk-ch.g svg { width: 70%; height: 70%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.mk-ch-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cc); }
+.mk-ch { width: 24px; height: 24px; border-radius: 8px; display: inline-grid; place-items: center; flex: none; vertical-align: middle; background: var(--cb); color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), 0 1px 2px rgba(0,0,0,.12); }
+.mk-ch svg { display: block; width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mk-ch svg .fill { fill: currentColor; stroke: none; }
+.mk-ch.sm { width: 20px; height: 20px; border-radius: 6px; }
+.mk-ch.sm svg { width: 12px; height: 12px; stroke-width: 2.2; }
+:root[data-theme="dark"] .mk-ch, :root:not([data-theme="light"]) .mk-ch { box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
 .mk-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 4px 1px 0; vertical-align: middle; }
 .mk-dot.lg { width: 10px; height: 10px; margin: 0; }
 .mk-kpis .chip { font-size: 11.5px; }
@@ -355,8 +355,9 @@ html, body.pn { overflow-x: hidden; }
 .mk-day-c i { height: 3px; opacity: .75; }
 .mk-day-h .mk-dn + .mk-day-c + .mk-day-add { margin-left: auto; }
 .mk-day-add { margin-left: auto; }
-.mk-day-add { width: 22px; height: 22px; border-radius: 7px; border: 0; background: var(--surface); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; opacity: 0; transform: scale(.8); transition: opacity .15s, transform .2s var(--spring); }
-.mk-day-add svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.mk-day-add { width: 24px; height: 24px; min-width: 0; min-height: 0; padding: 0; line-height: 0; border-radius: 8px; border: 0; background: var(--surface); color: var(--ink-2); display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,.08); cursor: pointer; opacity: 0; transform: scale(.8); transition: opacity .15s, transform .2s var(--spring); }
+.mk-day-add svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.mk-day-add:hover { background: var(--accent); color: #fff; }
 @media (hover: hover) { .mk-day:hover .mk-day-add { opacity: 1; transform: none; } .mk-day:hover { background: color-mix(in srgb, var(--ink) 4%, var(--bg)); } }
 .mk-day-l { display: grid; gap: 4px; min-width: 0; }
 .mk-chip { font-size: 11.5px; line-height: 1.25; padding: 4px 6px 4px 8px; border-radius: 7px; background: var(--surface); border-left: 3px solid var(--cc); box-shadow: 0 1px 2px rgba(0,0,0,.05); cursor: grab; min-width: 0; animation: mk-pop .4s var(--spring) both; animation-delay: var(--d, 0ms); transition: transform .15s, box-shadow .15s, opacity .15s; }
@@ -417,7 +418,7 @@ html, body.pn { overflow-x: hidden; }
 .mk-camp-t { flex: 1; min-width: 0; }
 .mk-camp-t h3 { margin: 0 0 2px; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mk-camp-ch { display: flex; flex-wrap: wrap; gap: 6px; }
-.mk-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px 4px 5px; border-radius: 999px; background: var(--bg); font-size: 12.5px; font-weight: 550; }
+.mk-pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 4px; border-radius: 999px; background: var(--bg); font-size: 12.5px; font-weight: 550; }
 .mk-budget .bar-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
 .mk-budget .bar-top span { color: var(--ink-2); } .mk-budget .bar-top b { font-variant-numeric: tabular-nums; } .mk-budget .bar-top small { color: var(--muted); font-weight: 500; }
 .mk-budget .bar-track { height: 8px; }
@@ -459,17 +460,17 @@ html, body.pn { overflow-x: hidden; }
 .mk-card-ic { margin-left: auto; display: inline-flex; gap: 4px; color: var(--muted); }
 .mk-col-add { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px; border-radius: 10px; cursor: pointer; transition: background .15s, color .15s; }
 .mk-col-add:hover { background: var(--bg); color: var(--ink); }
-.mk-col-add svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.mk-col-add svg { display: block; flex: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
 @media (max-width: 899px) { .mk-kanban { grid-template-columns: repeat(4, 82%); } }
 
 /* moduli */
 .mk-pick { display: flex; flex-wrap: wrap; gap: 6px; }
 .mk-pick label { cursor: pointer; }
 .mk-pick input { position: absolute; opacity: 0; pointer-events: none; }
-.mk-pick span { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px 6px 7px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 550; transition: border-color .15s, background .15s, transform .15s var(--spring); }
+.mk-pick label > span { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 550; transition: border-color .15s, background .15s, transform .15s var(--spring); }
 .mk-pick input:checked + span { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
 .mk-pick input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
-.mk-pick label:active span { transform: scale(.96); }
+.mk-pick label:active > span { transform: scale(.96); }
 .mk-colors { display: flex; gap: 8px; flex-wrap: wrap; min-height: 44px; align-items: center; }
 .mk-colors input { position: absolute; opacity: 0; pointer-events: none; }
 .mk-colors span { display: block; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px transparent; transition: box-shadow .15s, transform .2s var(--spring); }

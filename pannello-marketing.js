@@ -9,17 +9,22 @@
   /* ---------- costanti ---------- */
   const APP_URL = 'https://attrezzatidario-web.github.io/spese-casa/';
   const BUCKET = 'marketing';
+  // icone dei canali: segno bianco su fondo del colore del canale (disegnate qui, niente immagini esterne)
   const GLYPH = {
-    sito: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.6 5.4 3.6 8.5s-1.1 5.9-3.6 8.5c-2.5-2.6-3.6-5.4-3.6-8.5S9.5 6.1 12 3.5z"/></svg>',
-    store: '<svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg>',
-    email: '<svg viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M4 7l8 6 8-6"/></svg>',
-    altro: '<svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>'
+    instagram: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.8"/><circle cx="16.9" cy="7.1" r="1.1" class="fill"/></svg>',
+    tiktok: '<svg viewBox="0 0 24 24"><path d="M13.5 4v10.8a3.3 3.3 0 1 1-3.3-3.3"/><path d="M13.5 4c.3 2.5 2 4.2 4.8 4.4"/></svg>',
+    facebook: '<svg viewBox="0 0 24 24"><path d="M14.6 20.5v-7.3h2.4l.4-2.9h-2.8V8.6c0-.8.3-1.4 1.5-1.4h1.4V4.6a19 19 0 0 0-2.2-.1c-2.2 0-3.7 1.3-3.7 3.8v2h-2.4v2.9h2.4v7.3" class="fill"/></svg>',
+    youtube: '<svg viewBox="0 0 24 24"><rect x="3.2" y="6.2" width="17.6" height="11.6" rx="3.6"/><path d="M10.4 9.4v5.2l4.5-2.6z" class="fill"/></svg>',
+    sito: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.3 2.4 3.4 5 3.4 8s-1.1 5.6-3.4 8c-2.3-2.4-3.4-5-3.4-8S9.7 6.4 12 4z"/></svg>',
+    store: '<svg viewBox="0 0 24 24"><rect x="6.5" y="3" width="11" height="18" rx="2.8"/><path d="M10.5 18h3"/></svg>',
+    email: '<svg viewBox="0 0 24 24"><rect x="3.5" y="6" width="17" height="12" rx="2.5"/><path d="M4.5 7.5l7.5 5.5 7.5-5.5"/></svg>',
+    altro: '<svg viewBox="0 0 24 24"><circle cx="6.5" cy="12" r="1.5" class="fill"/><circle cx="12" cy="12" r="1.5" class="fill"/><circle cx="17.5" cy="12" r="1.5" class="fill"/></svg>'
   };
   const CANALI = {
-    instagram: { n: 'Instagram', c: '#E1306C', d: 'instagram.com' },
-    tiktok: { n: 'TikTok', c: '#14b8b0', d: 'tiktok.com' },
-    facebook: { n: 'Facebook', c: '#1877F2', d: 'facebook.com' },
-    youtube: { n: 'YouTube', c: '#FF2D2D', d: 'youtube.com' },
+    instagram: { n: 'Instagram', c: '#E1306C', bg: 'linear-gradient(45deg,#F9A13A 0%,#E1306C 45%,#8A3AB9 100%)' },
+    tiktok: { n: 'TikTok', c: '#14b8b0', bg: '#111214' },
+    facebook: { n: 'Facebook', c: '#1877F2' },
+    youtube: { n: 'YouTube', c: '#FF2D2D' },
     sito: { n: 'Sito', c: '#17795a' },
     store: { n: 'App Store e Play', c: '#0A84FF' },
     email: { n: 'Email', c: '#8b5cf6' },
@@ -73,9 +78,8 @@
 
   const canale = k => CANALI[k] || CANALI.altro;
   const icoCanale = (k, cls) => {
-    const c = canale(k);
-    return c.d ? `<span class="mk-ch ${cls || ''}" style="--cc:${c.c}" title="${esc(c.n)}"><img src="https://www.google.com/s2/favicons?domain=${c.d}&sz=64" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'mk-ch-dot'}))"></span>`
-      : `<span class="mk-ch g ${cls || ''}" style="--cc:${c.c}" title="${esc(c.n)}">${GLYPH[k] || GLYPH.altro}</span>`;
+    const c = canale(k), g = GLYPH[CANALI[k] ? k : 'altro'];
+    return `<span class="mk-ch ${cls || ''}" style="--cb:${c.bg || c.c}" title="${esc(c.n)}">${g}</span>`;
   };
   const statoCamp = c => { const t = oggi(); if (c.inizio > t) return ['arrivo', 'In arrivo', 'soon']; if (c.fine && c.fine < t) return ['fine', 'Conclusa', '']; return ['attiva', 'Attiva', 'paid']; };
   const linkCamp = c => c.codice ? APP_URL + '?ref=' + encodeURIComponent(c.codice) : '';
