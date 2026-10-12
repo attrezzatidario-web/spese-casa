@@ -27,7 +27,7 @@
   let url = DEMO ? '' : (hh ? 'cloud' : '');
 
   /* ---------- Ponte temporaneo verso Google Apps Script ----------
-     Serve solo per le funzioni non ancora spostate (IA, Telegram, notifiche, file su Drive)
+     Serve solo per le funzioni non ancora spostate (file su Drive)
      e si attiva quando si importano i dati dal Foglio Google. */
   const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzYhgylTZQvP8PKZwSDbK7nOCqx-BL8iXjZPUwq7CvRvA5SNxc4RSvzhcXA3KZf0wXZ/exec';
   // il ponte con il Foglio Google è spento: l'app usa solo Supabase
@@ -311,7 +311,7 @@
       await sbWrite(batch);
       queue = queue.slice(batch.length); save();
       online = true;
-      // fase di passaggio: copia anche sul Foglio Google, così IA, Telegram e notifiche restano aggiornati
+      // fase di passaggio: copia anche sul Foglio Google, per i file su Drive
       const gops = batch.filter(o => o.sheet === 'Config' || (KEY[o.sheet] && o.sheet !== 'Resoconti'));
       if (gas && tok && gops.length) sfetch(gas, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'batch', ops: gops }) }).catch(() => {});
     } catch (e) {
@@ -324,7 +324,7 @@
     if (queue.length && online) setTimeout(flush, 4000);
   }
 
-  // stato di IA/Telegram/backup dal Foglio Google (solo nella fase di passaggio)
+  // stato di IA/backup dal Foglio Google (solo nella fase di passaggio)
   let gasFlagsAt = 0;
   async function pullGasFlags(force) {
     if (!gas || !tok || (!force && Date.now() - gasFlagsAt < 600000)) return;
@@ -400,7 +400,7 @@
 
   /* ================= Router ================= */
   const TITLES = { home: 'Home', spese: 'Spese', entrate: 'Entrate', fisse: 'Spese fisse', auto: 'Auto', estratto: 'Estratto conto', affitto: 'Affitto', bollette: 'Bollette', lista: 'Lista della spesa', documenti: 'Documenti', detrazioni: 'Riepilogo 730', manutenzioni: 'Manutenzioni', anno: 'Il tuo anno', progetti: 'Progetti', faccende: 'Cose da fare', impostazioni: 'Impostazioni' };
-  const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', lista: 'Condivisa con la famiglia', documenti: 'Tutti i tuoi file', detrazioni: 'Spese detraibili e rimborso stimato', manutenzioni: 'Caldaia, filtri e controlli periodici', anno: 'Il riepilogo in numeri', progetti: 'Viaggi, lavori ed eventi con budget', faccende: 'Lavori e commissioni di casa', impostazioni: 'Collegamento, IA e categorie' };
+  const SUBS = { home: '', spese: 'Tutti i movimenti', entrate: 'Stipendi, entrate e risparmi', fisse: 'Abbonamenti, rate e calendario', auto: 'Veicoli, carburante e scadenze', estratto: 'Confronto con le spese registrate', affitto: 'Canone, pagamenti e promemoria', bollette: 'Spese ricorrenti e scadenze', lista: 'Condivisa con la famiglia', documenti: 'Tutti i tuoi file', detrazioni: 'Spese detraibili e rimborso stimato', manutenzioni: 'Caldaia, filtri e controlli periodici', anno: 'Il riepilogo in numeri', progetti: 'Viaggi, lavori ed eventi con budget', faccende: 'Lavori e commissioni di casa', impostazioni: 'Account, casa, IA e preferenze' };
   function route() { routeAnimated(doRoute); }
   function doRoute(vt) {
     view = (location.hash || '#home').slice(1);
@@ -757,14 +757,17 @@
   /* ================= IMPOSTAZIONI ================= */
   function renderSettings() {
     $('#btn-conn').hidden = true;
-    $('#conn-info').textContent = DEMO ? 'Stai guardando la demo con dati di esempio. Le modifiche restano solo finché non chiudi o ricarichi la pagina.'
-      : `Accesso con ${LS.get('sc_email', '')}. ${db.spese.length} spese, ${db.bollette.length} bollette.`;
-    $('#btn-sync').hidden = isLocal();
+    const mail = DEMO ? 'Demo' : LS.get('sc_email', '');
+    $('#acc-mail').textContent = mail;
+    $('#acc-av').textContent = (mail || '?').charAt(0).toUpperCase();
+    $('#conn-info').textContent = DEMO ? 'Dati di esempio: le modifiche spariscono quando chiudi la pagina.'
+      : `${db.spese.length} spese · ${db.entrate.length} entrate · ${queue.length ? 'modifiche in attesa di invio' : 'tutto sincronizzato'}`;
+    $('#btn-sync').hidden = isLocal() || DEMO;
+    $('#acc-links').hidden = DEMO;
     renderAccount();
     renderAISettings();
     renderLockSettings();
     renderTheme();
-    renderTg();
     renderNotifyCard();
     renderAccess();
     renderBackup();
@@ -1054,20 +1057,20 @@
   }
   function renderAccount(fromLoad) {
     const box = $('#acct-set'); if (!box) return;
-    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
+    if (DEMO) { $('#casa-card').hidden = true; return; }
     if (!fromLoad || !membri) loadMembers.pending || (loadMembers.pending = loadMembers().finally(() => { loadMembers.pending = null; }));
     const me = (membri || []).find(m => m.is_me), owner = me && me.role === 'owner', tanti = (membri || []).length > 1;
-    const lista = membri ? membri.map(m => `<div class="item" style="cursor:default"><div class="main"><div class="t">${esc(m.email)}${m.is_me ? ' <span class="muted small">· tu</span>' : ''}</div><div class="s">${m.role === 'owner' ? 'Ha creato la casa' : 'Membro'}</div></div>${owner && !m.is_me ? `<button class="btn sm ghost" data-rmmember="${esc(m.user_id)}" data-mail="${esc(m.email)}">Togli</button>` : ''}</div>`).join('') : '<p class="muted small" style="margin:0">Carico i membri…</p>';
-    box.innerHTML = `<h4 style="margin:0 0 6px">Chi fa parte della casa</h4>
-      <div class="list">${lista}</div>
-      <div class="row-btns" style="margin-top:10px">
-        <button class="btn primary" id="casa-invita">Invita in casa</button>
-        <button class="btn" id="casa-entra">Ho un codice invito</button>
-        ${tanti ? '<button class="btn ghost" id="casa-esci">Esci dalla casa</button>' : ''}
-      </div>
-      <div class="row-btns" style="margin-top:14px">
-        <button class="btn ghost" id="acct-out">Esci</button>
-        <button class="btn danger-ghost" id="acct-del">Elimina account</button>
+    $('#casa-n').textContent = membri ? (membri.length === 1 ? 'Solo tu' : membri.length + ' persone') : '';
+    const riga = m => `<div class="acc-row">
+        <span class="av acc-av sm${m.is_me ? '' : ' alt'}">${esc((m.email || '?').charAt(0).toUpperCase())}</span>
+        <div class="acc-m"><b>${esc(m.email)}</b><small>${m.is_me ? 'Tu · ' : ''}${m.role === 'owner' ? 'Proprietario' : 'Membro'}</small></div>
+        ${owner && !m.is_me ? `<button class="btn sm ghost" data-rmmember="${esc(m.user_id)}" data-mail="${esc(m.email)}">Togli</button>` : ''}</div>`;
+    box.innerHTML = `<div class="acc-list">${membri ? membri.map(riga).join('') : '<p class="muted small" style="margin:0">Carico…</p>'}</div>
+      ${membri && !tanti ? '<p class="muted small" style="margin:10px 0 0">Invita chi vive con te: vedrete e modificherete gli stessi dati.</p>' : ''}
+      <div class="acc-act">
+        <button class="btn primary" id="casa-invita"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Invita</button>
+        <button class="btn" id="casa-entra">Ho un codice</button>
+        ${tanti ? '<button class="btn ghost danger-ghost" id="casa-esci">Esci dalla casa</button>' : ''}
       </div>`;
   }
   const inviteLink = c => location.origin + location.pathname + '?invito=' + c;
@@ -4341,7 +4344,7 @@
     $('#h-avv-body').innerHTML = al.slice(0, 5).map(a => `<div class="avv ${a.tipo}"><i></i><div class="avv-m" data-spesa="${esc(a.ref)}"><b>${esc(a.titolo)}</b><span>${esc(a.testo)}</span></div><button type="button" class="icon-btn avv-x" data-avvx="${esc(a.key)}" aria-label="Ignora">✕</button></div>`).join('');
   }
 
-  /* ================= TELEGRAM, BACKUP, SCORCIATOIE (Impostazioni) ================= */
+  /* ================= BACKUP, SCORCIATOIE (Impostazioni) ================= */
   let acStatus = null;
   async function renderAccess(force) {
     const box = $('#ac-set'); if (!box) return;
@@ -4366,35 +4369,6 @@
         try { const r = await api('access', { op: 'set', vecchio: fd.get('vecchio') || '', nuovo, device: 'questo dispositivo' }); tok = r.token; LS.set('sc_tok', tok); busy(); closeSheet(); toast('Codice impostato'); acStatus = null; renderAccess(true); }
         catch (e) { busy(); toast(e.message); }
       });
-  }
-  function renderTg() {
-    const box = $('#tg-set'); if (!box) return;
-    if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Non disponibile nella demo.</p>'; return; }
-    if ((isLocal() || !gas)) { box.innerHTML = '<p class="muted small" style="margin:0">Per ora funziona con il Foglio Google collegato (Altro → Account).</p>'; return; }
-    const tg = db.tg || {};
-    if (!tg.attivo) {
-      box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Registra le spese scrivendo al tuo bot (“45 benzina eni”) o mandando la foto dello scontrino, e ricevi i promemoria su Telegram.</p>
-        <ol class="tg-steps"><li>Su Telegram apri <a class="link" href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, scrivi <b>/newbot</b> e scegli un nome</li><li>Copia il <b>token</b> che ti dà e incollalo qui</li></ol>
-        <div class="inline-add"><input id="tg-token" type="password" placeholder="Token del bot (123456:ABC…)" autocomplete="off"><button class="btn primary" id="tg-go">Attiva</button></div>`;
-      return;
-    }
-    const pp = personeAttive(), chats = tg.chats || [];
-    const who = pp.length ? pp : [{ id: '', nome: 'Me' }];
-    box.innerHTML = `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attivo</span> Bot <a class="link" href="https://t.me/${esc(tg.bot)}" target="_blank" rel="noopener">@${esc(tg.bot)}</a></p>
-      <div class="list">${who.map(p => { const on = chats.some(c => (c.personaId || '') === (p.id || '')); return `<div class="item" style="cursor:default">${p.id ? avatar(p) : '<span class="av">?</span>'}<div class="main"><div class="t">${esc(p.nome)}</div><div class="s">${on ? 'Collegato' : 'Non collegato'}</div></div>
-        ${on ? `<button class="btn sm ghost" data-tgunlink="${esc(p.id || '')}">Scollega</button>` : `<button class="btn sm primary" data-tglink="${esc(p.id || '')}">Collega</button>`}</div>`; }).join('')}</div>
-      <div id="tg-code"></div>
-      <div class="tg-relay">${tg.istantaneo
-        ? `<p class="small" style="margin:0"><span class="chip paid">Istantaneo</span> Risposte immediate tramite il ponte Cloudflare. <button class="link-btn" id="tg-relay-off">Rimuovi</button></p>`
-        : `<p class="small" style="margin:0 0 8px"><span class="chip soon">Entro 1 minuto</span> Per risposte istantanee incolla l'indirizzo del tuo ponte Cloudflare:</p>
-           <div class="inline-add"><input id="tg-relay" placeholder="https://spese-casa-bot.tuonome.workers.dev" inputmode="url" autocapitalize="off"><button class="btn primary" id="tg-relay-go">Collega</button></div>`}</div>
-      <p class="muted small" style="margin:12px 0 0">Al bot puoi anche fare domande (<i>“quanto ho speso da Conad quest'anno?”</i>), scrivere <i>“da fare chiamare idraulico”</i> e usare <i>#progetto</i> nelle spese. Ogni domenica sera ricevi il riepilogo della settimana.</p>
-      <div class="row-btns" style="margin-top:10px"><button class="btn sm" id="tg-weekly">Invia riepilogo ora</button><button class="btn sm" id="tg-test">Messaggio di prova</button><button class="btn sm ghost" id="tg-off">Disattiva bot</button></div>`;
-  }
-  async function tgApi(op, extra) {
-    busy(op === 'setup' ? 'Collego il bot…' : 'Un attimo…');
-    try { const r = await api('telegram', { op, ...extra }); busy(); return r; }
-    catch (e) { busy(); toast(/autorizz|permission|permess|UrlFetch/i.test(e.message) ? 'Serve un permesso: esegui la funzione "autorizza" nello script' : e.message); throw e; }
   }
   function renderBackup() {
     const box = $('#bk-set'); if (!box) return;
@@ -4484,7 +4458,7 @@
         <div class="card-h"><h3>${esc(cur.nome)}</h3><div class="row-btns nowrap"><button class="btn sm" data-prjact="edit">Modifica</button><button class="btn sm primary" data-prjact="add">+ Spesa</button></div></div>
         ${cur.note ? `<p class="muted small" style="margin:0 0 10px">${esc(cur.note)}</p>` : ''}
         ${cats2.length ? `<div class="bars" style="margin-bottom:14px">${cats2.map(([c, v]) => `<div class="bar-row"><div class="bar-top"><span>${esc(c)}</span><span>${eur(v)}</span></div><div class="bar-track"><div class="bar-fill" style="width:${(v / mx * 100).toFixed(1)}%"></div></div></div>`).join('')}</div>` : ''}
-        <div class="list">${L.map(speseItem).join('') || '<div class="empty">Nessuna spesa collegata. Premi “+ Spesa” oppure scegli il progetto quando registri una spesa (dal bot: <b>#' + esc(String(cur.nome).split(/\s+/)[0].toLowerCase()) + ' 50 cena</b>).</div>'}</div></div>`;
+        <div class="list">${L.map(speseItem).join('') || '<div class="empty">Nessuna spesa collegata. Premi “+ Spesa” oppure scegli il progetto quando registri una spesa.</div>'}</div></div>`;
     }
     $('#prj-body').innerHTML = `<div class="prj-grid">${all.map(card).join('')}<button type="button" class="prj prj-new" data-prjact="new"><span>+</span>Nuovo progetto</button></div>${detail}`;
   }
@@ -4965,6 +4939,7 @@
   async function demoAI(task, extra) {
     await sleep(900 + Math.random() * 500);
     const T = today(), y = ymd(new Date(Date.now() - 864e5));
+    if (task === 'receiptQuick') return { valido: true, negozio: 'Conad', importo: 47.85, data: T, categoria: 'Spesa alimentare', metodo: 'Bancomat', sito: 'conad.it' };
     if (task === 'receipt') return { valido: true, negozio: 'Conad', importo: 47.85, data: T, categoria: 'Spesa alimentare', metodo: 'Bancomat', sito: 'conad.it', note: 'latte, pane, pasta, frutta, detersivo', litri: 0, prezzoLitro: 0, detrazione: '', acquistati: (extra.lista || []).slice(0, 4) };
     if (task === 'text') {
       const parts = String(extra.testo || '').split(/\s+e\s+|;|,(?!\d)/i).map(x => x.trim()).filter(x => /\d/.test(x));
@@ -5094,7 +5069,24 @@
         write([{ action: 'delete', sheet: 'Spese', id: s.id }]); closeSheet(); toast('Spesa eliminata');
       });
     bindMerchantField(isNew && !(pre && pre._ai), s);
-    const att = attachBox({ id: s.allegato || '', pending: s._doc || null, label: 'Scontrino', cartella: 'Scontrini' });
+    const att = attachBox({ id: s.allegato || '', pending: s._doc || null, label: 'Scontrino', cartella: 'Scontrini', autoRead: isNew,
+      onRead: async doc => {
+        const F = n => $('#sheet-body [name=' + n + ']');
+        const box = $('#att-box'); box.classList.add('reading');
+        busy('Leggo lo scontrino…');
+        try {
+          const img = await docForAI(doc, 1);
+          const r = await aiCall('receiptQuick', img, 45000); busy();
+          if (r.valido === false) return toast('Non sembra uno scontrino: compila a mano');
+          if (Number(r.importo) > 0) F('importo').value = fmtAmt(Math.round(Number(r.importo) * 100) / 100);
+          if (r.negozio) { F('descrizione').value = r.negozio; s.descrizione = r.negozio; s.sito = r.sito || ''; F('descrizione').dispatchEvent(new Event('input', { bubbles: true })); }
+          if (/^\d{4}-\d{2}-\d{2}$/.test(r.data || '') && r.data <= today()) F('data').value = r.data;
+          if (r.categoria && r.categoria !== 'Altro' && db.categorie.includes(r.categoria)) { F('categoria').value = r.categoria; F('categoria').dispatchEvent(new Event('change', { bubbles: true })); }
+          if (r.metodo && METODI.includes(r.metodo)) F('metodo').value = r.metodo;
+          toast(`Letto: ${r.negozio || 'scontrino'} · ${eur(r.importo || 0)}. Controlla e salva`);
+        } catch (er) { busy(); toast(er.message); }
+        finally { box.classList.remove('reading'); }
+      } });
     const dsel = $('#sheet-body [name=detrazione]'), csel = $('#sheet-body [name=categoria]');
     const syncWho = () => {};
     dsel.addEventListener('change', syncWho);
@@ -5378,17 +5370,6 @@
       if (ay) { annoY += Number(ay.dataset.any); renderAnno(); stagger($('#v-anno')); return; }
       const ax = e.target.closest('[data-avvx]');
       if (ax) { LS.set('sc_dismiss', [...LS.get('sc_dismiss', []), ax.dataset.avvx].slice(-200)); renderAlerts(); return; }
-      if (e.target.closest('#tg-go')) { const t = $('#tg-token').value.trim(); if (!t) return toast('Incolla il token'); tgApi('setup', { token: t, url }).then(r => { db.tg = r; save(); renderTg(); toast('Bot attivo: ora collega il tuo Telegram'); }).catch(() => {}); return; }
-      const tl = e.target.closest('[data-tglink]');
-      if (tl) { const p = personaById(tl.dataset.tglink); tgApi('code', { personaId: tl.dataset.tglink, nome: p ? p.nome : '' }).then(r => { const link = `https://t.me/${r.bot}?start=${r.code}`;
-        $('#tg-code').innerHTML = `<div class="tg-code"><p class="small" style="margin:0 0 8px">Apri il link dal telefono di <b>${esc(p ? p.nome : 'chi vuoi collegare')}</b> e premi <b>Avvia</b>:</p><a class="btn primary block" href="${esc(link)}" target="_blank" rel="noopener">Apri @${esc(r.bot)} su Telegram</a><p class="muted small" style="margin:8px 0 0">Oppure scrivi al bot: <b>/collega ${esc(r.code)}</b> · valido 30 minuti</p><button class="btn sm ghost" id="tg-refresh" style="margin-top:6px">Ho fatto, aggiorna</button></div>`; }).catch(() => {}); return; }
-      if (e.target.closest('#tg-refresh')) { pull(true); return; }
-      if (e.target.closest('#tg-relay-go')) { const r = $('#tg-relay').value.trim(); if (!r) return toast('Incolla l\'indirizzo del ponte'); tgApi('relay', { relay: r, url }).then(x => { db.tg = x; save(); renderTg(); toast('Bot istantaneo attivo'); }).catch(() => {}); return; }
-      if (e.target.closest('#tg-relay-off')) { tgApi('relay', { relay: '', url }).then(x => { db.tg = x; save(); renderTg(); }).catch(() => {}); return; }
-      const tu = e.target.closest('[data-tgunlink]');
-      if (tu) { tgApi('unlink', { personaId: tu.dataset.tgunlink }).then(r => { db.tg = r; save(); renderTg(); }).catch(() => {}); return; }
-      if (e.target.closest('#tg-test')) { tgApi('test').then(() => toast('Messaggio inviato')).catch(() => {}); return; }
-      if (e.target.closest('#tg-off')) { if (confirm('Disattivare il bot Telegram?')) tgApi('off').then(r => { db.tg = r; save(); renderTg(); toast('Bot disattivato'); }).catch(() => {}); return; }
       if (e.target.closest('#bk-now')) { bkApi('now'); return; }
       if (e.target.closest('#nt-test')) { notifyTest(); return; }
       if (e.target.closest('#nt-on')) { notifyOn(); return; }
@@ -5403,7 +5384,6 @@
       if (e.target.closest('#nt-off')) { if (confirm('Disattivare le notifiche su questo dispositivo?')) pushDisable().then(renderNotifyCard); return; }
       if (e.target.closest('#ac-set-btn')) { formAccess(); return; }
       if (e.target.closest('#ac-out')) { if (confirm('Scollegare tutti gli altri dispositivi? Dovranno reinserire il codice.')) api('access', { op: 'logoutAll', device: 'questo dispositivo' }).then(r => { tok = r.token || tok; LS.set('sc_tok', tok); acStatus = null; renderAccess(true); toast('Altri dispositivi scollegati'); }).catch(er => toast(er.message)); return; }
-      if (e.target.closest('#tg-weekly')) { tgApi('weekly').then(() => toast('Riepilogo inviato su Telegram')).catch(() => {}); return; }
       const pj = e.target.closest('[data-prj]');
       if (pj) { prjSel = prjSel === pj.dataset.prj ? '' : pj.dataset.prj; renderPrj(); if (prjSel && !isDesk()) setTimeout(() => { const d = $('.prj-det'); d && d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); return; }
       const pa = e.target.closest('[data-prjact]');
@@ -5450,14 +5430,14 @@
     };
     $('#new-cat').addEventListener('keydown', e => { if (e.key === 'Enter') $('#add-cat').click(); });
     $('#btn-csv').onclick = exportCSV;
-    $('#btn-sync').onclick = () => pull(true);
+    $('#btn-sync').onclick = () => { const b = $('#btn-sync'); b.classList.add('spin'); Promise.resolve(pull(true)).catch(() => {}).finally(() => { b.classList.remove('spin'); if (view === 'impostazioni') renderSettings(); }); };
     $('#btn-conn').onclick = signOut;
     document.addEventListener('click', e => {
       if (e.target.closest('#acct-import')) return formImport();
       if (e.target.closest('#acct-out')) return signOut();
       if (e.target.closest('#acct-del')) return deleteAccount();
       if (e.target.closest('#acct-unlink')) {
-        if (!confirm('Scollegare il Foglio Google? IA, Telegram e notifiche si fermano fino al prossimo aggiornamento.')) return;
+        if (!confirm('Scollegare il Foglio Google? i vecchi file su Drive non si aprono fino al prossimo aggiornamento.')) return;
         gas = ''; tok = ''; LS.set('sc_gas', ''); LS.set('sc_tok', ''); db.ai = false; save(); render(); toast('Foglio scollegato');
       }
     });

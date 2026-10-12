@@ -39,6 +39,23 @@
       })
     },
 
+    receiptQuick: {
+      prompt: (cats, oggi) =>
+        'Leggi velocemente questo scontrino/ricevuta italiano. ' +
+        'negozio: nome commerciale breve del punto vendita o marchio (es. "Conad", "Eni", "Leroy Merlin"). ' +
+        'importo: TOTALE pagato in euro (numero). data: YYYY-MM-DD (se non leggibile ' + oggi + '). ' +
+        'metodo tra: ' + METODI.join(', ') + '. categoria SOLO tra: ' + cats.join(', ') + '. ' +
+        'sito: dominio web ufficiale del marchio in Italia, stringa vuota se non lo sai. ' +
+        'Se non è uno scontrino o una ricevuta imposta valido=false.',
+      schema: cats => S('OBJECT', {
+        properties: {
+          valido: S('BOOLEAN'), negozio: S('STRING'), importo: S('NUMBER'), data: S('STRING'),
+          categoria: S('STRING', { enum: cats }), metodo: S('STRING', { enum: METODI }), sito: S('STRING')
+        },
+        required: ['valido', 'negozio', 'importo', 'data', 'categoria', 'metodo', 'sito']
+      })
+    },
+
     text: {
       prompt: (cats, oggi, req) =>
         'Sei un assistente per la contabilità domestica italiana. Oggi è ' + oggi + '.\n' +

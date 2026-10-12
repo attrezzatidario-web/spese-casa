@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=3-1">
+  <link rel="stylesheet" href="style.css?v=3-2">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -309,7 +309,6 @@
             <div class="es-ic"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
             <h3>Le cose da fare in casa</h3>
             <p class="muted small">Assegna ogni lavoro a qualcuno e metti una scadenza: il giorno prima arriva il promemoria.</p>
-            <p class="muted small">Dal bot Telegram: <i>“da fare chiamare idraulico”</i>, <b>/fare</b> per la lista e <i>“fatto 1”</i> per spuntare.</p>
           </div>
         </div>
       </section>
@@ -489,14 +488,22 @@
           <a href="#anno" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><b>Il tuo anno</b><small>Riepilogo in numeri</small></a>
           <a href="#estratto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13l2 2 4-4"/></svg></span><b>Estratto conto</b><small>Verifica con l'IA</small></a>
         </div>
-        <div class="card">
+        <div class="card acc-card">
           <h3>Account</h3>
-          <p id="conn-info" class="muted small"></p>
-          <div class="row-btns">
-            <button id="btn-sync" class="btn">Sincronizza ora</button>
+          <div class="acc-me">
+            <span class="av acc-av" id="acc-av"></span>
+            <div class="acc-m"><b id="acc-mail"></b><small id="conn-info"></small></div>
+            <button id="btn-sync" class="icon-btn acc-sync" aria-label="Sincronizza ora" title="Sincronizza ora"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v3h3M4 13a8 8 0 0 0 14.6 4.5M20 20v-3h-3"/></svg></button>
             <button id="btn-conn" class="btn ghost" hidden>Esci</button>
           </div>
-          <div id="acct-set" style="margin-top:12px"></div>
+          <div class="acc-links" id="acc-links">
+            <button type="button" id="acct-out">Esci dall'account</button>
+            <button type="button" id="acct-del" class="danger">Elimina account</button>
+          </div>
+        </div>
+        <div class="card acc-card" id="casa-card">
+          <div class="acc-h"><h3>La tua casa</h3><span id="casa-n" class="muted small"></span></div>
+          <div id="acct-set"></div>
         </div>
         <div class="card">
           <h3>Aspetto</h3>
@@ -598,7 +605,7 @@
   </div>
 
   <script src="lib-supabase.js?v=1"></script>
-  <script src="ai.js?v=3"></script>
-  <script src="app.js?v=3-1"></script>
+  <script src="ai.js?v=4"></script>
+  <script src="app.js?v=3-2"></script>
 </body>
 </html>

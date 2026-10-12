@@ -2066,3 +2066,28 @@ div.f { margin-bottom: 14px; }
 /* pulsante quadrato "+": icona esattamente al centro */
 .btn.ls-btn { padding: 0; display: grid; place-items: center; }
 .btn.ls-btn svg { display: block; }
+
+/* ===== Account e casa ===== */
+.acc-card h3 { margin-bottom: 14px; }
+.acc-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.acc-h h3 { margin: 0; }
+.acc-me, .acc-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.acc-av { width: 44px; height: 44px; font-size: 17px; background: var(--accent); }
+.acc-av.sm { width: 36px; height: 36px; font-size: 14px; }
+.acc-av.alt { background: var(--accent-soft); color: var(--accent); }
+.acc-m { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.acc-m b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-m small { color: var(--muted); font-size: 13px; }
+.acc-sync svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.acc-sync.spin svg { animation: acc-spin .8s linear infinite; }
+@keyframes acc-spin { to { transform: rotate(360deg); } }
+.acc-links { display: flex; gap: 22px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.acc-links button { background: none; border: 0; padding: 0; font: inherit; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+.acc-links button:hover { color: var(--ink); }
+.acc-links .danger { color: var(--danger); }
+.acc-list { display: flex; flex-direction: column; }
+.acc-row { padding: 12px 0; }
+.acc-row + .acc-row { border-top: 1px solid var(--line); }
+.acc-act { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.acc-act .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; margin-right: 4px; vertical-align: -3px; }
+.acc-act #casa-esci { margin-left: auto; }
