@@ -1623,15 +1623,11 @@ body.is-locked #app, body.is-locked .sheet { visibility: hidden; }
 @keyframes sheetup { from { transform: translateY(100%); } }
 
 /* --- tira giù per aggiornare --- */
-.ptr { --ptr: 0; position: fixed; top: calc(-40px + env(safe-area-inset-top)); left: 50%; margin-left: -16px; width: 32px; height: 32px; z-index: 40; opacity: 0; transition: transform .35s cubic-bezier(.32,.72,0,1), opacity .2s; pointer-events: none; color: var(--accent); }
-.ptr svg { width: 32px; height: 32px; display: block; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
-.ptr-track { stroke-width: 2.5; opacity: .14; }
-.ptr-arc { stroke-width: 2.5; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--ptr) * 100); transform: rotate(-90deg); transform-origin: 20px 20px; }
-.ptr-arrow { stroke-width: 2.2; transform-origin: 20px 20px; transition: transform .25s cubic-bezier(.32,.72,0,1), opacity .15s; opacity: calc(.35 + var(--ptr) * .65); }
+.ptr { --ptr: 0; position: fixed; top: calc(-40px + env(safe-area-inset-top)); left: 50%; margin-left: -14px; width: 28px; height: 28px; z-index: 40; opacity: 0; transition: transform .35s cubic-bezier(.32,.72,0,1), opacity .2s; pointer-events: none; color: var(--accent); }
+.ptr svg { width: 28px; height: 28px; display: block; fill: none; stroke: currentColor; stroke-linecap: round; }
+.ptr-arc { stroke-width: 3; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--ptr) * 80); transform: rotate(-90deg); transform-origin: 20px 20px; }
 .ptr.on { opacity: 1; transition: opacity .2s; }
-.ptr.ready .ptr-arrow { transform: rotate(180deg); }
-.ptr.spin .ptr-arrow { opacity: 0; }
-.ptr.spin .ptr-arc { stroke-dashoffset: 72; animation: ptrspin .8s linear infinite; }
+.ptr.ptr-busy .ptr-arc { stroke-dashoffset: 75; animation: ptrspin .75s linear infinite; }
 @keyframes ptrspin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
 
 /* --- sagome di caricamento --- */
@@ -2083,7 +2079,7 @@ div.f { margin-bottom: 14px; }
 .acc-m b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acc-m small { color: var(--muted); font-size: 13px; }
 .acc-sync svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.acc-sync.spin svg { animation: acc-spin .8s linear infinite; }
+.acc-sync.rot svg { animation: acc-spin .8s linear infinite; }
 @keyframes acc-spin { to { transform: rotate(360deg); } }
 .acc-links { display: flex; gap: 22px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .acc-links button { background: none; border: 0; padding: 0; font: inherit; font-size: 14px; color: var(--ink-2); cursor: pointer; }

@@ -4715,7 +4715,7 @@
   /* --- Tira giù per aggiornare --- */
   function ptrInit() {
     const el = document.createElement('div'); el.id = 'ptr'; el.className = 'ptr';
-    el.innerHTML = '<svg viewBox="0 0 40 40"><circle class="ptr-track" cx="20" cy="20" r="16"/><circle class="ptr-arc" cx="20" cy="20" r="16" pathLength="100"/><path class="ptr-arrow" d="M20 13v13M15 21l5 5 5-5"/></svg>';
+    el.innerHTML = '<svg viewBox="0 0 40 40"><circle class="ptr-arc" cx="20" cy="20" r="15" pathLength="100"/></svg>';
     document.body.appendChild(el);
     let p = null;
     document.addEventListener('touchstart', e => {
@@ -4737,10 +4737,10 @@
       if (!p) return;
       const go = p.d > 70; p = null;
       if (!go) { el.style.transform = ''; el.classList.remove('on', 'ready'); el.style.setProperty('--ptr', 0); return; }
-      el.classList.add('spin'); el.style.transform = 'translateY(70px)';
+      el.classList.add('ptr-busy'); el.style.transform = 'translateY(70px)';
       if (isLocal()) { await sleep(500); render(); toast(DEMO ? 'Dati aggiornati' : 'Modalità solo dispositivo'); }
       else await pull(true);
-      el.classList.remove('spin', 'ready'); el.style.transform = ''; setTimeout(() => { el.classList.remove('on'); el.style.setProperty('--ptr', 0); }, 300);
+      el.classList.remove('ptr-busy', 'ready'); el.style.transform = ''; setTimeout(() => { el.classList.remove('on'); el.style.setProperty('--ptr', 0); }, 300);
     });
   }
 
@@ -5438,7 +5438,7 @@
     };
     $('#new-cat').addEventListener('keydown', e => { if (e.key === 'Enter') $('#add-cat').click(); });
     $('#btn-csv').onclick = exportCSV;
-    $('#btn-sync').onclick = () => { const b = $('#btn-sync'); b.classList.add('spin'); Promise.resolve(pull(true)).catch(() => {}).finally(() => { b.classList.remove('spin'); if (view === 'impostazioni') renderSettings(); }); };
+    $('#btn-sync').onclick = () => { const b = $('#btn-sync'); b.classList.add('rot'); Promise.resolve(pull(true)).catch(() => {}).finally(() => { b.classList.remove('rot'); if (view === 'impostazioni') renderSettings(); }); };
     $('#btn-conn').onclick = signOut;
     document.addEventListener('click', e => {
       if (e.target.closest('#acct-import')) return formImport();
