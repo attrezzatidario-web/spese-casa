@@ -161,7 +161,7 @@
     if (view === 'utenti') renderUtenti();
     if (view === 'abbonamenti') renderAbbonamenti();
     if (view === 'inviti') renderInviti();
-    if (view === 'sistema') renderSistema();
+    if (view === 'sistema') { renderSistema(); statoAvvisi(); }
   }
 
   function renderPanoramica() {
@@ -268,9 +268,7 @@
       if (a === 'elimina') {
         const mail = btn.dataset.mail;
         if (prompt(`Per eliminare definitivamente l'account ${mail} e tutti i suoi dati scrivi ELIMINA`) !== 'ELIMINA') { btn.disabled = false; return toast('Eliminazione annullata'); }
-        const { data, error } = await sb.functions.invoke('admin', { body: { azione: 'elimina_utente', user_id: btn.dataset.u } });
-        let msg = error && error.message; if (error) { try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (e) {} }
-        if (error || !data || !data.ok) throw new Error(msg || (data && data.error) || 'Eliminazione non riuscita');
+        const data = await invoca({ azione: 'elimina_utente', user_id: btn.dataset.u });
         closeSheet(); toast(`Account eliminato${data.file ? ` · ${data.file} file cancellati` : ''}`); await carica(true); return;
       }
       toast('Piano aggiornato'); const uid = btn.dataset.u; await carica(true); dettaglioUtente(uid);
@@ -337,6 +335,61 @@
     $$('#s-resp .item').forEach(e => e.classList.add('pn-li'));
   }
 
+  /* ---------- avvisi push: nuovi iscritti ---------- */
+  const VAPID_PUBLIC = 'BOmeNL_VFB4WwSPylaBuisV2pi0A-GsmoeJK2CgeLpZVQ_HczJIn5T0wgKijQlFQPCECjPKFCApTyqzkruYu28c';
+  const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const pushOk = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const b64uKey = k => { const p = '='.repeat((4 - k.length % 4) % 4), b = atob((k + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  const swReg = () => ('serviceWorker' in navigator && location.protocol !== 'file:') ? navigator.serviceWorker.register('sw.js').catch(() => null) : Promise.resolve(null);
+  const iscrizione = async () => { try { const r = await navigator.serviceWorker.getRegistration(); return r ? await r.pushManager.getSubscription() : null; } catch (e) { return null; } };
+  const invoca = async body => {
+    const { data, error } = await sb.functions.invoke('admin', { body });
+    let msg = error && error.message; if (error) { try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (e) {} }
+    if (error || !data || !data.ok) throw new Error(msg || (data && data.error) || 'Operazione non riuscita');
+    return data;
+  };
+  async function statoAvvisi() {
+    const box = $('#av-on'); if (!box) return;
+    const lab = box.closest('.pn-avv'), sub = $('#av-s');
+    const blocca = t => { box.checked = false; box.disabled = true; lab.classList.add('off'); sub.textContent = t; $('#av-f').hidden = true; };
+    if (IOS && !STANDALONE) return blocca('Su iPhone: apri il pannello in Safari, Condividi › Aggiungi a schermata Home, poi attiva da lì.');
+    if (!pushOk()) return blocca('Questo browser non supporta le notifiche.');
+    if (Notification.permission === 'denied') return blocca('Notifiche bloccate: riattivale dalle impostazioni del browser per questo sito.');
+    box.disabled = false; lab.classList.remove('off');
+    const s = await iscrizione();
+    box.checked = !!s; $('#av-f').hidden = !s;
+    sub.textContent = s ? 'Attivi: ti avviso qui ogni volta che qualcuno crea un account.' : 'Ricevi una notifica ogni volta che qualcuno crea un account.';
+    rpc('admin_push_count').then(n => { $('#av-n').textContent = n ? `${n} ${n === 1 ? 'dispositivo' : 'dispositivi'}` : ''; }).catch(() => {});
+  }
+  async function attivaAvvisi(on) {
+    const box = $('#av-on'); box.disabled = true;
+    try {
+      if (on) {
+        if (await Notification.requestPermission() !== 'granted') throw new Error('Permesso negato');
+        await swReg(); const reg = await navigator.serviceWorker.ready;
+        let s = await reg.pushManager.getSubscription();
+        if (!s) s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uKey(VAPID_PUBLIC) });
+        await rpc('admin_push_save', { s: s.toJSON() });
+        toast('Avvisi attivati');
+      } else {
+        const s = await iscrizione();
+        if (s) { await rpc('admin_push_delete', { ep: s.endpoint }).catch(() => {}); await s.unsubscribe().catch(() => {}); }
+        toast('Avvisi disattivati');
+      }
+    } catch (e) {
+      toast(/function|schema cache|does not exist/i.test(e.message) ? 'Prima esegui il file 09_avvisi_iscritti.sql su Supabase' : e.message);
+    }
+    await statoAvvisi();
+  }
+  $('#av-on').addEventListener('change', e => attivaAvvisi(e.target.checked));
+  $('#av-prova').onclick = async () => {
+    const b = $('#av-prova'); b.disabled = true;
+    try { const r = await invoca({ azione: 'prova_avvisi' }); toast(r.inviate ? 'Prova inviata · guarda le notifiche' : 'Nessun dispositivo ha ricevuto la prova'); }
+    catch (e) { toast(e.message); }
+    b.disabled = false;
+  };
+
   /* ---------- caricamento dati e tempo reale ---------- */
   let caricando = false;
   async function carica(tutto) {
@@ -372,7 +425,7 @@
     let ok = false; try { ok = await rpc('is_app_admin'); } catch (e) { if (/function|schema cache|does not exist/i.test(e.message)) return mostraLogin('Il pannello non è ancora attivo sul server: esegui il file 08_pannello.sql su Supabase.'); }
     if (!ok) return nonAutorizzato();
     $('#setup').hidden = true; $('#app').hidden = false;
-    route(); carica(true);
+    route(); carica(true); swReg(); statoAvvisi();
   }
   $('#login-send').onclick = async () => {
     const email = $('#login-email').value.trim().toLowerCase(); if (!/^\S+@\S+\.\S+$/.test(email)) return err('Email non valida');

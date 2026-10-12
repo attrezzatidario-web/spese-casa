@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=4-2">
-  <link rel="stylesheet" href="pannello.css?v=4">
+  <link rel="stylesheet" href="pannello.css?v=5">
 </head>
 <body class="pn">
 
@@ -208,6 +208,11 @@
           </div>
           <div class="pn-col">
             <div class="card">
+              <div class="card-h"><h3>Avvisi su questo dispositivo</h3><span class="muted small" id="av-n"></span></div>
+              <label class="sw pn-avv"><input type="checkbox" id="av-on"><span class="sw-ui"></span><span class="sw-t"><b>Nuovi iscritti</b><small id="av-s">Ricevi una notifica ogni volta che qualcuno crea un account.</small></span></label>
+              <div class="pn-avv-f" id="av-f" hidden><button type="button" class="btn" id="av-prova">Invia una prova</button></div>
+            </div>
+            <div class="card">
               <div class="card-h"><h3>Collegamenti rapidi</h3></div>
               <div id="s-links" class="list pn-links"></div>
             </div>
@@ -230,6 +235,6 @@
   <div id="pn-tip" class="pn-tip" hidden></div>
 
   <script src="lib-supabase.js?v=1"></script>
-  <script src="pannello.js?v=4"></script>
+  <script src="pannello.js?v=5"></script>
 </body>
 </html>

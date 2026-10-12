@@ -1,5 +1,5 @@
 /* Spese Casa — service worker: app utilizzabile anche offline */
-const CACHE = 'spese-casa-15';
+const CACHE = 'spese-casa-16';
 const SHELL = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'logo.svg', 'lib-supabase.js', 'ai.js'];
 
 self.addEventListener('install', e => {
@@ -26,7 +26,7 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (er) { d = { title: 'Spese Casa', body: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.title || 'Spese Casa', {
-    body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.tag || 'spese-casa', renotify: true,
+    body: d.body || '', icon: d.icon || 'icon-192.png', badge: d.badge || 'icon-192.png', tag: d.tag || 'spese-casa', renotify: true,
     data: { url: d.url || './' }
   }));
 });
@@ -34,7 +34,12 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-    for (const c of list) if (c.url.startsWith(self.registration.scope)) { c.focus(); return c.navigate ? c.navigate(url) : null; }
+    // prima una finestra già aperta sulla stessa pagina (app o pannello), poi una qualsiasi dell'app
+    const pag = u => new URL(u).pathname.replace(/\/$/, '/index.html');
+    const stessa = list.find(c => pag(c.url) === pag(url));
+    if (stessa) { stessa.focus(); return stessa.navigate ? stessa.navigate(url) : null; }
+    const pannello = /pannello\.html$/.test(pag(url));
+    if (!pannello) for (const c of list) if (c.url.startsWith(self.registration.scope) && !/pannello\.html/.test(c.url)) { c.focus(); return c.navigate ? c.navigate(url) : null; }
     return clients.openWindow(url);
   }));
 });

@@ -234,3 +234,10 @@ html, body.pn { overflow-x: hidden; }
   .pns-word { font-size: 30px; }
 }
 @media (prefers-reduced-motion: reduce) { .pns { display: none !important; } }
+
+/* avvisi nuovi iscritti */
+.pn-avv { border-top: 0; padding: 0; display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.pn-avv input { position: absolute; opacity: 0; pointer-events: none; }
+.pn-avv.off { opacity: .55; cursor: default; }
+.pn-avv-f { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; gap: 8px; animation: pnAvIn .35s cubic-bezier(.32,.72,0,1); }
+@keyframes pnAvIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
