@@ -192,18 +192,22 @@
     $$('#c-last .item').forEach(e => e.classList.add('pn-li'));
   }
 
-  const chipPiano = u => { const s = statoPiano(u); return s === 'premium' ? `<span class="chip prem">${u.source === 'manual' ? 'Regalato' : 'Premium'}</span>` : s === 'prova' ? `<span class="chip soon">Prova · ${tra(u.expires_at)}</span>` : '<span class="chip">Gratis</span>'; };
+  const chipPiano = u => { const s = statoPiano(u); return s === 'premium' ? `<span class="chip prem">${u.source === 'manual' ? 'Regalato' : 'Premium'}</span>` : s === 'prova' ? `<span class="chip soon" title="Prova ${esc(tra(u.expires_at))}">Prova · ${Math.max(0, Math.ceil((new Date(u.expires_at) - Date.now()) / 864e5))} gg</span>` : '<span class="chip">Gratis</span>'; };
+  // riga utente a colonne fisse: avatar · email · piano · archivio · attività (tutto allineato in colonna)
   function rigaUtente(u, corta) {
-    return `<div class="item pn-u" data-u="${esc(u.user_id)}"><span class="pn-av${statoPiano(u) === 'premium' ? ' prem' : ''}">${esc(iniziale(u.email))}</span>
-      <div class="main"><div class="t">${esc(u.email)}</div><div class="s">${corta ? 'iscritto ' + fa(u.created_at) : `iscritto ${giorno(new Date(u.created_at))} · attivo ${fa(u.last_activity || u.last_sign_in_at)}${u.members > 1 ? ` · casa di ${u.members}` : ''}`}</div></div>
-      <div class="right">${chipPiano(u)}${corta ? '' : `<small>${B(u.storage_bytes)}</small>`}</div></div>`;
+    const att = fa(u.last_activity || u.last_sign_in_at);
+    const sub = corta ? 'iscritto ' + fa(u.created_at) : `iscritto ${giorno(new Date(u.created_at))}${u.members > 1 ? ` · casa di ${u.members}` : ''}<span class="pn-only-m"> · attivo ${att}</span>`;
+    return `<div class="item pn-u${corta ? ' pn-u-s' : ''}" data-u="${esc(u.user_id)}"><span class="pn-av${statoPiano(u) === 'premium' ? ' prem' : ''}">${esc(iniziale(u.email))}</span>
+      <div class="main"><div class="t">${esc(u.email)}</div><div class="s">${sub}</div></div>
+      <div class="pn-c pn-c-plan">${chipPiano(u)}</div>${corta ? '' : `<div class="pn-c pn-c-num">${B(u.storage_bytes)}</div><div class="pn-c pn-c-act">${att}</div>`}</div>`;
   }
+  const testaUtenti = () => `<div class="pn-uh"><span></span><span>Utente</span><span>Piano</span><span class="r">Archivio</span><span class="r">Attività</span></div>`;
   function renderUtenti() {
     const box = $('#u-list'); if (!users) { box.innerHTML = '<div class="pn-sk" style="height:260px"></div>'; return; }
     const q = $('#u-q').value.trim().toLowerCase();
     const list = users.filter(u => (!q || String(u.email).toLowerCase().includes(q)) && (filtro === 'tutti' || statoPiano(u) === filtro));
     $('#u-count').textContent = list.length === users.length ? `${N(users.length)} utenti` : `${N(list.length)} di ${N(users.length)} utenti`;
-    box.innerHTML = list.slice(0, 300).map((u, i) => liAnim(rigaUtente(u), i)).join('') || '<div class="pn-empty">Nessun utente trovato</div>';
+    box.innerHTML = list.length ? testaUtenti() + list.slice(0, 300).map((u, i) => liAnim(rigaUtente(u), i)).join('') : '<div class="pn-empty">Nessun utente trovato</div>';
     $$('#u-list .item').forEach(e => e.classList.add('pn-li'));
     pillSeg();
   }
@@ -291,7 +295,7 @@
     requestAnimationFrame(() => requestAnimationFrame(() => { const c = $('#a-conv .vl'); if (c) c.style.strokeDashoffset = 100 - Math.min(100, conv); }));
     const prem = case_.filter(u => statoPiano(u) === 'premium');
     $('#a-list-n').textContent = N(prem.length) + ' case';
-    $('#a-list').innerHTML = prem.map((u, i) => liAnim(rigaUtente(u), i)).join('') || '<div class="pn-empty">Ancora nessuna casa Premium</div>';
+    $('#a-list').innerHTML = prem.length ? testaUtenti() + prem.map((u, i) => liAnim(rigaUtente(u), i)).join('') : '<div class="pn-empty">Ancora nessuna casa Premium</div>';
     $$('#v-abbonamenti .item').forEach(e => e.classList.add('pn-li'));
     if (anim) {}
   }
