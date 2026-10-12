@@ -2115,3 +2115,43 @@ div.f { margin-bottom: 14px; }
 .del-amt { font-size: 17px; font-variant-numeric: tabular-nums; }
 .btn.primary.danger { background: var(--danger); border-color: var(--danger); color: #fff; box-shadow: none; }
 .nt-grp { margin: 18px 0 2px; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* ===== Premium ===== */
+body.locked #fab, body.locked #add-top { display: none; }
+.pw-badge { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; background: var(--grad, var(--accent)); color: #fff; box-shadow: 0 10px 22px -12px rgba(12, 80, 57, .7); flex: none; }
+.pw-badge svg { width: 26px; height: 26px; fill: currentColor; stroke: none; }
+.pw-badge.sm { width: 36px; height: 36px; border-radius: 11px; box-shadow: none; }
+.pw-badge.sm svg { width: 18px; height: 18px; }
+.pw-chip { background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 650; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; }
+.pw-ico svg { width: 15px; height: 15px; fill: currentColor; margin-right: 6px; vertical-align: -2px; }
+.sheet-panel.pw #sheet-title, #sheet-form.pw #sheet-title { display: none; }
+.pw-hero { text-align: center; display: grid; justify-items: center; gap: 8px; padding: 4px 0 6px; }
+.pw-hero h3 { margin: 6px 0 0; font-size: 24px; letter-spacing: -.03em; }
+.pw-hero p { margin: 0; color: var(--ink-2); font-size: 14.5px; line-height: 1.45; max-width: 34ch; }
+.pw-list { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 12px; }
+.pw-list li { display: flex; gap: 12px; align-items: flex-start; }
+.pw-list i { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; margin-top: 1px; }
+.pw-list i svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.pw-list span { display: flex; flex-direction: column; gap: 1px; }
+.pw-list b { font-size: 14.5px; font-weight: 600; }
+.pw-list small { color: var(--muted); font-size: 13px; }
+.pw-plans { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.pw-plan input { position: absolute; opacity: 0; pointer-events: none; }
+.pw-pc { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s; height: 100%; }
+.pw-plan input:checked + .pw-pc { border-color: var(--accent); background: var(--accent-soft); }
+.pw-pn { font-size: 13px; font-weight: 650; color: var(--ink-2); display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.pw-pn em { font-style: normal; font-size: 10.5px; font-weight: 700; color: #fff; background: var(--accent); padding: 2px 7px; border-radius: 99px; }
+.pw-pp { font-size: 13px; color: var(--muted); }
+.pw-pp b { font-size: 20px; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.pw-pc small { font-size: 12px; color: var(--muted); }
+.pw-foot { margin: 14px 0 0; text-align: center; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+#sheet-form.pw #sheet-ok { flex: 1; }
+.lock-card { text-align: center; display: grid; justify-items: center; gap: 10px; padding: 36px 24px; max-width: 520px; margin: 8px auto 0; }
+.lock-card h3 { margin: 4px 0 0; font-size: 22px; letter-spacing: -.02em; }
+.lock-card p { margin: 0; max-width: 40ch; line-height: 1.5; }
+.lock-btns { justify-content: center; margin-top: 8px; }
+.acc-plan { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 12px 14px; border-radius: 16px; background: var(--bg); }
+.acc-plan.on { background: var(--accent-soft); }
+.acc-plan:not(.on) .pw-badge { background: var(--surface); color: var(--accent); border: 1px solid var(--line); }
+.sw-lock { opacity: .75; cursor: pointer; }
+#sheet-form.pw .sheet-h { justify-content: flex-end; }

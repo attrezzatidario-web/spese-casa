@@ -32,6 +32,7 @@
   const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzYhgylTZQvP8PKZwSDbK7nOCqx-BL8iXjZPUwq7CvRvA5SNxc4RSvzhcXA3KZf0wXZ/exec';
   // il ponte con il Foglio Google è spento: l'app usa solo Supabase
   let gas = '';
+  let piano = null; // piano della casa: { premium, source, expires_at, trial_available, storage_used, storage_limit }
   let tok = '';
   try { localStorage.removeItem(LK('sc_gas')); localStorage.removeItem(LK('sc_tok')); localStorage.removeItem(LK('sc_gasflags')); } catch {}
   const SOON = 'Funzione non disponibile.';
@@ -355,6 +356,7 @@
       online = true; save(); render();
       if (showToast) toast('Dati aggiornati');
       pullGasFlags(showToast);
+      loadPlan();
     } catch (e) {
       if (e.message === 'AUTH_REQ') return;
       online = false;
@@ -406,15 +408,18 @@
     view = (location.hash || '#home').slice(1);
     if (!TITLES[view]) view = 'home';
     document.body.dataset.view = view;
-    $$('.view').forEach(v => (v.hidden = v.id !== 'v-' + view));
+    const lockM = PREM_VIEWS[view] && !isPremium() ? PREM_VIEWS[view] : '';
+    $$('.view').forEach(v => (v.hidden = lockM ? v.id !== 'v-lock' : v.id !== 'v-' + view));
+    document.body.classList.toggle('locked', !!lockM);
+    if (lockM) renderLock(lockM);
     $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto', 'lista', 'documenti', 'detrazioni', 'manutenzioni', 'anno', 'progetti', 'faccende'].includes(view) && !isDesk())));
     $('#title').textContent = TITLES[view];
     $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : view === 'entrate' ? 'Nuova entrata' : view === 'documenti' ? 'Carica documento' : view === 'manutenzioni' ? 'Nuova manutenzione' : view === 'progetti' ? 'Nuovo progetto' : view === 'faccende' ? 'Aggiungi' : view === 'lista' ? 'Aggiungi prodotto' : 'Nuova spesa';
     const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     animate = true;
-    render();
-    if (!vt) stagger($('#v-' + view));
+    if (!lockM) render(); else renderBadge();
+    if (!vt) stagger($(lockM ? '#v-lock' : '#v-' + view));
     animate = false;
     window.scrollTo(0, 0);
     document.body.classList.remove('scrolled');
@@ -764,6 +769,7 @@
       : `${db.spese.length} spese · ${db.entrate.length} entrate · ${queue.length ? 'modifiche in attesa di invio' : 'tutto sincronizzato'}`;
     $('#btn-sync').hidden = isLocal() || DEMO;
     $('#acc-links').hidden = DEMO;
+    $('#acc-plan').innerHTML = planRow();
     renderAccount();
     renderAISettings();
     renderLockSettings();
@@ -1075,6 +1081,7 @@
   }
   const inviteLink = c => location.origin + location.pathname + '?invito=' + c;
   async function casaInvita() {
+    if (!needPremium('casa')) return;
     busy('Creo l\'invito…');
     try {
       const { data: code, error } = await sb.rpc('create_invite'); sbErr(error); busy();
@@ -1147,6 +1154,82 @@
       else if (!k && !aiKey()) {}
     } catch {}
   }
+  /* ================= PIANI: GRATIS / PREMIUM ================= */
+  const PREM_VIEWS = { auto: 'auto', manutenzioni: 'manutenzioni', progetti: 'progetti', detrazioni: '730', estratto: 'estratto' };
+  const PREM_INFO = {
+    auto: ['Auto', 'Veicoli, rifornimenti e consumi, con gli avvisi di bollo, assicurazione, revisione e cambio gomme.'],
+    manutenzioni: ['Manutenzioni', 'Caldaia, filtri e controlli periodici di casa, con il promemoria al momento giusto.'],
+    progetti: ['Progetti', 'Viaggi, lavori ed eventi con il loro budget e tutte le spese collegate.'],
+    '730': ['Riepilogo 730', 'Le spese detraibili dell\'anno, il PDF da dare al commercialista e il rimborso stimato.'],
+    estratto: ['Estratto conto', 'L\'IA legge l\'estratto conto e lo confronta con le spese che hai registrato.'],
+    ia: ['Intelligenza artificiale', 'Scontrini, bollette e buste paga letti in automatico, spese dettate a voce e consigli sui conti.'],
+    casa: ['Casa condivisa', 'Invita fino a 4 persone: vedrete e modificherete gli stessi dati, con un solo abbonamento.'],
+    resoconto: ['Resoconto IA', 'Ogni mattina un resoconto dei conti con consigli pratici, come notifica e in Home.'],
+    spazio: ['Archivio da 2 GB', 'Hai riempito i 100 MB del piano gratis. Con Premium hai 2 GB per scontrini, bollette e documenti.'],
+    budget: ['Budget per categoria', 'Un limite per ogni categoria, con l\'avviso all\'80% e quando lo superi.'],
+    notifiche: ['Notifiche avanzate', 'Riepilogo del mese, budget all\'80%, promemoria 730, progetti e lista della spesa.']
+  };
+  const PREM_LIST = [['Intelligenza artificiale', 'scontrini, bollette, dettatura e consigli'], ['Casa condivisa', 'fino a 5 persone, un solo abbonamento'], ['Auto e manutenzioni', 'con tutte le scadenze'], ['Riepilogo 730 e progetti', 'detrazioni, PDF e budget dei progetti'], ['Archivio da 2 GB', 'invece di 100 MB'], ['Notifiche avanzate', 'riepilogo del mese, budget, 730']];
+  const PRICES = { annuale: { prezzo: '39,99 €', per: 'anno', nota: '3,33 € al mese · risparmi 33%' }, mensile: { prezzo: '4,99 €', per: 'mese', nota: 'Disdici quando vuoi' } };
+  // finché il piano non è noto (o il server non ha ancora i piani) non si blocca niente
+  const isPremium = () => DEMO || isLocal() || !piano || !!(piano.premium && (!piano.expires_at || new Date(piano.expires_at) > new Date()));
+  piano = LS.get('sc_plan', null);
+  async function loadPlan() {
+    if (DEMO || isLocal() || !sb || !hh) return;
+    try {
+      const { data, error } = await sb.rpc('my_plan');
+      if (error) { if (/function|schema cache|does not exist|404/i.test(error.message || '')) { piano = null; LS.set('sc_plan', null); } return; }
+      const p = Array.isArray(data) ? data[0] : data; if (!p) return;
+      const prima = isPremium(); piano = p; LS.set('sc_plan', p);
+      if (prima !== isPremium()) route(); else if (view === 'impostazioni') renderSettings();
+    } catch {}
+  }
+  const ICO_STAR = '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>';
+  const ICO_CHK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const fineProva = () => piano && piano.expires_at ? new Date(piano.expires_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' }) : '';
+  function paywall(motivo) {
+    const info = PREM_INFO[motivo], trial = !piano || piano.trial_available !== false;
+    let scelta = 'annuale';
+    openSheet('', `
+      <div class="pw-hero"><span class="pw-badge">${ICO_STAR}</span><h3>Spese Casa Premium</h3>
+        <p>${info ? `<b>${esc(info[0])}</b> fa parte di Premium. ` : ''}Tutto quello che serve per gestire la casa insieme, senza pensieri.</p></div>
+      <ul class="pw-list">${PREM_LIST.map(([t, d]) => `<li><i>${ICO_CHK}</i><span><b>${t}</b><small>${d}</small></span></li>`).join('')}</ul>
+      <div class="pw-plans">${Object.entries(PRICES).map(([k, v]) => `<label class="pw-plan"><input type="radio" name="piano" value="${k}" ${k === scelta ? 'checked' : ''}><span class="pw-pc">
+        <span class="pw-pn">${k === 'annuale' ? 'Annuale' : 'Mensile'}${k === 'annuale' ? '<em>Più scelto</em>' : ''}</span><span class="pw-pp"><b>${v.prezzo}</b> / ${v.per}</span><small>${v.nota}</small></span></label>`).join('')}</div>
+      <p class="pw-foot">${trial ? '7 giorni gratis, poi si rinnova in automatico. ' : ''}Vale per tutta la casa. Se smetti, i tuoi dati restano salvati.</p>`,
+      async fd => {
+        LS.set('sc_piano_scelto', fd.get('piano'));
+        if (DEMO) return toast('Nella demo Premium è già attivo');
+        if (!trial) return toast('Gli abbonamenti si attiveranno con l\'app negli store');
+        busy('Attivo la prova…');
+        try {
+          const { error } = await sb.rpc('start_trial'); sbErr(error);
+          await loadPlan(); busy(); closeSheet(); confettiSafe();
+          toast(`Premium attivo fino al ${fineProva()}`); route();
+        } catch (e) { busy(); toast(e.message); }
+      }, null, trial ? 'Prova gratis per 7 giorni' : 'Abbonati');
+    $('#sheet-form').classList.add('pw');
+  }
+  const confettiSafe = () => { try { confetti(); } catch {} };
+  // schermata al posto di una sezione Premium
+  function renderLock(motivo) {
+    const box = $('#v-lock'), info = PREM_INFO[motivo] || ['Premium', ''], trial = !piano || piano.trial_available !== false;
+    box.innerHTML = `<div class="card lock-card"><span class="pw-badge">${ICO_STAR}</span><span class="chip pw-chip">Premium</span>
+      <h3>${esc(info[0])}</h3><p class="muted">${esc(info[1])}</p>
+      <div class="row-btns lock-btns"><button class="btn primary" data-paywall="${esc(motivo)}">${trial ? 'Prova gratis 7 giorni' : 'Passa a Premium'}</button></div>
+      ${hasPremData(motivo) ? '<p class="muted small" style="margin:14px 0 0">I dati che avevi inserito sono al sicuro: tornano visibili con Premium.</p>' : ''}</div>`;
+  }
+  const hasPremData = m => m === 'auto' ? db.veicoli.length > 0 : m === 'manutenzioni' ? db.manutenzioni.length > 0 : m === 'progetti' ? db.progetti.length > 0 : false;
+  // da usare prima di una funzione Premium: true se si può proseguire
+  function needPremium(motivo) { if (isPremium()) return true; paywall(motivo); return false; }
+  function planRow() {
+    if (DEMO || isLocal()) return '';
+    const p = isPremium();
+    const sub = !piano ? '' : p ? (piano.source === 'trial' ? `Prova gratuita fino al ${fineProva()}` : piano.source === 'manual' ? 'Attivo' : piano.expires_at ? `Si rinnova il ${fineProva()}` : 'Attivo')
+      : `Archivio: ${Math.round((Number(piano.storage_used) || 0) / 1048576)} MB di 100 MB`;
+    return `<div class="acc-plan ${p ? 'on' : ''}"><span class="pw-badge sm">${ICO_STAR}</span><div class="acc-m"><b>${p ? 'Premium' : 'Piano gratis'}</b><small>${esc(sub)}</small></div>
+      ${p ? '' : `<button class="btn primary sm" data-paywall="">${piano && piano.trial_available === false ? 'Passa a Premium' : 'Prova gratis'}</button>`}</div>`;
+  }
   /* ================= RESOCONTO IA (notifica + Home) ================= */
   const resCfg = () => ((db.config.notifiche || {}).resoconto) || {};
   function renderResoconto() {
@@ -1166,6 +1249,7 @@
     return (c.freq === 'settimanale' ? 'Ogni lunedì' : 'Ogni giorno') + ` alle ${pad(Number(c.ora ?? 8))}:00`;
   }
   function formResoconto() {
+    if (!needPremium('resoconto')) return;
     if (DEMO) return toast('Nella demo non è disponibile');
     const c = { attivo: false, freq: 'giornaliero', ora: 8, ...resCfg() };
     const hours = Array.from({ length: 16 }, (_, i) => i + 6);
@@ -1192,6 +1276,7 @@
       }, null, 'Salva');
   }
   async function resocontoOra() {
+    if (!needPremium('resoconto')) return;
     busy('L\'IA scrive il resoconto…');
     try {
       await syncNow();
@@ -1286,18 +1371,18 @@
       ['affitto', 'Affitto', 'Il canone del mese finché non risulta pagato.', true],
       ['bollette', 'Bollette', 'Le bollette in scadenza.', true],
       ['fisse', 'Spese fisse', 'Abbonamenti, rate e addebiti automatici.', true],
-      ['auto', 'Auto', 'Assicurazione, bollo, revisione, tagliando e cambio gomme.', true],
-      ['manutenzioni', 'Manutenzioni', 'Caldaia, filtri e controlli periodici.', true],
+      ['auto', 'Auto', 'Assicurazione, bollo, revisione, tagliando e cambio gomme.', true, 1],
+      ['manutenzioni', 'Manutenzioni', 'Caldaia, filtri e controlli periodici.', true, 1],
       ['documenti', 'Documenti e garanzie', 'Un mese e una settimana prima della scadenza.', true],
       ['faccende', 'Cose da fare', 'Il giorno prima e se sono in ritardo.', true]]],
     ['Soldi', [
-      ['budget', 'Budget', 'All\'80% del limite e quando lo superi.', true],
-      ['progetti', 'Progetti', 'Quando un progetto supera il suo budget.', true],
-      ['riepilogo', 'Riepilogo del mese', 'Il primo del mese: totale, confronto e categoria più cara.', true],
-      ['detrazioni', 'Promemoria 730', 'A maggio, il totale delle spese detraibili dell\'anno prima.', true]]],
+      ['budget', 'Budget', 'Quando superi il limite (con Premium anche all\'80% e per categoria).', true],
+      ['progetti', 'Progetti', 'Quando un progetto supera il suo budget.', true, 1],
+      ['riepilogo', 'Riepilogo del mese', 'Il primo del mese: totale, confronto e categoria più cara.', true, 1],
+      ['detrazioni', 'Promemoria 730', 'A maggio, il totale delle spese detraibili dell\'anno prima.', true, 1]]],
     ['Abitudini', [
-      ['lista', 'Lista della spesa', 'Il sabato mattina, se ci sono prodotti da prendere.', false],
-      ['registra', 'Registra le spese', 'Se non aggiungi spese da qualche giorno.', false]]]
+      ['lista', 'Lista della spesa', 'Il sabato mattina, se ci sono prodotti da prendere.', false, 1],
+      ['registra', 'Registra le spese', 'Se non aggiungi spese da qualche giorno.', false, 1]]]
   ];
   const notifOn = (n, k, def) => n[k] === undefined ? def : n[k] !== false;
   async function renderNotifyCard() {
@@ -1349,8 +1434,8 @@
     const hours = Array.from({ length: 16 }, (_, i) => i + 6);
     openSheet('Cosa avvisare', `
       <p class="muted small" style="margin:0 0 4px">Valgono per tutta la casa. Arriva una sola notifica al giorno con tutto insieme.</p>
-      ${NOTIF_GRP.map(([g, list]) => `<div class="nt-grp">${g}</div>` + list.map(([k, t, d, def]) => `<label class="sw"><input type="checkbox" name="${k}" ${notifOn(n, k, def) ? 'checked' : ''}><span class="sw-ui"></span>
-        <span class="sw-t"><b>${t}</b><small>${d}</small></span></label>`).join('')).join('')}
+      ${NOTIF_GRP.map(([g, list]) => `<div class="nt-grp">${g}</div>` + list.map(([k, t, d, def, pr]) => { const lock = pr && !isPremium(); return `<label class="sw${lock ? ' sw-lock' : ''}"${lock ? ' data-paywall="notifiche"' : ''}><input type="checkbox" name="${k}" ${notifOn(n, k, def) && !lock ? 'checked' : ''}${lock ? ' disabled' : ''}><span class="sw-ui"></span>
+        <span class="sw-t"><b>${t}${lock ? ' <span class="chip pw-chip">Premium</span>' : ''}</b><small>${d}</small></span></label>`; }).join('')).join('')}
       <div class="nt-grp">Quando</div>
       <div class="f-row">
         <label class="f"><span>Scadenze</span><select name="giorniPrima">${[0, 1, 2, 3, 5, 7].map(d => `<option value="${d}"${Number(n.giorniPrima) === d ? ' selected' : ''}>${d === 0 ? 'Solo il giorno stesso' : d + (d === 1 ? ' giorno prima' : ' giorni prima')}</option>`).join('')}</select></label>
@@ -1358,7 +1443,7 @@
       </div>`,
       async fd => {
         const v = { ...(db.config.notifiche || {}), giorniPrima: Number(fd.get('giorniPrima')), ora: Number(fd.get('ora')) };
-        NOTIF_GRP.forEach(([, list]) => list.forEach(([k]) => { v[k] = fd.get(k) === 'on'; }));
+        NOTIF_GRP.forEach(([, list]) => list.forEach(([k, , , def, pr]) => { v[k] = pr && !isPremium() ? notifOn(db.config.notifiche || {}, k, def) : fd.get(k) === 'on'; }));
         setConfig('notifiche', v);
         closeSheet(); toast('Salvato'); render();
       }, null, 'Salva');
@@ -1396,7 +1481,11 @@
     if (isLocal() || !sb || !hh) throw new Error('Accedi per salvare gli allegati');
     const fname = String(name || doc.name || 'documento').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.\- ]/g, '_').slice(0, 80);
     const path = `${hh}/${String(cartella || 'Documenti').replace(/[^\w\- ]/g, '_')}/${uid()}-${fname}`;
+    const size = Math.round(String(doc.b64 || '').length * 0.75);
+    if (!isPremium() && piano && Number(piano.storage_used) + size > Number(piano.storage_limit || 104857600)) { paywall('spazio'); throw new Error('Archivio pieno: 100 MB del piano gratis'); }
     const { error } = await sb.storage.from(BUCKET).upload(path, b64Blob(doc.b64, doc.mime), { contentType: doc.mime, upsert: false });
+    if (error && /row-level|policy|403/i.test(error.message || '') && !isPremium()) { paywall('spazio'); throw new Error('Archivio pieno: 100 MB del piano gratis'); }
+    if (!error && piano) { piano.storage_used = Number(piano.storage_used || 0) + size; LS.set('sc_plan', piano); }
     if (error) throw new Error(netErr(error) ? 'Connessione assente: allegato non salvato' : 'Allegato non salvato: ' + error.message);
     return 'sb:' + path;
   }
@@ -3282,7 +3371,7 @@
   };
   // IA: chiave Gemini dell'utente salvata solo su questo dispositivo
   const aiKey = () => LS.get('sc_aikey', '');
-  const aiReady = () => DEMO || (!isLocal() && (!!aiKey() || (!!gas && !!db.ai)));
+  const aiReady = () => DEMO || (!isLocal() && isPremium() && (!!aiKey() || (!!gas && !!db.ai)));
 
   function busy(txt) {
     let el = $('#busy');
@@ -3557,6 +3646,7 @@
 
   function renderAISettings() {
     const box = $('#ai-set');
+    if (!isPremium()) { box.innerHTML = `<p class="muted small" style="margin:0 0 10px">Scontrini e bollette letti in automatico, spese dettate a voce, estratto conto e consigli sui conti.</p><button class="btn" data-paywall="ia"><span class="pw-ico">${ICO_STAR}</span>Sblocca con Premium</button>`; return; }
     if (DEMO) { box.innerHTML = '<p class="small" style="margin:0"><span class="chip paid">Attiva</span> Nella demo l\'IA risponde con esempi.</p>'; return; }
     if (aiKey()) {
       box.innerHTML = `<p class="small" style="margin:0 0 10px"><span class="chip paid">Attiva</span> Scontrini, bollette, dettatura e consigli sono abilitati per tutta la casa.</p>
@@ -3785,6 +3875,7 @@
     }).join('');
   }
   function formBudgetCat() {
+    if (!needPremium('budget')) return;
     const cfg = catBudCfg(), lim = cfg.limiti || {};
     const d0 = new Date(), mesi = [1, 2, 3].map(i => ymOf(new Date(d0.getFullYear(), d0.getMonth() - i, 1)));
     const avg = c => sum(db.spese.filter(s => s.categoria === c && mesi.includes(ym(s.data)))) / 3;
@@ -5016,7 +5107,7 @@
     onSubmit = submit; onDelete = del;
     clearTimeout(closeSheet._t);
     $('#sheet').classList.remove('closing');
-    $('#sheet-form').classList.remove('wide');
+    $('#sheet-form').classList.remove('wide', 'pw');
     $('#sheet').hidden = false;
     document.body.style.overflow = 'hidden';
     const first = $('#sheet-body [data-focus]');
@@ -5402,6 +5493,7 @@
       if (e.target.closest('#res-now')) { resocontoOra(); return; }
       if (e.target.closest('#acct-drive')) { migrateDriveFiles(); return; }
       if (e.target.closest('#acct-link')) { formLinkSheet(); return; }
+      { const pw = e.target.closest('[data-paywall]'); if (pw) { e.preventDefault(); paywall(pw.dataset.paywall); return; } }
       if (e.target.closest('#casa-invita')) { casaInvita(); return; }
       if (e.target.closest('#casa-entra')) { casaEntra(); return; }
       if (e.target.closest('#casa-esci')) { casaEsci(); return; }

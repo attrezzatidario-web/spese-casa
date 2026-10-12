@@ -39,6 +39,7 @@ export function promemoria(dati: any, today: string): Item[] {
   const quando = (dd: number) => dd === 0 ? 'scade oggi' : dd > 0 ? 'tra ' + dd + (dd === 1 ? ' giorno' : ' giorni') : 'scaduto da ' + (-dd) + (dd === -1 ? ' giorno' : ' giorni');
   const spese: any[] = dati.spese || [];
   const items: Item[] = [];
+  const P = dati.premium !== false; // funzioni Premium (auto, manutenzioni, progetti, avvisi avanzati)
 
   // affitto: mese corrente, precedente e prossimo, solo se non ancora pagato
   const a = cfg.affitto || {};
@@ -68,7 +69,7 @@ export function promemoria(dati: any, today: string): Item[] {
       else if (avvisa(dd)) items.push({ titolo: f.nome, dettaglio: quando(dd) + ' (' + dm(f.prossima) + ')', importo: Number(f.importo) || 0 });
     });
   }
-  if (n.auto !== false) {
+  if (P && n.auto !== false) {
     (dati.veicoli || []).filter((v: any) => on(v.attiva)).forEach((v: any) => {
       const nome = v.nome + (v.targa ? ' (' + v.targa + ')' : '');
       [['Assicurazione', v.scadAssicurazione, v.impAssicurazione], ['Bollo', v.scadBollo, v.impBollo], ['Revisione', v.scadRevisione, 0], ['Tagliando', v.scadTagliando, 0]]
@@ -79,7 +80,7 @@ export function promemoria(dati: any, today: string): Item[] {
         });
     });
   }
-  if (n.manutenzioni !== false) {
+  if (P && n.manutenzioni !== false) {
     (dati.manutenzioni || []).filter((m: any) => on(m.attiva) && m.prossima).forEach((m: any) => {
       const dd = diffDays(m.prossima, today);
       if (avvisa(dd) || dd === 14) items.push({ titolo: 'Manutenzione: ' + m.nome, dettaglio: quando(dd) + ' (' + dm(m.prossima) + ')', importo: Number(m.costo) || 0 });
@@ -97,10 +98,10 @@ export function promemoria(dati: any, today: string): Item[] {
   if (budOn && lim && b.email !== false) {
     const tot = delMese.filter(s => !(b.escludiAffitto && String(s.bollettaId || '').startsWith('affitto:'))).reduce((x, s) => x + (Number(s.importo) || 0), 0);
     if (tot > lim) items.push({ titolo: 'Limite di spesa superato', dettaglio: 'speso ' + eur(tot) + ' su ' + eur(lim), key: 'budget:' + mese });
-    else if (tot >= lim * 0.8) items.push({ titolo: 'Limite di spesa quasi raggiunto', dettaglio: 'speso ' + eur(tot) + ' su ' + eur(lim) + ' (' + Math.round(tot / lim * 100) + '%)', key: 'budget80:' + mese });
+    else if (P && tot >= lim * 0.8) items.push({ titolo: 'Limite di spesa quasi raggiunto', dettaglio: 'speso ' + eur(tot) + ' su ' + eur(lim) + ' (' + Math.round(tot / lim * 100) + '%)', key: 'budget80:' + mese });
   }
   const bc = cfg.budgetCat || {}, limiti = bc.limiti || {};
-  if (budOn && bc.email !== false) Object.keys(limiti).forEach(c => {
+  if (P && budOn && bc.email !== false) Object.keys(limiti).forEach(c => {
     const l = Number(limiti[c]) || 0; if (!l) return;
     const t = delMese.filter(s => s.categoria === c).reduce((x, s) => x + (Number(s.importo) || 0), 0);
     if (t > l) items.push({ titolo: 'Budget superato: ' + c, dettaglio: 'speso ' + eur(t) + ' su ' + eur(l), key: 'cat:' + mese + ':' + c });
@@ -114,13 +115,13 @@ export function promemoria(dati: any, today: string): Item[] {
     });
   }
   // cambio gomme (obbligo invernale dal 15 novembre al 15 aprile)
-  if (n.auto !== false && (dati.veicoli || []).some((v: any) => on(v.attiva))) {
+  if (P && n.auto !== false && (dati.veicoli || []).some((v: any) => on(v.attiva))) {
     const md = today.slice(5);
     if (md === '11-05') items.push({ titolo: 'Gomme invernali', dettaglio: 'dal 15 novembre servono gomme invernali o catene a bordo' });
     if (md === '04-05') items.push({ titolo: 'Gomme estive', dettaglio: 'dal 15 aprile puoi rimontare le estive (entro il 15 maggio)' });
   }
   // budget dei progetti
-  if (n.progetti !== false) {
+  if (P && n.progetti !== false) {
     const sp: any[] = dati.speseProgetti || [];
     (dati.progetti || []).filter((p: any) => Number(p.budget) > 0 && (p.attivo === '' || p.attivo == null || on(p.attivo))).forEach((p: any) => {
       const tot = sp.filter(s => s.progetto === p.id).reduce((x, s) => x + (Number(s.importo) || 0), 0), l = Number(p.budget);
@@ -128,7 +129,7 @@ export function promemoria(dati: any, today: string): Item[] {
     });
   }
   // riepilogo del mese appena chiuso (il primo del mese)
-  if (n.riepilogo !== false && today.slice(8) === '01') {
+  if (P && n.riepilogo !== false && today.slice(8) === '01') {
     const t = D(today), ym = (k: number) => ymdOf(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + k, 1, 12))).slice(0, 7);
     const m1 = ym(-1), m2 = ym(-2), totM = (m: string) => spese.filter(s => String(s.data).slice(0, 7) === m).reduce((x, s) => x + (Number(s.importo) || 0), 0);
     const a1 = totM(m1), a2 = totM(m2);
@@ -141,18 +142,18 @@ export function promemoria(dati: any, today: string): Item[] {
     }
   }
   // 730: spese detraibili dell'anno scorso (2 maggio)
-  if (n.detrazioni !== false && today.slice(5) === '05-02') {
+  if (P && n.detrazioni !== false && today.slice(5) === '05-02') {
     const d730: any[] = dati.spese730 || [];
     const tot = d730.reduce((x, s) => x + (Number(s.importo) || 0), 0);
     if (tot > 0) items.push({ titolo: 'Dichiarazione 730', dettaglio: d730.length + ' spese detraibili nel ' + (Number(today.slice(0, 4)) - 1) + ' per ' + eur(tot) + ': trovi il riepilogo in Altro → Riepilogo 730' });
   }
   // lista della spesa (sabato mattina)
-  if (n.lista === true && D(today).getUTCDay() === 6) {
+  if (P && n.lista === true && D(today).getUTCDay() === 6) {
     const aperti = (dati.lista || []).filter((x: any) => !on(x.fatto, false));
     if (aperti.length) items.push({ titolo: 'Lista della spesa: ' + aperti.length + (aperti.length === 1 ? ' prodotto' : ' prodotti'), dettaglio: aperti.slice(0, 4).map((x: any) => x.nome).join(', ') + (aperti.length > 4 ? '…' : '') });
   }
   // nessuna spesa registrata da 3 giorni
-  if (n.registra === true && spese.length) {
+  if (P && n.registra === true && spese.length) {
     const ultima = spese.map(s => String(s.data).slice(0, 10)).sort().pop() as string;
     const dd = diffDays(ultima, today);
     if (dd === -3 || dd === -7) items.push({ titolo: 'Spese da registrare?', dettaglio: 'nessuna spesa da ' + (-dd) + ' giorni: aggiungi gli scontrini rimasti in tasca' });
@@ -326,6 +327,11 @@ async function caricaCasa(sb: any, hh: string, today: string) {
     if (error) throw error;
     data.forEach((r: any) => out.entrate.push(r.data));
   }
+  {
+    const { data, error } = await sb.from('household_plans').select('plan,expires_at').eq('household_id', hh).maybeSingle();
+    // se la tabella dei piani non c'è ancora, nessuno perde funzioni
+    out.premium = error ? true : !!(data && data.plan === 'premium' && (!data.expires_at || new Date(data.expires_at).getTime() > Date.now()));
+  }
   return out;
 }
 
@@ -350,7 +356,7 @@ async function gestisciCasa(sb: any, hh: string, subs: any[], today: string, for
   const n = dati.config.notifiche || {}, rs = n.resoconto || {}, ora = romeNow().hour;
   const out: any = { hh };
   // resoconto IA (ogni mattina, oppure il lunedì)
-  if (rs.attivo && ora === Math.min(23, Math.max(0, Number(rs.ora ?? 8))) && (rs.freq !== 'settimanale' || D(today).getUTCDay() === 1)) {
+  if (dati.premium && rs.attivo && ora === Math.min(23, Math.max(0, Number(rs.ora ?? 8))) && (rs.freq !== 'settimanale' || D(today).getUTCDay() === 1)) {
     try { out.resoconto = await resoconto(sb, hh, subs, dati, today, false); } catch (e: any) { out.resoconto = { errore: String(e && e.message || e) }; }
   }
   if (!forza && ora !== Math.min(23, Math.max(0, Number(n.ora ?? 9)))) return out;
@@ -405,7 +411,9 @@ if (import.meta.main) Deno.serve(async req => {
       if (!mem || !mem.length) return json({ ok: false, error: 'Casa non trovata' }, 404);
       const hh = mem[0].household_id;
       const { data: subs } = await sb.from('push_subscriptions').select('*').eq('household_id', hh);
-      const r = await resoconto(sb, hh, subs || [], await caricaCasa(sb, hh, today), today, true);
+      const datiC = await caricaCasa(sb, hh, today);
+      if (!datiC.premium) return json({ ok: false, error: 'Il Resoconto IA è una funzione Premium' });
+      const r = await resoconto(sb, hh, subs || [], datiC, today, true);
       if (r.saltato) return json({ ok: false, error: r.saltato === 'nessuna chiave IA' ? 'Attiva prima il resoconto con la tua chiave IA' : r.saltato });
       return json({ ok: true, ...r });
     }

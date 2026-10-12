@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=3-7">
+  <link rel="stylesheet" href="style.css?v=4-1">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -476,6 +476,7 @@
       </section>
 
       <!-- IMPOSTAZIONI -->
+      <section id="v-lock" class="view" hidden></section>
       <section id="v-impostazioni" class="view settings-grid" hidden>
         <div class="more-tiles">
           <a href="#affitto" class="mt"><span class="mt-ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg></span><b>Affitto</b><small>Canone e pagamenti</small><i id="tile-rent-badge" class="badge" hidden></i></a>
@@ -496,6 +497,7 @@
             <button id="btn-sync" class="icon-btn acc-sync" aria-label="Sincronizza ora" title="Sincronizza ora"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v3h3M4 13a8 8 0 0 0 14.6 4.5M20 20v-3h-3"/></svg></button>
             <button id="btn-conn" class="btn ghost" hidden>Esci</button>
           </div>
+          <div id="acc-plan"></div>
           <div class="acc-links" id="acc-links">
             <button type="button" id="acct-out">Esci dall'account</button>
             <button type="button" id="acct-del" class="danger">Elimina account</button>
@@ -606,6 +608,6 @@
 
   <script src="lib-supabase.js?v=1"></script>
   <script src="ai.js?v=4"></script>
-  <script src="app.js?v=3-7"></script>
+  <script src="app.js?v=4-1"></script>
 </body>
 </html>
