@@ -176,7 +176,7 @@
     ['unipol', 'unipol.it', AS, 'Assicurazione'], ['generali', 'generali.it', AS, 'Assicurazione'], ['allianz', 'allianz.it', AS, 'Assicurazione'], ['zurich', 'zurich.it', AS, 'Assicurazione'],
     ['prima\\.it|prima assicura', 'prima.it', AS], ['genertel', 'genertel.it', AS, 'Assicurazione'], ['linear', 'linear.it', AS, 'Assicurazione'],
     ['timvision', 'timvision.it', AB, 'Abbonamento'], ['now ?tv', 'nowtv.it', AB, 'Abbonamento'], ['paramount', 'paramountplus.com', AB, 'Abbonamento'],
-    ['apple|icloud', 'apple.com', AB, 'Abbonamento'], ['youtube', 'youtube.com', AB, 'Abbonamento'], ['google one', 'google.com', AB, 'Abbonamento'],
+    ['apple|icloud', 'apple.com', AB, 'Abbonamento'], ['youtube', 'youtube.com', AB, 'Abbonamento'], ['google ?one', 'one.google.com', AB, 'Abbonamento'], ['google ?play', 'play.google.com', AB], ['google ?pay|\\bg ?pay\\b', 'pay.google.com', AL], ['google ?cloud|google ?workspace', 'workspace.google.com', AB, 'Abbonamento'],
     ['chatgpt|openai', 'openai.com', AB, 'Abbonamento'], ['claude', 'claude.ai', AB, 'Abbonamento'], ['microsoft|office 365|xbox', 'microsoft.com', AB, 'Abbonamento'],
     ['playstation', 'playstation.com', AB, 'Abbonamento'], ['nintendo', 'nintendo.com', AB, 'Abbonamento'], ['audible', 'audible.it', AB, 'Abbonamento'],
     ['canva', 'canva.com', AB, 'Abbonamento'], ['adobe', 'adobe.com', AB, 'Abbonamento'], ['dropbox', 'dropbox.com', AB, 'Abbonamento'],
@@ -190,7 +190,27 @@
     ['\\baxa\\b', 'axa.it', AS, 'Assicurazione'], ['reale mutua', 'realemutua.it', AS, 'Assicurazione'], ['cattolica', 'cattolica.it', AS, 'Assicurazione'],
     ['vittoria', 'vittoriaassicurazioni.com', AS, 'Assicurazione'], ['helvetia', 'helvetia.com', AS, 'Assicurazione'], ['groupama', 'groupama.it', AS, 'Assicurazione'],
     ['jysk', 'jysk.it', AR], ['deghi', 'deghi.it', AR], ['tecnomat', 'tecnomat.it', MA], ['vorwerk|folletto|bimby|kobold', 'vorwerk.com', EL],
-    ['farmacia', '', 'Salute'], ['mcdonald', 'mcdonalds.it', AL], ['burger king', 'burgerking.it', AL]
+    // pagamenti e conti online
+    ['revolut', 'revolut.com', AL], ['satispay', 'satispay.com', AL], ['\\bn26\\b', 'n26.com', AL], ['\\bhype\\b', 'hype.it', AL], ['\\bwise\\b', 'wise.com', AL],
+    ['bancoposta|postepay', 'poste.it', AL],
+    // negozi e discount
+    ["\\bod'?s? ?store", 'odstore.it', SA], ['tigros', 'tigros.it', SA], ['carrefour express', 'carrefour.it', SA],
+    // abbigliamento e sport
+    ['nike', 'nike.com', 'Abbigliamento'], ['adidas', 'adidas.it', 'Abbigliamento'], ['zalando', 'zalando.it', 'Abbigliamento'], ['zara\\b', 'zara.com', 'Abbigliamento'],
+    ['\\bh ?& ?m\\b|hennes', 'hm.com', 'Abbigliamento'], ['primark', 'primark.com', 'Abbigliamento'], ['\\bovs\\b', 'ovs.it', 'Abbigliamento'], ['foot ?locker', 'footlocker.it', 'Abbigliamento'],
+    ['shein', 'shein.com', 'Abbigliamento'], ['vinted', 'vinted.it', 'Abbigliamento'], ['uniqlo', 'uniqlo.com', 'Abbigliamento'], ['calzedonia', 'calzedonia.com', 'Abbigliamento'],
+    // acquisti online
+    ['\\btemu\\b', 'temu.com', AL], ['aliexpress', 'aliexpress.com', AL], ['\\bebay\\b', 'ebay.it', AL], ['subito\\.it', 'subito.it', AL],
+    // cibo a domicilio e locali
+    ['glovo', 'glovoapp.com', AL], ['deliveroo', 'deliveroo.it', AL], ['just ?eat', 'justeat.it', AL], ['uber ?eats', 'ubereats.com', AL],
+    ['\\bkfc\\b', 'kfc.it', AL], ['starbucks', 'starbucks.it', AL], ['autogrill', 'autogrill.it', AL], ['old wild west', 'oldwildwest.it', AL], ['roadhouse', 'roadhouse.it', AL],
+    // viaggi e trasporti
+    ['\\buber\\b', 'uber.com', AT], ['free ?now', 'free-now.com', AT], ['flixbus', 'flixbus.it', AT], ['ryanair', 'ryanair.com', AT], ['easyjet', 'easyjet.com', AT],
+    ['ita airways', 'ita-airways.com', AT], ['booking', 'booking.com', AL], ['airbnb', 'airbnb.it', AL], ['moonee?y ?go|mooney', 'mooneygo.it', AT],
+    // bellezza, libri, giochi
+    ['sephora', 'sephora.it', PC], ['douglas', 'douglas.it', PC], ['kiko', 'kikocosmetics.com', PC], ['feltrinelli', 'lafeltrinelli.it', AL], ['mondadori', 'mondadoristore.it', AL],
+    ['gamestop', 'gamestop.it', AL], ['steam', 'steampowered.com', AB],
+    ['farmacia', '', 'Salute'], ['mcdonald', 'mcdonalds.it', AL], ['burger king', 'burgerking.it', AL], ['google', 'google.com', AL]
   ].map(([k, domain, cat, tipo]) => ({ re: new RegExp(k, 'i'), domain, cat, tipo }));
 
   // negozi aggiunti dall'utente (Altro > Negozi e loghi)
