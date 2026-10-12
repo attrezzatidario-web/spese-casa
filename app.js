@@ -851,12 +851,31 @@
     await pull();
     busy(); toast(`Importati ${rows.length} elementi`);
   }
+  // cancella tutti i file della casa nell'archivio (cartelle comprese)
+  async function svuotaArchivio(dir) {
+    const files = [];
+    const giro = async d => {
+      for (let off = 0; ; off += 100) {
+        const { data, error } = await sb.storage.from(BUCKET).list(d, { limit: 100, offset: off });
+        if (error || !data || !data.length) break;
+        for (const it of data) { if (it.id) files.push(d + '/' + it.name); else await giro(d + '/' + it.name); }
+        if (data.length < 100) break;
+      }
+    };
+    await giro(dir);
+    for (let i = 0; i < files.length; i += 100) await sb.storage.from(BUCKET).remove(files.slice(i, i + 100));
+    return files.length;
+  }
   async function deleteAccount() {
     if (!confirm('Eliminare definitivamente l\'account e tutti i tuoi dati?')) return;
     if (prompt('Per confermare scrivi ELIMINA') !== 'ELIMINA') return toast('Eliminazione annullata');
     busy('Elimino l\'account…');
     try {
       await pushDisable(true).catch(() => {});
+      // se sei l'unico membro, la casa sparisce: prima si cancellano anche i file dell'archivio
+      let soli = true;
+      try { const { data } = await sb.rpc('list_members'); soli = !data || data.length <= 1; } catch {}
+      if (soli && hh) { busy('Elimino i file…'); await svuotaArchivio(hh + ''); busy('Elimino l\'account…'); }
       const { error } = await sb.rpc('delete_my_account'); sbErr(error);
       await sb.auth.signOut().catch(() => {});
       Object.keys(localStorage).filter(k => k.startsWith('v2_')).forEach(k => localStorage.removeItem(k));
