@@ -11,6 +11,7 @@
     set(k, v) { try { localStorage.setItem(LK(k), JSON.stringify(v)); } catch {} }
   };
 
+  const MAX_PERSONE_FREE = 2, MAX_BOLLETTE_FREE = 3; // limiti del piano gratis
   const METODI = ['Carta', 'Bancomat', 'Contanti', 'Bonifico', 'Addebito in conto', 'Altro'];
   const FREQ = {
     mensile: 1, bimestrale: 2, trimestrale: 3, quadrimestrale: 4, semestrale: 6, annuale: 12, 'una tantum': 0
@@ -193,6 +194,10 @@
     // pagamenti e conti online
     ['revolut', 'revolut.com', AL], ['satispay', 'satispay.com', AL], ['\\bn26\\b', 'n26.com', AL], ['\\bhype\\b', 'hype.it', AL], ['\\bwise\\b', 'wise.com', AL],
     ['bancoposta|postepay', 'poste.it', AL],
+    ['banco ?bpm|\\bbpm\\b', 'bancobpm.it', AL], ['monte dei paschi|\\bmps\\b', 'mps.it', AL], ['credem', 'credem.it', AL], ['cr[eé]dit agricole', 'credit-agricole.it', AL],
+    ['deutsche bank', 'deutsche-bank.it', AL], ['\\bing\\b(?! ?direct)|ing direct', 'ing.it', AL], ['widiba', 'widiba.it', AL], ['banca sella|\\bsella\\b', 'sella.it', AL],
+    ['che ?banca', 'chebanca.it', AL], ['illimity', 'illimity.com', AL], ['isybank', 'isybank.com', AL], ['popolare di sondrio|popso', 'popso.it', AL],
+    ['credito cooperativo|\\bbcc\\b', 'bcc.it', AL], ['banca popolare', 'bancobpm.it', AL],
     // negozi e discount
     ["\\bod'?s? ?store", 'odstore.it', SA], ['tigros', 'tigros.it', SA], ['carrefour express', 'carrefour.it', SA],
     // abbigliamento e sport
@@ -781,6 +786,8 @@
     const ab = activeBills().sort((a, b) => a.scadenza.localeCompare(b.scadenza));
     $('#bill-photo').hidden = !aiReady();
     $('#bills-list').innerHTML = ab.map(b => billCard(b)).join('') || '<div class="card empty">Nessuna bolletta. Aggiungi luce, gas, mutuo, assicurazioni… e l\'app ti ricorderà le scadenze.</div>';
+    const free = !isPremium(), n = ab.length;
+    $('#bills-limit').innerHTML = free ? `<button class="limit-note" data-paywall="bollette"><span class="lim-bar"><i style="width:${Math.min(100, n / MAX_BOLLETTE_FREE * 100)}%"></i></span><span>Piano gratis · <b>${Math.min(n, MAX_BOLLETTE_FREE)} di ${MAX_BOLLETTE_FREE}</b> bollette${n > MAX_BOLLETTE_FREE ? ` (+${n - MAX_BOLLETTE_FREE} già inserite)` : ''}</span><span class="chip pw-chip">Senza limiti con Premium</span></button>` : '';
     const ib = inactiveBills();
     $('#bills-off').innerHTML = ib.length ? `<div class="off-title">Disattivate / pagate (una tantum)</div>` + ib.map(b => billCard(b, true)).join('') : '';
   }
@@ -1243,10 +1250,12 @@
     resoconto: ['Resoconto IA', 'Ogni mattina un resoconto dei conti con consigli pratici, come notifica e in Home.'],
     spazio: ['Archivio da 2 GB', 'Hai riempito i 100 MB del piano gratis. Con Premium hai 2 GB per scontrini, bollette e documenti.'],
     budget: ['Budget per categoria', 'Un limite per ogni categoria, con l\'avviso all\'80% e quando lo superi.'],
+    persone: ['Più persone nelle entrate', 'Nel piano gratis puoi seguire le entrate di 2 persone. Con Premium aggiungi tutta la famiglia.'],
+    bollette: ['Bollette senza limiti', 'Nel piano gratis puoi seguire 3 bollette. Con Premium tutte quelle che vuoi, con fatture, consumi e scadenze.'],
     affitto: ['Affitto completo', 'Registra i pagamenti mese per mese, con storico, arretrati, proprietario, IBAN e causale sempre a portata di mano.'],
     notifiche: ['Notifiche avanzate', 'Riepilogo del mese, budget all\'80%, promemoria 730, progetti e lista della spesa.']
   };
-  const PREM_LIST = [['Intelligenza artificiale', 'scontrini, bollette, dettatura e consigli'], ['Casa condivisa', 'fino a 5 persone, un solo abbonamento'], ['Auto e manutenzioni', 'con tutte le scadenze'], ['Riepilogo 730 e progetti', 'detrazioni, PDF e budget dei progetti'], ['Affitto completo', 'pagamenti, storico, IBAN e causale'], ['Archivio da 2 GB', 'invece di 100 MB'], ['Notifiche avanzate', 'riepilogo del mese, budget, 730']];
+  const PREM_LIST = [['Intelligenza artificiale', 'scontrini, bollette, dettatura e consigli'], ['Casa condivisa', 'fino a 5 persone, un solo abbonamento'], ['Auto e manutenzioni', 'con tutte le scadenze'], ['Riepilogo 730 e progetti', 'detrazioni, PDF e budget dei progetti'], ['Affitto completo', 'pagamenti, storico, IBAN e causale'], ['Bollette e persone senza limiti', 'invece di 3 bollette e 2 persone'], ['Archivio da 2 GB', 'invece di 100 MB'], ['Notifiche avanzate', 'riepilogo del mese, budget, 730']];
   const PRICES = { annuale: { prezzo: '39,99 €', per: 'anno', nota: '3,33 € al mese · risparmi 33%' }, mensile: { prezzo: '4,99 €', per: 'mese', nota: 'Disdici quando vuoi' } };
   // finché il piano non è noto (o il server non ha ancora i piani) non si blocca niente
   const isPremium = () => DEMO || isLocal() || !piano || !!(piano.premium && (!piano.expires_at || new Date(piano.expires_at) > new Date()));
@@ -1729,8 +1738,9 @@
     if (!pp.some(p => p.id === inSel)) inSel = pp[0].id;
     const p = personaById(inSel);
     renderInCal();
-    $('#in-tabs').innerHTML = pp.map(x => `<button class="veh-tab${x.id === inSel ? ' on' : ''}" data-insel="${esc(x.id)}">${avatar(x, 'xs')}<span>${esc(x.nome)}</span></button>`).join('')
-      + `<button class="veh-tab add" data-inact="newp">+ Persona</button>`;
+    const lockP = !isPremium() && pp.length >= MAX_PERSONE_FREE;
+    $('#in-tabs').innerHTML = pp.map(x => `<button class="veh-tab${x.id === inSel ? ' on' : ''}" data-insel="${esc(x.id)}">${avatar(x, 'xs')}<span>${esc(x.nome)}</span>${bankMini(x.banca)}</button>`).join('')
+      + `<button class="veh-tab add${lockP ? ' prem' : ''}" data-inact="newp">+ Persona${lockP ? ` <i class="prem-ic">${ICO_STAR}</i>` : ''}</button>`;
 
     const mk = ymOf(new Date()), y = String(new Date().getFullYear());
     const list = entrateOf(inSel);
@@ -1744,7 +1754,7 @@
     const hero = $('#in-hero');
     hero.style.setProperty('--c', p ? pColor(p) : '#17795a');
     hero.innerHTML = p
-      ? `${avatar(p, 'lg')}<div class="vh-main"><h3>${esc(p.nome)}</h3><div class="vh-sub">${rec.length ? rec.map(r => `<span>${esc(r.descrizione || r.tipo)} ${eur0(r.importo)} il ${r.giorno}</span>`).join('<span>·</span>') : '<span>Nessuna entrata ricorrente</span>'}</div></div>
+      ? `${avatar(p, 'lg')}<div class="vh-main"><h3>${esc(p.nome)}${p.banca ? ` <span class="vh-bank">${bankMini(p.banca)}${esc(p.banca)}</span>` : ''}</h3><div class="vh-sub">${rec.length ? rec.map(r => `<span>${esc(r.descrizione || r.tipo)} ${eur0(r.importo)} il ${r.giorno}</span>`).join('<span>·</span>') : '<span>Nessuna entrata ricorrente</span>'}</div></div>
          <div class="vh-km"><span>Quota delle entrate ${y}</span><b>${famYear ? Math.round(year / famYear * 100) + '%' : '—'}</b></div>
          <button class="btn sm" data-inact="editp">Modifica</button>`
       : `<span class="av-stack lg">${pp.map(x => avatar(x, 'lg')).join('')}</span><div class="vh-main"><h3>Famiglia</h3><div class="vh-sub"><span>${pp.map(x => esc(x.nome)).join(' · ')}</span></div></div>
@@ -1805,17 +1815,20 @@
 
   function formPersona(p) {
     const isNew = !p;
+    if (isNew && !isPremium() && personeAttive().length >= MAX_PERSONE_FREE) return paywall('persone');
     p = p || { id: uid(), nome: '', colore: P_COLORS[db.persone.length % P_COLORS.length], attiva: true };
     openSheet(isNew ? 'Nuova persona' : p.nome, `
       <label class="f"><span>Nome</span><input name="nome" placeholder="Es. Dario" value="${esc(p.nome)}" required data-focus></label>
+      ${bankField(p.banca || '', 'Banca dove arrivano le entrate')}
       <label class="f"><span>Colore</span><div class="colors">${P_COLORS.map(c => `<label class="cl"><input type="radio" name="colore" value="${c}" ${c === p.colore ? 'checked' : ''}><span style="background:${c}"></span></label>`).join('')}</div></label>`,
       fd => {
         const nome = String(fd.get('nome') || '').trim(); if (!nome) return toast('Inserisci il nome');
-        const row = { ...p, nome, colore: fd.get('colore') || p.colore, attiva: true };
+        const row = { ...p, nome, banca: String(fd.get('banca') || '').trim(), colore: fd.get('colore') || p.colore, attiva: true };
         write([{ action: 'upsert', sheet: 'Persone', row }]); inSel = row.id; closeSheet(); toast(isNew ? nome + ' aggiunto' : 'Salvato');
         if (isNew) setTimeout(() => formRicorrente(row), 450);
       },
       isNew ? null : () => { if (!confirm('Eliminare ' + p.nome + '? Le entrate registrate restano.')) return; write([{ action: 'delete', sheet: 'Persone', id: p.id }]); inSel = 'all'; closeSheet(); });
+    bindBankField();
   }
 
   function formEntrata(e, pre) {
@@ -2654,7 +2667,7 @@
       const en = { id: uid(), data: m.data, importo: m.importo, personaId: p ? p.id : '', tipo, descrizione: m.esercente || m.descrizione, note: 'Da estratto conto', ricorrenteId: '', creato: new Date().toISOString() };
       write([{ action: 'upsert', sheet: 'Entrate', row: en }]); m.st = 'inok'; m.matchIn = en.id; renderStmt(); toast('Entrata registrata' + (p ? ' per ' + p.nome : '')); return;
     }
-    if (act.startsWith('cash:') && m) { formPrelievo(null, { importo: m.importo, data: m.data, note: 'Da estratto conto: ' + String(m.descrizione).slice(0, 60), _stmt: m }); return; }
+    if (act.startsWith('cash:') && m) { formPrelievo(null, { importo: m.importo, data: m.data, banca: stmt.banca || '', note: 'Da estratto conto: ' + String(m.descrizione).slice(0, 60), _stmt: m }); return; }
     if (act.startsWith('add:') && m) { const sp = toSpesa(m); write([{ action: 'upsert', sheet: 'Spese', row: sp }]); m.st = 'ok'; m.match = sp.id; renderStmt(); toast('Spesa aggiunta'); return; }
     if (act.startsWith('ok:') && m) { m.st = 'ok'; renderStmt(); return; }
     if (act.startsWith('un:') && m) { m.st = 'miss'; m.match = null; m.matchCash = null; reconcileOnlyApp(); renderStmt(); return; }
@@ -3453,6 +3466,7 @@
         delete row._ai;
         const ops = [];
         let bill = b;
+        if (newBill && billLimit()) return paywall('bollette');
         if (newBill || fd.get('upd') === 'on') {
           bill = { ...b, importo, scadenza: row.scadenza || b.scadenza };
           ops.push({ action: 'upsert', sheet: 'Bollette', row: bill });
@@ -5360,6 +5374,20 @@
   const ICO_CASH_IN = '<svg viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>';
   const ICO_CASH_FIX = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
 
+  const BANCHE = ['Intesa Sanpaolo', 'UniCredit', 'BNL', 'Banco BPM', 'Monte dei Paschi', 'BPER', 'Crédit Agricole', 'Fineco', 'Mediolanum', 'Poste Italiane', 'Credem', 'Banca Sella', 'ING', 'Revolut', 'N26', 'Hype', 'Widiba', 'Isybank', 'Illimity', 'Deutsche Bank', 'BCC', 'Banca Popolare di Sondrio', 'CheBanca!'];
+  const bankList = () => [...new Set([...db.contanti.map(x => x.banca), ...db.persone.map(x => x.banca), ...BANCHE].filter(Boolean))];
+  const bankDatalist = () => `<datalist id="dl-banche">${bankList().map(b => `<option value="${esc(b)}">`).join('')}</datalist>`;
+  // campo banca con il logo che compare mentre scrivi
+  const bankField = (val, label) => `<label class="f"><span>${label}</span><div class="desc-wrap bank-wrap"><span id="bank-ic">${val ? iconHTML(val, val) : bankPh()}</span><input name="banca" list="dl-banche" placeholder="Es. Intesa Sanpaolo, Revolut…" value="${esc(val || '')}" autocomplete="off"></div>${bankDatalist()}</label>`;
+  const bankPh = () => `<div class="ic ph"><svg viewBox="0 0 24 24"><path d="M3 10l9-5 9 5M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></svg></div>`;
+  function bindBankField() {
+    const inp = $('#sheet-body [name=banca]'); if (!inp) return;
+    let last = '';
+    inp.addEventListener('input', () => { const v = inp.value.trim(), m = findMerchant(v), k = m ? m.domain : ''; if (k === last && v) return; last = k; $('#bank-ic').innerHTML = v ? iconHTML(v, v) : bankPh(); });
+  }
+  // icona piccola della banca accanto a un nome
+  const bankMini = b => b && findMerchant(b) && findMerchant(b).domain ? `<span class="bank-mini" title="${esc(b)}"><img src="${logoUrl(findMerchant(b).domain)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></span>` : '';
+
   const segSpesaPrelievo = on => `<div class="seg sp-mode" role="tablist"><button type="button" data-spmode="spesa" class="${on === 'spesa' ? 'on' : ''}">Spesa</button><button type="button" data-spmode="prelievo" class="${on === 'prelievo' ? 'on' : ''}">Prelievo</button></div>`;
 
   // saldo contanti sotto il metodo di pagamento, aggiornato mentre scrivi
@@ -5397,13 +5425,19 @@
         ${c ? `<div class="f"><span class="f-l">Nel portafoglio</span><div class="cash-now" id="cash-now">${eur(saldo)}</div></div>`
             : `<label class="f"><span>Contanti che avevi già (€)</span><input name="iniziale" inputmode="decimal" placeholder="0,00"></label>`}
       </div>
+      ${bankField(p.banca != null ? p.banca : (isNew ? LS.get('sc_lastbank', '') : ''), 'Banca')}
       <label class="f"><span>Note</span><input name="note" placeholder="Es. Bancomat di via Roma" value="${esc(p.note || '')}"></label>
       <div class="cash-info">${ICO_CASH}<span>Il prelievo non conta come spesa: sposta i soldi dal conto al portafoglio. Le spese pagate in contanti vengono scalate da qui.</span></div>`,
       fd => {
         const importo = num(fd.get('importo'));
         if (importo <= 0) return toast('Inserisci un importo valido');
         const data = fd.get('data');
-        const row = { ...p, tipo: 'prelievo', importo, data, note: String(fd.get('note') || '').trim(), creato: p.creato || new Date().toISOString() };
+        const note = String(fd.get('note') || '').trim();
+        // banca: dal campo, oppure riconosciuta nelle note
+        let banca = String(fd.get('banca') || '').trim();
+        if (!banca && note) { const hit = bankList().find(b => findMerchant(b) && findMerchant(note) && findMerchant(b).domain === findMerchant(note).domain); if (hit) banca = hit; }
+        if (banca) LS.set('sc_lastbank', banca);
+        const row = { ...p, tipo: 'prelievo', importo, data, banca, note, creato: p.creato || new Date().toISOString() };
         Object.keys(row).forEach(k => { if (k.startsWith('_')) delete row[k]; });
         const ops = [{ action: 'upsert', sheet: 'Contanti', row }];
         if (!c) {
@@ -5421,6 +5455,7 @@
         if (!confirm('Eliminare questo prelievo?')) return;
         write([{ action: 'delete', sheet: 'Contanti', id: p.id }]); closeSheet(); toast('Prelievo eliminato');
       }, isNew ? 'Salva prelievo' : 'Salva');
+    bindBankField();
     if (c) {
       const inp = $('#sheet-body [name=importo]'), out = $('#cash-now');
       inp.addEventListener('input', () => { const v = num(inp.value); out.innerHTML = v > 0 ? `${eur(saldo)} <small>→ ${eur(r2(saldo + v))}</small>` : eur(saldo); });
@@ -5474,8 +5509,10 @@
       <div class="main"><div class="t">${esc(r.descrizione || r.categoria || 'Spesa')}</div><div class="s">${esc(shortDate(r.data))}${r.categoria ? ' · ' + esc(r.categoria) : ''}</div></div>
       <div class="right ct-r"><div class="amt">${sign}</div><small>saldo ${eur(m.saldo)}</small></div></div>`;
     const t = m.tipo === 'prelievo' ? 'Prelievo' : m.tipo === 'iniziale' ? 'Contanti iniziali' : 'Correzione saldo';
-    return `<div class="item ct-it" data-cash="${esc(r.id)}"><div class="ic ct-ic ${m.tipo}">${m.tipo === 'correzione' ? ICO_CASH_FIX : m.tipo === 'iniziale' ? ICO_CASH : ICO_CASH_IN}</div>
-      <div class="main"><div class="t">${t}</div><div class="s">${esc(shortDate(r.data))}${r.note ? ' · ' + esc(r.note) : ''}</div></div>
+    const bk = m.tipo === 'prelievo' && r.banca && findMerchant(r.banca) && findMerchant(r.banca).domain;
+    const ic = bk ? `<span class="ct-bank">${iconHTML(r.banca, r.banca)}<i class="ct-bank-in">${ICO_CASH_IN}</i></span>` : `<div class="ic ct-ic ${m.tipo}">${m.tipo === 'correzione' ? ICO_CASH_FIX : m.tipo === 'iniziale' ? ICO_CASH : ICO_CASH_IN}</div>`;
+    return `<div class="item ct-it" data-cash="${esc(r.id)}">${ic}
+      <div class="main"><div class="t">${t}${r.banca ? ' · ' + esc(r.banca) : ''}</div><div class="s">${esc(shortDate(r.data))}${r.note ? ' · ' + esc(r.note) : ''}</div></div>
       <div class="right ct-r"><div class="amt ${neg ? '' : 'pos-t'}">${sign}</div><small>saldo ${eur(m.saldo)}</small></div></div>`;
   }
 
@@ -5555,8 +5592,10 @@
     inp.addEventListener('input', upd);
   }
 
+  const billLimit = () => !isPremium() && activeBills().length >= MAX_BOLLETTE_FREE;
   function formBill(b, pre) {
     const isNew = !b;
+    if (isNew && billLimit()) return paywall('bollette');
     b = b || { id: uid(), nome: '', categoria: cats().find(c => c === 'Luce') || cats()[0] || '', importo: '', frequenza: 'mensile', scadenza: today(), attiva: true, note: '' };
     if (pre) b = { ...b, ...pre };
     const aiMsg = pre && pre._ai ? (isNew ? 'Nuova bolletta letta dall\'IA: controlla e salva' : 'Bolletta già presente: aggiornati importo e scadenza') : '';

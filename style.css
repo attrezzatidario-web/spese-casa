@@ -2237,3 +2237,21 @@ body.locked #fab, body.locked #add-top { display: none; }
 .rent-lock b { font-size: 14px; font-weight: 600; }
 .rent-lock small { color: var(--muted); font-size: 12.5px; }
 .rent-free .rent-info { display: none; }
+
+/* ===== Banche e limiti del piano gratis ===== */
+.bank-mini { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--line); vertical-align: -3px; flex: none; }
+.bank-mini img { width: 100%; height: 100%; object-fit: contain; }
+.veh-tab .bank-mini { margin-left: 2px; }
+.vh-bank { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; font-size: 13px; font-weight: 550; color: var(--muted); letter-spacing: 0; }
+.ct-bank { position: relative; flex: none; }
+.ct-bank-in { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; box-shadow: 0 0 0 2px var(--surface); }
+.ct-bank-in svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.veh-tab.prem { opacity: .8; }
+.prem-ic { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--grad, var(--accent)); color: #fff; margin-left: 4px; vertical-align: -3px; }
+.prem-ic svg { width: 9px; height: 9px; fill: currentColor; stroke: none; }
+.limit-note { width: 100%; margin-top: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; transition: border-color .2s; }
+.limit-note:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.limit-note > span:nth-child(2) { flex: 1; min-width: 150px; }
+.limit-note b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.lim-bar { width: 54px; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; flex: none; }
+.lim-bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .5s cubic-bezier(.32,.72,0,1); }
