@@ -53,7 +53,8 @@ export function promemoria(dati: any, today: string): Item[] {
       if (a.inizio && mk < String(a.inizio).slice(0, 7)) return;
       if (spese.some(s => s.bollettaId === 'affitto:' + mk)) return;
       const dd = diffDays(due, today);
-      if (avvisa(dd)) items.push({ titolo: 'Affitto ' + mk.slice(5) + '/' + mk.slice(0, 4), dettaglio: quando(dd) + ' (' + dm(due) + ')', importo: Number(a.canone) || 0 });
+      // piano gratis: i pagamenti non si registrano, quindi niente avvisi "scaduto da…"
+      if (avvisa(dd) && (P || dd >= 0)) items.push({ titolo: 'Affitto ' + mk.slice(5) + '/' + mk.slice(0, 4), dettaglio: quando(dd) + ' (' + dm(due) + ')', importo: Number(a.canone) || 0 });
     });
   }
   if (n.bollette !== false) {

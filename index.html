@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=4-4">
+  <link rel="stylesheet" href="style.css?v=4-5">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -434,7 +434,7 @@
         <div id="rent-empty" class="card empty-state" hidden>
           <div class="es-ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg></div>
           <h3>Configura l'affitto</h3>
-          <p class="muted small">Inserisci canone e giorno di scadenza: l'app tiene traccia dei pagamenti mese per mese e ti avvisa.</p>
+          <p class="muted small">Inserisci canone e giorno di scadenza: l'app ti ricorda quando pagare.</p>
           <button class="btn primary" data-rent="edit">Configura</button>
         </div>
         <div id="rent-main" class="rent-grid" hidden>
@@ -450,7 +450,8 @@
               </div>
               <div class="rent-info" id="r-info"></div>
             </div>
-            <div class="card">
+            <div class="card rent-pro-card" id="r-premium-card"><div id="r-premium"></div></div>
+            <div class="card rent-pays">
               <div class="card-h">
                 <h3>Pagamenti</h3>
                 <div class="year-switch"><button class="icon-btn" data-year="-1" aria-label="Anno precedente">‹</button><strong id="r-year"></strong><button class="icon-btn" data-year="1" aria-label="Anno successivo">›</button></div>
@@ -623,6 +624,6 @@
 
   <script src="lib-supabase.js?v=1"></script>
   <script src="ai.js?v=4"></script>
-  <script src="app.js?v=4-7"></script>
+  <script src="app.js?v=4-8"></script>
 </body>
 </html>

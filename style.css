@@ -2216,3 +2216,24 @@ body.locked #fab, body.locked #add-top { display: none; }
 .cash-v { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 8px; font-variant-numeric: tabular-nums; }
 .nav a[data-view="contanti"] svg { fill: none; }
 @media (min-width: 900px) { .ct-acts .btn.primary { display: none; } }
+
+/* ===== Affitto: piano gratis (solo importo e scadenza) ===== */
+.rent-pro-card { display: none; }
+.rent-free .rent-pro-card { display: block; }
+.rent-free .rent-pays { display: none; }
+.rent-pro { display: grid; gap: 14px; }
+.rent-pro-h { display: flex; align-items: center; gap: 12px; }
+.rent-pro-h b { display: block; font-size: 15.5px; }
+.rent-pro-h small { color: var(--muted); font-size: 12.5px; }
+.rent-pro ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.rent-pro li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-2); }
+.rent-pro li i { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent); }
+.rent-pro li i svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.rent-pro .btn { justify-self: start; }
+.rent-lock { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; margin: 2px 0 14px; border-radius: 14px; border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); color: var(--ink); cursor: pointer; font: inherit; transition: background .2s, transform .15s; }
+.rent-lock:hover { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.rent-lock:active { transform: scale(.99); }
+.rent-lock > span:nth-child(2) { flex: 1; display: grid; gap: 2px; }
+.rent-lock b { font-size: 14px; font-weight: 600; }
+.rent-lock small { color: var(--muted); font-size: 12.5px; }
+.rent-free .rent-info { display: none; }

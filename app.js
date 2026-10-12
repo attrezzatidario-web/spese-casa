@@ -510,11 +510,11 @@
       <div class="right">${Number(m.costo) ? `<div class="amt">${eur(m.costo)}</div>` : ''}<button class="btn sm" data-mntdone="${esc(m.id)}">Fatto</button></div></div>`;
   }
   function rentDueItem(r) {
-    const st = rentChip(r);
+    const st = r.solo ? rentNextChip(r) : rentChip(r);
     return `<div class="item" data-go="affitto">
       <div class="ic rent-ic">${ICO_KEY}</div>
       <div class="main"><div class="t">Affitto ${esc(monthShortY(r.month))}</div><div class="s"><span class="chip ${st.cls}">${esc(st.txt)}</span></div></div>
-      <div class="right"><div class="amt">${eur(r.importo)}</div><button class="btn sm" data-rentpay="${r.month}">Paga</button></div></div>`;
+      <div class="right"><div class="amt">${eur(r.importo)}</div>${r.solo ? '' : `<button class="btn sm" data-rentpay="${r.month}">Paga</button>`}</div></div>`;
   }
 
   function speseTable(list, withDate = true) {
@@ -582,7 +582,7 @@
     if (rc) {
       const r = rentMonth(ymOf(new Date()));
       countTo($('#h-rent'), rc.canone);
-      const st = rentChip(r);
+      const st = rentFull() ? rentChip(r) : rentNextChip(rentNext());
       $('#h-rent-sub').innerHTML = `<span class="chip ${st.cls}">${esc(st.txt)}</span>`;
     } else {
       $('#h-rent').textContent = '—'; $('#h-rent')._v = null;
@@ -947,9 +947,17 @@
     if (r.days <= 7) return { cls: 'soon', txt: r.days === 1 ? 'Scade domani' : `Scade tra ${r.days} gg` };
     return { cls: '', txt: 'Scade il ' + parseD(r.due).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
   }
+  // piano gratis: l'affitto è solo un promemoria (importo e giorno); pagamenti e storico sono Premium
+  const rentFull = () => isPremium();
+  // prossima scadenza: quella di questo mese se non è passata, altrimenti il mese dopo
+  function rentNext() {
+    const now = new Date(), r = rentMonth(ymOf(now));
+    return r.days >= 0 ? r : rentMonth(ymOf(new Date(now.getFullYear(), now.getMonth() + 1, 1)));
+  }
+  const rentNextChip = r => r.days === 0 ? { cls: 'late', txt: 'Scade oggi' } : r.days <= 7 ? { cls: 'soon', txt: r.days === 1 ? 'Scade domani' : `Scade tra ${r.days} gg` } : { cls: '', txt: 'Scade il ' + parseD(r.due).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
   // mesi non pagati già scaduti (ultimi 12)
   function rentArrears() {
-    if (!rentCfg()) return [];
+    if (!rentCfg() || !rentFull()) return [];
     const now = new Date(), out = [];
     for (let i = 12; i >= 0; i--) {
       const r = rentMonth(ymOf(new Date(now.getFullYear(), now.getMonth() - i, 1)));
@@ -960,6 +968,7 @@
   // da mostrare nelle scadenze: arretrati + mese corrente + prossimo se non pagati
   function rentUpcoming() {
     if (!rentCfg()) return [];
+    if (!rentFull()) return [{ ...rentNext(), paid: null, solo: true }];
     const now = new Date();
     const list = rentArrears();
     [0, 1].forEach(o => { const r = rentMonth(ymOf(new Date(now.getFullYear(), now.getMonth() + o, 1))); if (!r.before && !r.paid && r.days >= 0) list.push(r); });
@@ -985,16 +994,31 @@
     $('#rent-main').hidden = !c;
     if (!c) return;
     const cur = ymOf(new Date());
+    const full = rentFull();
+    document.getElementById('v-affitto').classList.toggle('rent-free', !full);
     const arr = rentArrears();
-    // mostra il primo mese arretrato, altrimenti il corrente
-    const r = arr[0] || rentMonth(cur);
-    const st = rentChip(r);
+    // mostra il primo mese arretrato, altrimenti il corrente (piano gratis: la prossima scadenza)
+    const r = full ? (arr[0] || rentMonth(cur)) : rentNext();
+    const st = full ? rentChip(r) : rentNextChip(r);
     $('#r-month').textContent = 'Affitto di ' + monthName(r.month);
     countTo($('#r-amount'), c.canone);
     $('#r-status').innerHTML = `<span class="chip ${st.cls}">${esc(st.txt)}</span>${arr.length > 1 ? ` <span class="chip late">${arr.length} mesi arretrati</span>` : ''}`;
     const pay = $('#r-pay');
-    pay.hidden = !!r.paid;
-    pay.dataset.month = r.month;
+    pay.hidden = full ? !!r.paid : true;
+    pay.dataset.rentm = r.month;
+    if (!full) {
+      $('#r-month').textContent = 'Prossimo affitto · ' + monthName(r.month);
+      $('#r-info').innerHTML = '';
+      $('#r-contract').innerHTML = [['Canone mensile', eur(c.canone)], ['Scadenza', `il giorno ${c.giorno} di ogni mese`]].map(([k, v]) => `<div><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');
+      const trial = !piano || piano.trial_available !== false;
+      $('#r-premium').innerHTML = `<div class="rent-pro">
+        <div class="rent-pro-h"><span class="pw-badge sm">${ICO_STAR}</span><div><b>Affitto completo</b><small>Con Premium</small></div></div>
+        <ul>${['Registra i pagamenti mese per mese', 'Storico dell\'anno e mesi arretrati', 'Proprietario, IBAN da copiare e causale del bonifico', 'Metodo di pagamento, inizio contratto e note'].map(t => `<li><i>${ICO_CHK}</i>${t}</li>`).join('')}</ul>
+        <button class="btn primary" data-paywall="affitto">${trial ? 'Prova gratis 7 giorni' : 'Passa a Premium'}</button></div>`;
+      renderRentNotify();
+      return;
+    }
+    $('#r-premium').innerHTML = '';
     $('#r-info').innerHTML = [
       c.proprietario ? `<div><span class="muted small">Proprietario</span><strong>${esc(c.proprietario)}</strong></div>` : '',
       c.iban ? `<div><span class="muted small">IBAN</span><strong class="mono">${esc(c.iban)}</strong> <button class="btn sm" data-copy="${esc(c.iban)}">Copia</button></div>` : '',
@@ -1021,12 +1045,7 @@
     $('#r-count').textContent = `${paidN} mesi pagati${dueN ? ` · ${dueN} non pagati` : ''}`;
     countTo($('#r-total'), paidTot);
 
-    // notifiche
-    const n = db.config.notifiche || {};
-    const pOn = LS.get('sc_push', '') && pushSupported() && pushGranted();
-    $('#r-notify').innerHTML = `<p class="muted small" style="margin:0">${pOn
-      ? `Promemoria sul telefono ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima e ' : ''}il giorno della scadenza, alle ${pad(Number(n.ora ?? 9))}:00, solo se non hai ancora pagato.`
-      : 'Notifiche non attive su questo dispositivo: attivale da Altro → Notifiche.'}</p>`;
+    renderRentNotify();
 
     // contratto
     const kv = [
@@ -1038,26 +1057,37 @@
     ].filter(Boolean);
     $('#r-contract').innerHTML = kv.map(([k, v]) => `<div><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');
   }
+  function renderRentNotify() {
+    const n = db.config.notifiche || {};
+    const pOn = LS.get('sc_push', '') && pushSupported() && pushGranted();
+    $('#r-notify').innerHTML = `<p class="muted small" style="margin:0">${pOn
+      ? `Promemoria sul telefono ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima e ' : ''}il giorno della scadenza, alle ${pad(Number(n.ora ?? 9))}:00${rentFull() ? ', solo se non hai ancora pagato' : ''}.`
+      : 'Notifiche non attive su questo dispositivo: attivale da Altro → Notifiche.'}</p>`;
+  }
 
   function formRent() {
     const c = db.config.affitto || { canone: '', giorno: 5, proprietario: '', iban: '', metodo: 'Bonifico', inizio: '', causale: 'Affitto {mese}', note: '' };
     const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
-    openSheet('Contratto d\'affitto', `
+    const full = rentFull();
+    openSheet(full ? 'Contratto d\'affitto' : 'Affitto', `
       <div class="f-row">
         <label class="f"><span>Canone mensile (€)</span><input name="canone" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(c.canone))}" required data-focus></label>
         <label class="f"><span>Giorno di scadenza</span><select name="giorno" class="amount-input">${opt(days, String(c.giorno || 5))}</select></label>
       </div>
-      <label class="f"><span>Proprietario</span><input name="proprietario" placeholder="Nome e cognome" value="${esc(c.proprietario)}"></label>
+      ${full ? '' : `<button type="button" class="rent-lock" data-paywall="affitto"><span class="pw-badge sm">${ICO_STAR}</span><span><b>Proprietario, IBAN, causale e note</b><small>Con Premium, insieme ai pagamenti e allo storico</small></span><span class="chip pw-chip">Premium</span></button>`}
+      ${full ? `<label class="f"><span>Proprietario</span><input name="proprietario" placeholder="Nome e cognome" value="${esc(c.proprietario)}"></label>
       <label class="f"><span>IBAN</span><input name="iban" placeholder="IT00 X000 0000 0000 0000 0000 000" value="${esc(c.iban)}" autocapitalize="characters"></label>
       <div class="f-row">
         <label class="f"><span>Metodo</span><select name="metodo">${opt(METODI, c.metodo || 'Bonifico')}</select></label>
         <label class="f"><span>Inizio contratto</span><input name="inizio" type="month" value="${esc(String(c.inizio || '').slice(0, 7))}"></label>
       </div>
       <label class="f"><span>Causale bonifico</span><input name="causale" value="${esc(c.causale || 'Affitto {mese}')}"><div class="hint muted">{mese} viene sostituito con il mese pagato</div></label>
-      <label class="f"><span>Note</span><textarea name="note" rows="2" placeholder="Durata, deposito cauzionale, spese incluse…">${esc(c.note)}</textarea></label>`,
+      <label class="f"><span>Note</span><textarea name="note" rows="2" placeholder="Durata, deposito cauzionale, spese incluse…">${esc(c.note)}</textarea></label>` : ''}`,
       async fd => {
         const canone = num(fd.get('canone'));
         if (canone <= 0) return toast('Inserisci il canone');
+        // piano gratis: cambia solo canone e giorno, gli altri dati restano salvati per quando torna Premium
+        if (!full) { setConfig('affitto', { ...c, attivo: true, canone, giorno: Number(fd.get('giorno')) }); closeSheet(); toast('Affitto salvato'); return; }
         const inizio = fd.get('inizio');
         const v = { inizioAuto: !!(c.inizioAuto && inizio === String(c.inizio || '').slice(0, 7)), attivo: true, canone, giorno: Number(fd.get('giorno')), proprietario: fd.get('proprietario').trim(), iban: fd.get('iban').replace(/\s+/g, ' ').trim().toUpperCase(), metodo: fd.get('metodo'), inizio, causale: fd.get('causale').trim(), note: fd.get('note').trim() };
         setConfig('affitto', v);
@@ -1071,6 +1101,7 @@
 
   function formRentPay(mk) {
     const c = rentCfg(); if (!c) return formRent();
+    if (!needPremium('affitto')) return;
     const r = rentMonth(mk);
     if (r.paid) return formSpesa(r.paid);
     // mesi selezionabili: 12 indietro, 2 avanti, non pagati
@@ -1212,9 +1243,10 @@
     resoconto: ['Resoconto IA', 'Ogni mattina un resoconto dei conti con consigli pratici, come notifica e in Home.'],
     spazio: ['Archivio da 2 GB', 'Hai riempito i 100 MB del piano gratis. Con Premium hai 2 GB per scontrini, bollette e documenti.'],
     budget: ['Budget per categoria', 'Un limite per ogni categoria, con l\'avviso all\'80% e quando lo superi.'],
+    affitto: ['Affitto completo', 'Registra i pagamenti mese per mese, con storico, arretrati, proprietario, IBAN e causale sempre a portata di mano.'],
     notifiche: ['Notifiche avanzate', 'Riepilogo del mese, budget all\'80%, promemoria 730, progetti e lista della spesa.']
   };
-  const PREM_LIST = [['Intelligenza artificiale', 'scontrini, bollette, dettatura e consigli'], ['Casa condivisa', 'fino a 5 persone, un solo abbonamento'], ['Auto e manutenzioni', 'con tutte le scadenze'], ['Riepilogo 730 e progetti', 'detrazioni, PDF e budget dei progetti'], ['Archivio da 2 GB', 'invece di 100 MB'], ['Notifiche avanzate', 'riepilogo del mese, budget, 730']];
+  const PREM_LIST = [['Intelligenza artificiale', 'scontrini, bollette, dettatura e consigli'], ['Casa condivisa', 'fino a 5 persone, un solo abbonamento'], ['Auto e manutenzioni', 'con tutte le scadenze'], ['Riepilogo 730 e progetti', 'detrazioni, PDF e budget dei progetti'], ['Affitto completo', 'pagamenti, storico, IBAN e causale'], ['Archivio da 2 GB', 'invece di 100 MB'], ['Notifiche avanzate', 'riepilogo del mese, budget, 730']];
   const PRICES = { annuale: { prezzo: '39,99 €', per: 'anno', nota: '3,33 € al mese · risparmi 33%' }, mensile: { prezzo: '4,99 €', per: 'mese', nota: 'Disdici quando vuoi' } };
   // finché il piano non è noto (o il server non ha ancora i piani) non si blocca niente
   const isPremium = () => DEMO || isLocal() || !piano || !!(piano.premium && (!piano.expires_at || new Date(piano.expires_at) > new Date()));
@@ -5738,7 +5770,7 @@
       if (ra) {
         const a = ra.dataset.rent;
         if (a === 'edit') formRent();
-        else if (a === 'pay') formRentPay(ra.dataset.month || ymOf(new Date()));
+        else if (a === 'pay') formRentPay(ra.dataset.rentm || ymOf(new Date()));
         else if (a === 'notify') formNotify();
         else if (a === 'testmail') { busy('Invio…'); api('testEmail').then(r => { busy(); toast('Email inviata a ' + r.email); }).catch(err => { busy(); toast(err.message); }); }
         return;
