@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="it" data-l="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Eliminare l'account · Spese Casa</title><meta name="description" content="Eliminare l'account e i dati di Spese Casa">
 <link rel="icon" href="logo.svg"><style>
 :root{--bg:#f6f6f4;--surface:#fff;--ink:#18181b;--ink2:#52525b;--muted:#8a8a93;--line:#e7e7e3;--accent:#1f7a5a;--soft:#e5f1ec}
@@ -20,11 +20,20 @@ a{color:var(--accent)}b,strong{color:var(--ink)}
 .steps{counter-reset:s;list-style:none;padding:0}.steps li{counter-increment:s;position:relative;padding-left:40px;margin:12px 0}
 .steps li::before{content:counter(s);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center}
 footer{margin-top:28px;font-size:14px;color:var(--muted);display:flex;flex-wrap:wrap;gap:16px}footer a{color:var(--muted)}
-</style></head>
-<body><div class="w">
-<div class="top"><img src="logo.svg" alt=""><div><b>Spese Casa</b><span>Tetto Studio</span></div></div>
-<h1>Eliminare l'account e i dati</h1><p class="upd">Ultimo aggiornamento: 12 ottobre 2026</p>
 
+.lg{display:flex;gap:4px;margin-left:auto}.lg a{font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;padding:5px 8px;border-radius:8px}.lg a[aria-current]{background:var(--soft);color:var(--accent)}
+.lb{display:none}html[data-l=it] .lb[data-l=it],html[data-l=en] .lb[data-l=en],html[data-l=es] .lb[data-l=es],html[data-l=fr] .lb[data-l=fr],html[data-l=de] .lb[data-l=de]{display:block}
+.nota{font-size:13px;color:var(--muted);margin:-18px 0 24px}
+</style><script>(function(){var L=["it", "en", "es", "fr", "de"],T={"it": {"title": "Eliminare l'account · Spese Casa", "desc": "Eliminare l'account e i dati di Spese Casa"}, "en": {"title": "Delete your account · Spese Casa", "desc": "How to delete your Spese Casa account and data"}, "es": {"title": "Eliminar la cuenta · Spese Casa", "desc": "Cómo eliminar la cuenta y los datos de Spese Casa"}, "fr": {"title": "Supprimer le compte · Spese Casa", "desc": "Comment supprimer votre compte et vos données Spese Casa"}, "de": {"title": "Konto löschen · Spese Casa", "desc": "So löschst du dein Spese-Casa-Konto und deine Daten"}},l='';try{l=new URLSearchParams(location.search).get('lang')||''}catch(e){}
+if(L.indexOf(l)<0){try{l=localStorage.getItem('sc_lang')||''}catch(e){}}
+if(L.indexOf(l)<0){l=(navigator.language||'it').slice(0,2).toLowerCase()}
+if(L.indexOf(l)<0)l='it';var d=document.documentElement;d.lang=l;d.setAttribute('data-l',l);document.title=T[l].title;
+var m=document.querySelector('meta[name=description]');if(m)m.setAttribute('content',T[l].desc);
+document.addEventListener('DOMContentLoaded',function(){var a=document.querySelector('.lg a[data-k="'+l+'"]');if(a)a.setAttribute('aria-current','true')})})();</script></head>
+<body><div class="w">
+<div class="top"><img src="logo.svg" alt=""><div><b>Spese Casa</b><span>Tetto Studio</span></div><nav class="lg" aria-label="Lingua · Language"><a href="?lang=it" data-k="it" hreflang="it" lang="it">IT</a><a href="?lang=en" data-k="en" hreflang="en" lang="en">EN</a><a href="?lang=es" data-k="es" hreflang="es" lang="es">ES</a><a href="?lang=fr" data-k="fr" hreflang="fr" lang="fr">FR</a><a href="?lang=de" data-k="de" hreflang="de" lang="de">DE</a></nav></div>
+<div class="lb" data-l="it" lang="it">
+<h1>Eliminare l'account e i dati</h1><p class="upd">Ultimo aggiornamento: 12 ottobre 2026</p>
 <div class="card">
 <p>Puoi eliminare il tuo account di <b>Spese Casa</b> e i dati collegati in qualsiasi momento.</p>
 <h2>Dall'app (subito)</h2>
@@ -46,4 +55,105 @@ footer{margin-top:28px;font-size:14px;color:var(--muted);display:flex;flex-wrap:
 <p>Prima di eliminare puoi scaricare una copia dei tuoi dati da <b>Altro → Backup</b>.</p>
 </div>
 <footer><a href="privacy.html">Privacy</a><a href="termini.html">Termini</a><a href="elimina-account.html">Eliminare l'account</a><a href="supporto.html">Supporto</a><a href="./">Apri l'app</a></footer>
+</div>
+<div class="lb" data-l="en" lang="en">
+<h1>Delete your account and data</h1><p class="upd">Last updated: 12 October 2026</p>
+<p class="nota">This is a translation provided for convenience. In case of any discrepancy, the Italian version prevails.</p>
+<div class="card">
+<p>You can delete your <b>Spese Casa</b> account and the related data at any time.</p>
+<h2>From the app (immediately)</h2>
+<ol class="steps">
+<li>Open Spese Casa and sign in.</li>
+<li>Go to <b>Other</b> → <b>Account</b> section.</li>
+<li>Tap <b>Delete account</b> and confirm.</li>
+</ol>
+<h2>Without the app</h2>
+<p>Write to <a href="mailto:tettostudio.app@gmail.com?subject=Account%20deletion%20Spese%20Casa">tettostudio.app@gmail.com</a> <b>from the email address you sign in with</b>, with the subject "Account deletion". We will delete the account within 30 days and confirm the deletion to you.</p>
+<h2>What gets deleted</h2>
+<ul>
+<li>Your account and your email.</li>
+<li>If you are the only member of your home: all of the home's data (expenses, income, bills, documents, attachments and settings).</li>
+<li>If the home is shared with other people: you leave the home, but the home's data stays with the other members.</li>
+<li>Any technical backup copies are overwritten within 30 days.</li>
+</ul>
+<div class="box"><p><b>Subscription:</b> deleting your account does not cancel a subscription bought on the App Store or Google Play. Cancel it from your Apple or Google account settings.</p></div>
+<p>Before deleting, you can download a copy of your data from <b>Other → Backup</b>.</p>
+</div>
+<footer><a href="privacy.html?lang=en">Privacy</a><a href="termini.html?lang=en">Terms</a><a href="elimina-account.html?lang=en">Delete your account</a><a href="supporto.html?lang=en">Support</a><a href="./">Open the app</a></footer>
+</div>
+<div class="lb" data-l="es" lang="es">
+<h1>Eliminar la cuenta y los datos</h1><p class="upd">Última actualización: 12 de octubre de 2026</p>
+<p class="nota">Esta es una traducción ofrecida para tu comodidad. En caso de discrepancia, prevalece la versión italiana.</p>
+<div class="card">
+<p>Puedes eliminar tu cuenta de <b>Spese Casa</b> y los datos asociados en cualquier momento.</p>
+<h2>Desde la app (al instante)</h2>
+<ol class="steps">
+<li>Abre Spese Casa e inicia sesión.</li>
+<li>Ve a <b>Otro</b> → sección <b>Cuenta</b>.</li>
+<li>Toca <b>Eliminar cuenta</b> y confirma.</li>
+</ol>
+<h2>Sin la app</h2>
+<p>Escribe a <a href="mailto:tettostudio.app@gmail.com?subject=Eliminaci%C3%B3n%20cuenta%20Spese%20Casa">tettostudio.app@gmail.com</a> <b>desde la dirección de correo con la que accedes</b>, con el asunto "Eliminación de cuenta". Eliminaremos la cuenta en un plazo de 30 días y te confirmaremos que se ha borrado.</p>
+<h2>Qué se elimina</h2>
+<ul>
+<li>Tu cuenta y tu correo.</li>
+<li>Si eres el único miembro de tu casa: todos los datos de la casa (gastos, ingresos, recibos, documentos, adjuntos y ajustes).</li>
+<li>Si la casa está compartida con otras personas: tú sales de la casa, pero los datos de la casa se quedan para los demás miembros.</li>
+<li>Las posibles copias de seguridad técnicas se sobrescriben en un plazo de 30 días.</li>
+</ul>
+<div class="box"><p><b>Suscripción:</b> eliminar la cuenta no cancela una suscripción comprada en App Store o Google Play. Cancélala desde los ajustes de tu cuenta de Apple o Google.</p></div>
+<p>Antes de eliminar puedes descargar una copia de tus datos desde <b>Otro → Copia de seguridad</b>.</p>
+</div>
+<footer><a href="privacy.html?lang=es">Privacidad</a><a href="termini.html?lang=es">Términos</a><a href="elimina-account.html?lang=es">Eliminar la cuenta</a><a href="supporto.html?lang=es">Soporte</a><a href="./">Abrir la app</a></footer>
+</div>
+<div class="lb" data-l="fr" lang="fr">
+<h1>Supprimer le compte et les données</h1><p class="upd">Dernière mise à jour : 12 octobre 2026</p>
+<p class="nota">Cette traduction est fournie pour votre commodité. En cas de divergence, la version italienne prévaut.</p>
+<div class="card">
+<p>Vous pouvez supprimer votre compte <b>Spese Casa</b> et les données associées à tout moment.</p>
+<h2>Depuis l'app (immédiatement)</h2>
+<ol class="steps">
+<li>Ouvrez Spese Casa et connectez-vous.</li>
+<li>Allez dans <b>Autre</b> → section <b>Compte</b>.</li>
+<li>Touchez <b>Supprimer le compte</b> et confirmez.</li>
+</ol>
+<h2>Sans l'app</h2>
+<p>Écrivez à <a href="mailto:tettostudio.app@gmail.com?subject=Suppression%20compte%20Spese%20Casa">tettostudio.app@gmail.com</a> <b>depuis l'adresse e-mail avec laquelle vous vous connectez</b>, avec l'objet « Suppression du compte ». Nous supprimerons le compte sous 30 jours et vous confirmerons la suppression.</p>
+<h2>Ce qui est supprimé</h2>
+<ul>
+<li>Votre compte et votre e-mail.</li>
+<li>Si vous êtes le seul membre de votre maison : toutes les données de la maison (dépenses, revenus, factures, documents, pièces jointes et réglages).</li>
+<li>Si la maison est partagée avec d'autres personnes : vous quittez la maison, mais ses données restent aux autres membres.</li>
+<li>Les éventuelles copies de sauvegarde techniques sont écrasées sous 30 jours.</li>
+</ul>
+<div class="box"><p><b>Abonnement :</b> supprimer le compte ne résilie pas un abonnement acheté sur l'App Store ou Google Play. Résiliez-le dans les réglages de votre compte Apple ou Google.</p></div>
+<p>Avant de supprimer, vous pouvez télécharger une copie de vos données depuis <b>Autre → Sauvegarde</b>.</p>
+</div>
+<footer><a href="privacy.html?lang=fr">Confidentialité</a><a href="termini.html?lang=fr">Conditions</a><a href="elimina-account.html?lang=fr">Supprimer le compte</a><a href="supporto.html?lang=fr">Assistance</a><a href="./">Ouvrir l'app</a></footer>
+</div>
+<div class="lb" data-l="de" lang="de">
+<h1>Konto und Daten löschen</h1><p class="upd">Zuletzt aktualisiert: 12. Oktober 2026</p>
+<p class="nota">Diese Übersetzung dient nur der Information. Bei Abweichungen ist die italienische Fassung maßgeblich.</p>
+<div class="card">
+<p>Du kannst dein <b>Spese Casa</b>-Konto und die zugehörigen Daten jederzeit löschen.</p>
+<h2>In der App (sofort)</h2>
+<ol class="steps">
+<li>Öffne Spese Casa und melde dich an.</li>
+<li>Gehe zu <b>Sonstiges</b> → Bereich <b>Konto</b>.</li>
+<li>Tippe auf <b>Konto löschen</b> und bestätige.</li>
+</ol>
+<h2>Ohne die App</h2>
+<p>Schreibe an <a href="mailto:tettostudio.app@gmail.com?subject=Kontol%C3%B6schung%20Spese%20Casa">tettostudio.app@gmail.com</a> <b>von der E-Mail-Adresse, mit der du dich anmeldest</b>, mit dem Betreff „Kontolöschung“. Wir löschen das Konto innerhalb von 30 Tagen und bestätigen dir die Löschung.</p>
+<h2>Was gelöscht wird</h2>
+<ul>
+<li>Dein Konto und deine E-Mail.</li>
+<li>Wenn du das einzige Mitglied deines Haushalts bist: alle Daten des Haushalts (Ausgaben, Einnahmen, Rechnungen, Dokumente, Anhänge und Einstellungen).</li>
+<li>Wenn der Haushalt mit anderen geteilt ist: Du verlässt den Haushalt, aber seine Daten bleiben den anderen Mitgliedern erhalten.</li>
+<li>Etwaige technische Sicherungskopien werden innerhalb von 30 Tagen überschrieben.</li>
+</ul>
+<div class="box"><p><b>Abonnement:</b> Das Löschen des Kontos kündigt kein im App Store oder bei Google Play gekauftes Abonnement. Kündige es in den Einstellungen deines Apple- oder Google-Kontos.</p></div>
+<p>Vor dem Löschen kannst du unter <b>Sonstiges → Backup</b> eine Kopie deiner Daten herunterladen.</p>
+</div>
+<footer><a href="privacy.html?lang=de">Datenschutz</a><a href="termini.html?lang=de">Nutzungsbedingungen</a><a href="elimina-account.html?lang=de">Konto löschen</a><a href="supporto.html?lang=de">Support</a><a href="./">App öffnen</a></footer>
+</div>
 </div></body></html>

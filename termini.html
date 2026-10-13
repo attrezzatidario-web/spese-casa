@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="it" data-l="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Termini · Spese Casa</title><meta name="description" content="Termini di utilizzo di Spese Casa">
 <link rel="icon" href="logo.svg"><style>
 :root{--bg:#f6f6f4;--surface:#fff;--ink:#18181b;--ink2:#52525b;--muted:#8a8a93;--line:#e7e7e3;--accent:#1f7a5a;--soft:#e5f1ec}
@@ -20,11 +20,20 @@ a{color:var(--accent)}b,strong{color:var(--ink)}
 .steps{counter-reset:s;list-style:none;padding:0}.steps li{counter-increment:s;position:relative;padding-left:40px;margin:12px 0}
 .steps li::before{content:counter(s);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center}
 footer{margin-top:28px;font-size:14px;color:var(--muted);display:flex;flex-wrap:wrap;gap:16px}footer a{color:var(--muted)}
-</style></head>
-<body><div class="w">
-<div class="top"><img src="logo.svg" alt=""><div><b>Spese Casa</b><span>Tetto Studio</span></div></div>
-<h1>Termini di utilizzo</h1><p class="upd">Ultimo aggiornamento: 12 ottobre 2026</p>
 
+.lg{display:flex;gap:4px;margin-left:auto}.lg a{font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;padding:5px 8px;border-radius:8px}.lg a[aria-current]{background:var(--soft);color:var(--accent)}
+.lb{display:none}html[data-l=it] .lb[data-l=it],html[data-l=en] .lb[data-l=en],html[data-l=es] .lb[data-l=es],html[data-l=fr] .lb[data-l=fr],html[data-l=de] .lb[data-l=de]{display:block}
+.nota{font-size:13px;color:var(--muted);margin:-18px 0 24px}
+</style><script>(function(){var L=["it", "en", "es", "fr", "de"],T={"it": {"title": "Termini · Spese Casa", "desc": "Termini di utilizzo di Spese Casa"}, "en": {"title": "Terms · Spese Casa", "desc": "Spese Casa terms of use"}, "es": {"title": "Términos · Spese Casa", "desc": "Términos de uso de Spese Casa"}, "fr": {"title": "Conditions · Spese Casa", "desc": "Conditions d'utilisation de Spese Casa"}, "de": {"title": "Nutzungsbedingungen · Spese Casa", "desc": "Nutzungsbedingungen von Spese Casa"}},l='';try{l=new URLSearchParams(location.search).get('lang')||''}catch(e){}
+if(L.indexOf(l)<0){try{l=localStorage.getItem('sc_lang')||''}catch(e){}}
+if(L.indexOf(l)<0){l=(navigator.language||'it').slice(0,2).toLowerCase()}
+if(L.indexOf(l)<0)l='it';var d=document.documentElement;d.lang=l;d.setAttribute('data-l',l);document.title=T[l].title;
+var m=document.querySelector('meta[name=description]');if(m)m.setAttribute('content',T[l].desc);
+document.addEventListener('DOMContentLoaded',function(){var a=document.querySelector('.lg a[data-k="'+l+'"]');if(a)a.setAttribute('aria-current','true')})})();</script></head>
+<body><div class="w">
+<div class="top"><img src="logo.svg" alt=""><div><b>Spese Casa</b><span>Tetto Studio</span></div><nav class="lg" aria-label="Lingua · Language"><a href="?lang=it" data-k="it" hreflang="it" lang="it">IT</a><a href="?lang=en" data-k="en" hreflang="en" lang="en">EN</a><a href="?lang=es" data-k="es" hreflang="es" lang="es">ES</a><a href="?lang=fr" data-k="fr" hreflang="fr" lang="fr">FR</a><a href="?lang=de" data-k="de" hreflang="de" lang="de">DE</a></nav></div>
+<div class="lb" data-l="it" lang="it">
+<h1>Termini di utilizzo</h1><p class="upd">Ultimo aggiornamento: 12 ottobre 2026</p>
 <div class="card">
 <p>Questi termini regolano l'uso di <b>Spese Casa</b>, offerta da Dario Garnet (Tetto Studio). Usando l'app li accetti.</p>
 <h2>Il servizio</h2>
@@ -54,4 +63,137 @@ footer{margin-top:28px;font-size:14px;color:var(--muted);display:flex;flex-wrap:
 <p><a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a></p>
 </div>
 <footer><a href="privacy.html">Privacy</a><a href="termini.html">Termini</a><a href="elimina-account.html">Eliminare l'account</a><a href="supporto.html">Supporto</a><a href="./">Apri l'app</a></footer>
+</div>
+<div class="lb" data-l="en" lang="en">
+<h1>Terms of use</h1><p class="upd">Last updated: 12 October 2026</p>
+<p class="nota">This is a translation provided for convenience. In case of any discrepancy, the Italian version prevails.</p>
+<div class="card">
+<p>These terms govern the use of <b>Spese Casa</b>, offered by Dario Garnet (Tetto Studio). By using the app you accept them.</p>
+<h2>The service</h2>
+<p>Spese Casa helps you record your home's expenses, income, bills, due dates and documents, also together with other people. We do our best to keep it working well, but the service is provided "as is" and may have interruptions or errors.</p>
+<h2>Account</h2>
+<p>You sign in with your email. You are responsible for what you enter and for the people you invite to your home: anyone who joins can see and change all of the home's data.</p>
+<h2>Your data stays yours</h2>
+<p>What you upload to the app (expenses, amounts, documents, receipts and attachments) belongs to you. Only you and the people in your home can see it. The operator of the service does not look at or use your content, except when you ask for support or when required by law, as explained in the <a href="privacy.html?lang=en">privacy policy</a>. You can download a full copy of your data (Other → Backup) and delete it at any time.</p>
+<h2>Free plan and Premium</h2>
+<ul>
+<li>The free plan includes the basic features. <b>Premium</b> unlocks additional features (artificial intelligence, shared home, car, maintenance, projects, 730 tax summary, larger storage, advanced notifications) and applies to the whole home.</li>
+<li>Premium costs <b>€4.99 per month</b> or <b>€39.99 per year</b>. If you have never used it, you can try it <b>free for 7 days</b>, once only.</li>
+<li>In the iPhone and Android apps the subscription is bought through the <b>App Store</b> or <b>Google Play</b>: it renews automatically until you cancel it from your Apple or Google account settings, at least 24 hours before renewal. Refunds follow Apple's and Google's rules.</li>
+<li>If the subscription ends, your data stays saved and the Premium features are locked again.</li>
+</ul>
+<h2>Artificial intelligence</h2>
+<p>The AI features use a Google Gemini key provided by you and Google's related terms. Results may be inaccurate: always check them. The information in the app (for example the estimated 730 refund) is indicative and <b>does not constitute tax, legal or financial advice</b>.</p>
+<h2>Fair use</h2>
+<p>Do not use the app for illegal purposes, to upload third-party content without the right to do so, or to try to access other people's data.</p>
+<h2>Liability</h2>
+<p>To the extent permitted by law, we are not liable for indirect damages arising from the use of the app, from incorrectly entered data or from missed due dates. We recommend downloading a copy of your data regularly (Other → Backup). The rights granted to consumers by law are not affected.</p>
+<h2>Closing your account</h2>
+<p>You can delete your account at any time from the app. We may suspend accounts used in breach of these terms.</p>
+<h2>Governing law</h2>
+<p>Italian law applies. For consumers, the courts of the consumer's place of residence remain competent, and the mandatory consumer protections of the country where you live are not affected.</p>
+<h2>Contact</h2>
+<p><a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a></p>
+</div>
+<footer><a href="privacy.html?lang=en">Privacy</a><a href="termini.html?lang=en">Terms</a><a href="elimina-account.html?lang=en">Delete your account</a><a href="supporto.html?lang=en">Support</a><a href="./">Open the app</a></footer>
+</div>
+<div class="lb" data-l="es" lang="es">
+<h1>Términos de uso</h1><p class="upd">Última actualización: 12 de octubre de 2026</p>
+<p class="nota">Esta es una traducción ofrecida para tu comodidad. En caso de discrepancia, prevalece la versión italiana.</p>
+<div class="card">
+<p>Estos términos regulan el uso de <b>Spese Casa</b>, ofrecida por Dario Garnet (Tetto Studio). Al usar la app los aceptas.</p>
+<h2>El servicio</h2>
+<p>Spese Casa te ayuda a registrar gastos, ingresos, recibos, vencimientos y documentos de casa, también junto con otras personas. Hacemos todo lo posible para que funcione siempre bien, pero el servicio se ofrece "tal cual" y puede tener interrupciones o errores.</p>
+<h2>Cuenta</h2>
+<p>Accedes con tu correo. Eres responsable de lo que introduces y de las personas que invitas a tu casa: quien entra puede ver y modificar todos los datos de la casa.</p>
+<h2>Tus datos siguen siendo tuyos</h2>
+<p>Lo que subes a la app (gastos, importes, documentos, tickets y adjuntos) te pertenece. Solo lo veis tú y las personas de tu casa. El gestor del servicio no consulta ni utiliza tus contenidos, salvo petición tuya de asistencia u obligación legal, como se explica en la <a href="privacy.html?lang=es">política de privacidad</a>. Puedes descargar una copia completa de tus datos (Otro → Copia de seguridad) y eliminarlos en cualquier momento.</p>
+<h2>Plan gratuito y Premium</h2>
+<ul>
+<li>El plan gratuito incluye las funciones básicas. <b>Premium</b> desbloquea funciones adicionales (inteligencia artificial, casa compartida, coche, mantenimientos, proyectos, resumen 730, archivo más grande, notificaciones avanzadas) y vale para toda la casa.</li>
+<li>Premium cuesta <b>4,99 € al mes</b> o <b>39,99 € al año</b>. Si nunca lo has usado, puedes probarlo <b>gratis durante 7 días</b>, una sola vez.</li>
+<li>En las apps para iPhone y Android la suscripción se compra a través de <b>App Store</b> o <b>Google Play</b>: se renueva automáticamente hasta que la canceles desde los ajustes de tu cuenta de Apple o Google, al menos 24 horas antes de la renovación. Los reembolsos siguen las reglas de Apple y Google.</li>
+<li>Si la suscripción termina, tus datos siguen guardados y las funciones Premium vuelven a bloquearse.</li>
+</ul>
+<h2>Inteligencia artificial</h2>
+<p>Las funciones de IA usan una clave de Google Gemini proporcionada por ti y los correspondientes términos de Google. Los resultados pueden ser imprecisos: compruébalos siempre. La información de la app (por ejemplo el reembolso 730 estimado) es orientativa y <b>no constituye asesoramiento fiscal, legal ni financiero</b>.</p>
+<h2>Uso correcto</h2>
+<p>No uses la app con fines ilegales, para subir contenidos de terceros sin tener derecho a ello ni para intentar acceder a datos de otras personas.</p>
+<h2>Responsabilidad</h2>
+<p>En la medida permitida por la ley, no respondemos de daños indirectos derivados del uso de la app, de datos introducidos de forma errónea o de vencimientos no respetados. Te recomendamos descargar periódicamente una copia de tus datos (Otro → Copia de seguridad). Quedan a salvo los derechos que la ley reconoce a los consumidores.</p>
+<h2>Cierre</h2>
+<p>Puedes eliminar tu cuenta en cualquier momento desde la app. Podemos suspender las cuentas usadas incumpliendo estos términos.</p>
+<h2>Ley aplicable</h2>
+<p>Se aplica la ley italiana. Para los consumidores sigue siendo competente el tribunal de su lugar de residencia, y no se ven afectadas las protecciones obligatorias del país en el que vives.</p>
+<h2>Contacto</h2>
+<p><a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a></p>
+</div>
+<footer><a href="privacy.html?lang=es">Privacidad</a><a href="termini.html?lang=es">Términos</a><a href="elimina-account.html?lang=es">Eliminar la cuenta</a><a href="supporto.html?lang=es">Soporte</a><a href="./">Abrir la app</a></footer>
+</div>
+<div class="lb" data-l="fr" lang="fr">
+<h1>Conditions d'utilisation</h1><p class="upd">Dernière mise à jour : 12 octobre 2026</p>
+<p class="nota">Cette traduction est fournie pour votre commodité. En cas de divergence, la version italienne prévaut.</p>
+<div class="card">
+<p>Ces conditions régissent l'utilisation de <b>Spese Casa</b>, proposée par Dario Garnet (Tetto Studio). En utilisant l'app, vous les acceptez.</p>
+<h2>Le service</h2>
+<p>Spese Casa vous aide à enregistrer les dépenses, revenus, factures, échéances et documents de la maison, y compris avec d'autres personnes. Nous faisons tout notre possible pour qu'elle fonctionne toujours bien, mais le service est fourni « en l'état » et peut connaître des interruptions ou des erreurs.</p>
+<h2>Compte</h2>
+<p>Vous vous connectez avec votre e-mail. Vous êtes responsable de ce que vous saisissez et des personnes que vous invitez dans votre maison : toute personne qui la rejoint peut voir et modifier toutes les données de la maison.</p>
+<h2>Vos données restent les vôtres</h2>
+<p>Ce que vous ajoutez dans l'app (dépenses, montants, documents, tickets et pièces jointes) vous appartient. Seuls vous et les personnes de votre maison le voient. L'exploitant du service ne consulte ni n'utilise vos contenus, sauf demande d'assistance de votre part ou obligation légale, comme expliqué dans la <a href="privacy.html?lang=fr">politique de confidentialité</a>. Vous pouvez télécharger une copie complète de vos données (Autre → Sauvegarde) et les supprimer à tout moment.</p>
+<h2>Offre gratuite et Premium</h2>
+<ul>
+<li>L'offre gratuite comprend les fonctions de base. <b>Premium</b> débloque des fonctions supplémentaires (intelligence artificielle, maison partagée, voiture, entretiens, projets, récapitulatif 730, archive plus grande, notifications avancées) et s'applique à toute la maison.</li>
+<li>Premium coûte <b>4,99 € par mois</b> ou <b>39,99 € par an</b>. Si vous ne l'avez jamais utilisé, vous pouvez l'essayer <b>gratuitement pendant 7 jours</b>, une seule fois.</li>
+<li>Dans les apps pour iPhone et Android, l'abonnement s'achète via l'<b>App Store</b> ou <b>Google Play</b> : il se renouvelle automatiquement jusqu'à ce que vous le résiliiez dans les réglages de votre compte Apple ou Google, au moins 24 heures avant le renouvellement. Les remboursements suivent les règles d'Apple et de Google.</li>
+<li>Si l'abonnement prend fin, vos données restent enregistrées et les fonctions Premium sont à nouveau verrouillées.</li>
+</ul>
+<h2>Intelligence artificielle</h2>
+<p>Les fonctions IA utilisent une clé Google Gemini fournie par vous et les conditions de Google correspondantes. Les résultats peuvent être imprécis : vérifiez-les toujours. Les informations de l'app (par exemple le remboursement 730 estimé) sont indicatives et <b>ne constituent pas un conseil fiscal, juridique ou financier</b>.</p>
+<h2>Utilisation correcte</h2>
+<p>N'utilisez pas l'app à des fins illégales, pour ajouter des contenus de tiers sans en avoir le droit ou pour tenter d'accéder aux données d'autres personnes.</p>
+<h2>Responsabilité</h2>
+<p>Dans les limites autorisées par la loi, nous ne sommes pas responsables des dommages indirects découlant de l'utilisation de l'app, de données saisies de manière erronée ou d'échéances non respectées. Nous vous conseillons de télécharger régulièrement une copie de vos données (Autre → Sauvegarde). Les droits que la loi reconnaît aux consommateurs restent garantis.</p>
+<h2>Clôture</h2>
+<p>Vous pouvez supprimer votre compte à tout moment depuis l'app. Nous pouvons suspendre les comptes utilisés en violation de ces conditions.</p>
+<h2>Droit applicable</h2>
+<p>Le droit italien s'applique. Pour les consommateurs, le tribunal du lieu de résidence du consommateur reste compétent, et les protections impératives du pays où vous vivez ne sont pas affectées.</p>
+<h2>Contact</h2>
+<p><a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a></p>
+</div>
+<footer><a href="privacy.html?lang=fr">Confidentialité</a><a href="termini.html?lang=fr">Conditions</a><a href="elimina-account.html?lang=fr">Supprimer le compte</a><a href="supporto.html?lang=fr">Assistance</a><a href="./">Ouvrir l'app</a></footer>
+</div>
+<div class="lb" data-l="de" lang="de">
+<h1>Nutzungsbedingungen</h1><p class="upd">Zuletzt aktualisiert: 12. Oktober 2026</p>
+<p class="nota">Diese Übersetzung dient nur der Information. Bei Abweichungen ist die italienische Fassung maßgeblich.</p>
+<div class="card">
+<p>Diese Bedingungen regeln die Nutzung von <b>Spese Casa</b>, angeboten von Dario Garnet (Tetto Studio). Mit der Nutzung der App akzeptierst du sie.</p>
+<h2>Der Dienst</h2>
+<p>Spese Casa hilft dir, Ausgaben, Einnahmen, Rechnungen, Fälligkeiten und Dokumente des Haushalts zu erfassen, auch gemeinsam mit anderen. Wir tun unser Bestes, damit alles gut funktioniert, aber der Dienst wird „wie besehen“ angeboten und kann Unterbrechungen oder Fehler haben.</p>
+<h2>Konto</h2>
+<p>Du meldest dich mit deiner E-Mail an. Du bist verantwortlich für das, was du eingibst, und für die Personen, die du in deinen Haushalt einlädst: Wer beitritt, kann alle Daten des Haushalts sehen und ändern.</p>
+<h2>Deine Daten gehören dir</h2>
+<p>Was du in die App hochlädst (Ausgaben, Beträge, Dokumente, Belege und Anhänge), gehört dir. Nur du und die Personen in deinem Haushalt sehen es. Der Betreiber des Dienstes sieht deine Inhalte nicht ein und nutzt sie nicht, außer auf deine Support-Anfrage oder aufgrund gesetzlicher Pflicht, wie in der <a href="privacy.html?lang=de">Datenschutzerklärung</a> beschrieben. Du kannst jederzeit eine vollständige Kopie deiner Daten herunterladen (Sonstiges → Backup) und sie löschen.</p>
+<h2>Kostenloser Tarif und Premium</h2>
+<ul>
+<li>Der kostenlose Tarif enthält die Grundfunktionen. <b>Premium</b> schaltet weitere Funktionen frei (künstliche Intelligenz, geteiltes Zuhause, Auto, Wartungen, Projekte, 730-Übersicht, größeres Archiv, erweiterte Benachrichtigungen) und gilt für den ganzen Haushalt.</li>
+<li>Premium kostet <b>4,99 € pro Monat</b> oder <b>39,99 € pro Jahr</b>. Wer es noch nie genutzt hat, kann es einmalig <b>7 Tage kostenlos testen</b>.</li>
+<li>In den Apps für iPhone und Android wird das Abonnement über den <b>App Store</b> oder <b>Google Play</b> gekauft: Es verlängert sich automatisch, bis du es mindestens 24 Stunden vor der Verlängerung in den Einstellungen deines Apple- oder Google-Kontos kündigst. Erstattungen richten sich nach den Regeln von Apple und Google.</li>
+<li>Endet das Abonnement, bleiben deine Daten gespeichert und die Premium-Funktionen werden wieder gesperrt.</li>
+</ul>
+<h2>Künstliche Intelligenz</h2>
+<p>Die KI-Funktionen nutzen einen von dir bereitgestellten Google-Gemini-Schlüssel und die entsprechenden Bedingungen von Google. Die Ergebnisse können ungenau sein: Prüfe sie immer. Die Angaben der App (zum Beispiel die geschätzte 730-Erstattung) sind Richtwerte und <b>stellen keine Steuer-, Rechts- oder Finanzberatung dar</b>.</p>
+<h2>Ordnungsgemäße Nutzung</h2>
+<p>Nutze die App nicht für rechtswidrige Zwecke, um Inhalte Dritter ohne Berechtigung hochzuladen oder um zu versuchen, auf Daten anderer Personen zuzugreifen.</p>
+<h2>Haftung</h2>
+<p>Soweit gesetzlich zulässig, haften wir nicht für mittelbare Schäden aus der Nutzung der App, aus falsch eingegebenen Daten oder aus versäumten Fälligkeiten. Wir empfehlen, regelmäßig eine Kopie deiner Daten herunterzuladen (Sonstiges → Backup). Die gesetzlichen Rechte von Verbrauchern bleiben unberührt.</p>
+<h2>Beendigung</h2>
+<p>Du kannst dein Konto jederzeit in der App löschen. Wir können Konten sperren, die unter Verstoß gegen diese Bedingungen genutzt werden.</p>
+<h2>Anwendbares Recht</h2>
+<p>Es gilt italienisches Recht. Für Verbraucher bleibt das Gericht am Wohnsitz des Verbrauchers zuständig, und die zwingenden Verbraucherschutzvorschriften deines Wohnsitzlandes bleiben unberührt.</p>
+<h2>Kontakt</h2>
+<p><a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a></p>
+</div>
+<footer><a href="privacy.html?lang=de">Datenschutz</a><a href="termini.html?lang=de">Nutzungsbedingungen</a><a href="elimina-account.html?lang=de">Konto löschen</a><a href="supporto.html?lang=de">Support</a><a href="./">App öffnen</a></footer>
+</div>
 </div></body></html>

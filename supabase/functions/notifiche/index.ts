@@ -29,14 +29,98 @@ const dm = (s: string) => String(s).slice(0, 10).split('-').reverse().slice(0, 2
 const eur = (v: unknown) => Number(v || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' €';
 const on = (v: unknown, def = true) => (v === undefined || v === null || v === '') ? def : (v === true || String(v).toUpperCase() === 'TRUE');
 
+/* ---------------- lingue (le stesse dell'app) ---------------- */
+export type Lang = 'it' | 'en' | 'es' | 'fr' | 'de';
+const LINGUE: Lang[] = ['it', 'en', 'es', 'fr', 'de'];
+export const lingua = (l: unknown): Lang => (LINGUE.includes(l as Lang) ? l as Lang : 'it');
+// testi delle notifiche: {0}, {1}… sono i valori
+const TX: Record<string, Record<Lang, string>> = {
+  oggi: { it: 'scade oggi', en: 'due today', es: 'vence hoy', fr: "échéance aujourd'hui", de: 'heute fällig' },
+  tra1: { it: 'tra 1 giorno', en: 'in 1 day', es: 'en 1 día', fr: 'dans 1 jour', de: 'in 1 Tag' },
+  traN: { it: 'tra {0} giorni', en: 'in {0} days', es: 'en {0} días', fr: 'dans {0} jours', de: 'in {0} Tagen' },
+  scad1: { it: 'scaduto da 1 giorno', en: 'overdue by 1 day', es: 'vencido hace 1 día', fr: 'en retard de 1 jour', de: 'seit 1 Tag überfällig' },
+  scadN: { it: 'scaduto da {0} giorni', en: 'overdue by {0} days', es: 'vencido hace {0} días', fr: 'en retard de {0} jours', de: 'seit {0} Tagen überfällig' },
+  affitto: { it: 'Affitto {0}', en: 'Rent {0}', es: 'Alquiler {0}', fr: 'Loyer {0}', de: 'Miete {0}' },
+  autoOggi: { it: 'addebito automatico oggi', en: 'automatic debit today', es: 'cargo automático hoy', fr: "prélèvement automatique aujourd'hui", de: 'automatische Abbuchung heute' },
+  autoTra: { it: 'addebito automatico {0}', en: 'automatic debit {0}', es: 'cargo automático {0}', fr: 'prélèvement automatique {0}', de: 'automatische Abbuchung {0}' },
+  Assicurazione: { it: 'Assicurazione', en: 'Insurance', es: 'Seguro', fr: 'Assurance', de: 'Versicherung' },
+  Bollo: { it: 'Bollo', en: 'Road tax', es: 'Impuesto de circulación', fr: 'Taxe auto', de: 'Kfz-Steuer' },
+  Revisione: { it: 'Revisione', en: 'MOT/inspection', es: 'ITV', fr: 'Contrôle technique', de: 'TÜV/Hauptuntersuchung' },
+  Tagliando: { it: 'Tagliando', en: 'Service', es: 'Revisión', fr: 'Entretien', de: 'Inspektion' },
+  manut: { it: 'Manutenzione: {0}', en: 'Maintenance: {0}', es: 'Mantenimiento: {0}', fr: 'Entretien : {0}', de: 'Wartung: {0}' },
+  daFare: { it: 'Da fare: {0}', en: 'To do: {0}', es: 'Pendiente: {0}', fr: 'À faire : {0}', de: 'Zu erledigen: {0}' },
+  domani: { it: 'domani', en: 'tomorrow', es: 'mañana', fr: 'demain', de: 'morgen' },
+  oggi2: { it: 'oggi', en: 'today', es: 'hoy', fr: "aujourd'hui", de: 'heute' },
+  ritardo1: { it: 'in ritardo di 1 giorno', en: '1 day late', es: '1 día de retraso', fr: '1 jour de retard', de: '1 Tag überfällig' },
+  ritardoN: { it: 'in ritardo di {0} giorni', en: '{0} days late', es: '{0} días de retraso', fr: '{0} jours de retard', de: '{0} Tage überfällig' },
+  limSup: { it: 'Limite di spesa superato', en: 'Spending limit exceeded', es: 'Límite de gasto superado', fr: 'Limite de dépenses dépassée', de: 'Ausgabenlimit überschritten' },
+  limQuasi: { it: 'Limite di spesa quasi raggiunto', en: 'Spending limit almost reached', es: 'Límite de gasto casi alcanzado', fr: 'Limite de dépenses presque atteinte', de: 'Ausgabenlimit fast erreicht' },
+  speso: { it: 'speso {0} su {1}', en: 'spent {0} of {1}', es: 'gastado {0} de {1}', fr: 'dépensé {0} sur {1}', de: '{0} von {1} ausgegeben' },
+  budCat: { it: 'Budget superato: {0}', en: 'Budget exceeded: {0}', es: 'Presupuesto superado: {0}', fr: 'Budget dépassé : {0}', de: 'Budget überschritten: {0}' },
+  garanzia: { it: 'Garanzia: {0}', en: 'Warranty: {0}', es: 'Garantía: {0}', fr: 'Garantie : {0}', de: 'Garantie: {0}' },
+  scadDoc: { it: 'Scadenza: {0}', en: 'Expiry: {0}', es: 'Vencimiento: {0}', fr: 'Échéance : {0}', de: 'Ablauf: {0}' },
+  documento: { it: 'documento', en: 'document', es: 'documento', fr: 'document', de: 'Dokument' },
+  gommeInv: { it: 'Gomme invernali', en: 'Winter tyres', es: 'Neumáticos de invierno', fr: 'Pneus hiver', de: 'Winterreifen' },
+  gommeInvD: { it: 'dal 15 novembre servono gomme invernali o catene a bordo', en: 'from 15 November in Italy you need winter tyres or chains on board', es: 'desde el 15 de noviembre en Italia se necesitan neumáticos de invierno o cadenas', fr: "à partir du 15 novembre en Italie, pneus hiver ou chaînes à bord obligatoires", de: 'ab 15. November sind in Italien Winterreifen oder Ketten an Bord Pflicht' },
+  gommeEst: { it: 'Gomme estive', en: 'Summer tyres', es: 'Neumáticos de verano', fr: 'Pneus été', de: 'Sommerreifen' },
+  gommeEstD: { it: 'dal 15 aprile puoi rimontare le estive (entro il 15 maggio)', en: 'from 15 April you can switch back to summer tyres (by 15 May)', es: 'desde el 15 de abril puedes volver a los de verano (antes del 15 de mayo)', fr: "à partir du 15 avril vous pouvez remonter les pneus été (avant le 15 mai)", de: 'ab 15. April kannst du wieder Sommerreifen aufziehen (bis 15. Mai)' },
+  progetto: { it: 'Progetto oltre il budget: {0}', en: 'Project over budget: {0}', es: 'Proyecto por encima del presupuesto: {0}', fr: 'Projet au-delà du budget : {0}', de: 'Projekt über Budget: {0}' },
+  meseChiuso: { it: 'Mese chiuso: {0}', en: 'Month closed: {0}', es: 'Mes cerrado: {0}', fr: 'Mois clôturé : {0}', de: 'Monat abgeschlossen: {0}' },
+  vsMese: { it: '{0}% rispetto al mese prima', en: '{0}% vs the month before', es: '{0}% respecto al mes anterior', fr: '{0} % par rapport au mois précédent', de: '{0} % gegenüber dem Vormonat' },
+  piuSpesa: { it: 'più spesa: {0} ({1})', en: 'top spending: {0} ({1})', es: 'mayor gasto: {0} ({1})', fr: 'plus grosse dépense : {0} ({1})', de: 'höchste Ausgabe: {0} ({1})' },
+  d730: { it: 'Dichiarazione 730', en: '730 tax return', es: 'Declaración 730', fr: 'Déclaration 730', de: 'Steuererklärung 730' },
+  d730D: { it: '{0} spese detraibili nel {1} per {2}: trovi il riepilogo in Altro → Riepilogo 730', en: '{0} deductible expenses in {1} for {2}: see the summary in Other → 730 tax summary', es: '{0} gastos deducibles en {1} por {2}: tienes el resumen en Otro → Resumen 730', fr: '{0} dépenses déductibles en {1} pour {2} : récapitulatif dans Autre → Récapitulatif 730', de: '{0} absetzbare Ausgaben in {1} für {2}: Übersicht unter Sonstiges → 730-Übersicht' },
+  lista1: { it: 'Lista della spesa: 1 prodotto', en: 'Shopping list: 1 item', es: 'Lista de la compra: 1 producto', fr: 'Liste de courses : 1 produit', de: 'Einkaufsliste: 1 Artikel' },
+  listaN: { it: 'Lista della spesa: {0} prodotti', en: 'Shopping list: {0} items', es: 'Lista de la compra: {0} productos', fr: 'Liste de courses : {0} produits', de: 'Einkaufsliste: {0} Artikel' },
+  registra: { it: 'Spese da registrare?', en: 'Expenses to record?', es: '¿Gastos por registrar?', fr: 'Des dépenses à enregistrer ?', de: 'Ausgaben zu erfassen?' },
+  registraD: { it: 'nessuna spesa da {0} giorni: aggiungi gli scontrini rimasti in tasca', en: 'no expenses for {0} days: add the receipts left in your pocket', es: 'ningún gasto desde hace {0} días: añade los tickets que te quedan en el bolsillo', fr: 'aucune dépense depuis {0} jours : ajoutez les tickets restés dans votre poche', de: 'seit {0} Tagen keine Ausgaben: erfasse die Belege aus deiner Tasche' },
+  nProm: { it: 'Spese Casa · {0} promemoria', en: 'Spese Casa · {0} reminders', es: 'Spese Casa · {0} recordatorios', fr: 'Spese Casa · {0} rappels', de: 'Spese Casa · {0} Erinnerungen' },
+  altri: { it: '…e altri {0}', en: '…and {0} more', es: '…y {0} más', fr: '…et {0} autres', de: '…und {0} weitere' },
+  provaT: { it: 'Notifiche attive ✅', en: 'Notifications on ✅', es: 'Notificaciones activas ✅', fr: 'Notifications activées ✅', de: 'Benachrichtigungen aktiv ✅' },
+  provaB: { it: 'Da domani ti avviso qui quando qualcosa sta per scadere.', en: "From tomorrow I'll let you know here when something is about to fall due.", es: 'A partir de mañana te aviso aquí cuando algo esté por vencer.', fr: "Dès demain je vous préviens ici quand quelque chose arrive à échéance.", de: 'Ab morgen melde ich mich hier, wenn etwas fällig wird.' },
+  resoconto: { it: 'Il tuo resoconto', en: 'Your report', es: 'Tu informe', fr: 'Votre bilan', de: 'Dein Bericht' }
+};
+// categorie predefinite dell'app (quelle aggiunte dall'utente restano come sono)
+const CAT: Record<string, Record<Lang, string>> = {
+  'Spesa alimentare': { it: 'Spesa alimentare', en: 'Groceries', es: 'Supermercado', fr: 'Courses alimentaires', de: 'Lebensmittel' },
+  'Luce': { it: 'Luce', en: 'Electricity', es: 'Luz', fr: 'Électricité', de: 'Strom' },
+  'Gas': { it: 'Gas', en: 'Gas', es: 'Gas', fr: 'Gaz', de: 'Gas' },
+  'Acqua': { it: 'Acqua', en: 'Water', es: 'Agua', fr: 'Eau', de: 'Wasser' },
+  'Internet e telefono': { it: 'Internet e telefono', en: 'Internet and phone', es: 'Internet y teléfono', fr: 'Internet et téléphone', de: 'Internet und Telefon' },
+  'Affitto / Mutuo': { it: 'Affitto / Mutuo', en: 'Rent / Mortgage', es: 'Alquiler / Hipoteca', fr: 'Loyer / Prêt', de: 'Miete / Kredit' },
+  'Condominio': { it: 'Condominio', en: 'Building fees', es: 'Comunidad', fr: 'Copropriété', de: 'Hausgeld' },
+  'Tasse e tributi': { it: 'Tasse e tributi', en: 'Taxes and duties', es: 'Impuestos y tasas', fr: 'Impôts et taxes', de: 'Steuern und Abgaben' },
+  'Assicurazioni': { it: 'Assicurazioni', en: 'Insurance', es: 'Seguros', fr: 'Assurances', de: 'Versicherungen' },
+  'Manutenzione': { it: 'Manutenzione', en: 'Maintenance', es: 'Mantenimiento', fr: 'Entretien', de: 'Wartung' },
+  'Arredamento': { it: 'Arredamento', en: 'Furniture', es: 'Muebles', fr: 'Ameublement', de: 'Einrichtung' },
+  'Elettrodomestici': { it: 'Elettrodomestici', en: 'Appliances', es: 'Electrodomésticos', fr: 'Électroménager', de: 'Haushaltsgeräte' },
+  'Pulizia e casa': { it: 'Pulizia e casa', en: 'Cleaning and home', es: 'Limpieza y hogar', fr: 'Ménage et maison', de: 'Putzen und Haushalt' },
+  'Auto e trasporti': { it: 'Auto e trasporti', en: 'Car and transport', es: 'Coche y transporte', fr: 'Voiture et transports', de: 'Auto und Verkehr' },
+  'Salute': { it: 'Salute', en: 'Health', es: 'Salud', fr: 'Santé', de: 'Gesundheit' },
+  'Animali': { it: 'Animali', en: 'Pets', es: 'Mascotas', fr: 'Animaux', de: 'Haustiere' },
+  'Altro': { it: 'Altro', en: 'Other', es: 'Otros', fr: 'Autre', de: 'Sonstiges' },
+  'Abbonamenti': { it: 'Abbonamenti', en: 'Subscriptions', es: 'Suscripciones', fr: 'Abonnements', de: 'Abos' }
+};
+export const tx = (L: Lang, k: string, v: unknown[] = []) => String((TX[k] || {} as any)[L] ?? (TX[k] || {} as any).it ?? k).replace(/\{(\d+)\}/g, (_m, i) => String(v[+i] ?? ''));
+const cat = (L: Lang, c: string) => (CAT[c] && CAT[c][L]) || c;
+// importi e date nel formato della lingua
+export const eurL = (L: Lang, v: unknown) => {
+  const s = Number(v || 0).toFixed(2), [i, d] = s.split('.');
+  const sep = L === 'en' ? [',', '.'] : L === 'fr' ? [' ', ','] : ['.', ','];
+  const n = i.replace(/\B(?=(\d{3})+(?!\d))/g, sep[0]) + sep[1] + d;
+  return L === 'en' ? (n.startsWith('-') ? '-€' + n.slice(1) : '€' + n) : n + ' €';
+};
+const dmL = (L: Lang, s: string) => { const [, m, d] = String(s).slice(0, 10).split('-'); return L === 'en' || L === 'fr' || L === 'es' || L === 'it' ? d + '/' + m : d + '.' + m + '.'; };
+
 /* ---------------- calcolo dei promemoria (puro, testabile) ---------------- */
-type Item = { titolo: string; dettaglio: string; importo?: number; key?: string };
+type Item = { titolo: string; dettaglio: string; importo?: number; key?: string; lista?: boolean };
 // dati: { config, bollette, fisse, veicoli, manutenzioni, faccende, spese }
-export function promemoria(dati: any, today: string): Item[] {
+export function promemoria(dati: any, today: string, L: Lang = 'it'): Item[] {
+  const eur = (v: unknown) => eurL(L, v), dm = (s: string) => dmL(L, s);
   const cfg = dati.config || {}, n = cfg.notifiche || {};
   const giorni = Math.max(0, n.giorniPrima != null && n.giorniPrima !== '' ? Number(n.giorniPrima) : 3);
   const avvisa = (dd: number) => dd === giorni || dd === 0 || dd === -1 || dd === -3 || dd === -7;
-  const quando = (dd: number) => dd === 0 ? 'scade oggi' : dd > 0 ? 'tra ' + dd + (dd === 1 ? ' giorno' : ' giorni') : 'scaduto da ' + (-dd) + (dd === -1 ? ' giorno' : ' giorni');
+  const quando = (dd: number) => dd === 0 ? tx(L, 'oggi') : dd > 0 ? (dd === 1 ? tx(L, 'tra1') : tx(L, 'traN', [dd])) : (dd === -1 ? tx(L, 'scad1') : tx(L, 'scadN', [-dd]));
   const spese: any[] = dati.spese || [];
   const items: Item[] = [];
   const P = dati.premium !== false; // funzioni Premium (auto, manutenzioni, progetti, avvisi avanzati)
@@ -54,7 +138,7 @@ export function promemoria(dati: any, today: string): Item[] {
       if (spese.some(s => s.bollettaId === 'affitto:' + mk)) return;
       const dd = diffDays(due, today);
       // piano gratis: i pagamenti non si registrano, quindi niente avvisi "scaduto da…"
-      if (avvisa(dd) && (P || dd >= 0)) items.push({ titolo: 'Affitto ' + mk.slice(5) + '/' + mk.slice(0, 4), dettaglio: quando(dd) + ' (' + dm(due) + ')', importo: Number(a.canone) || 0 });
+      if (avvisa(dd) && (P || dd >= 0)) items.push({ titolo: tx(L, 'affitto', [mk.slice(5) + '/' + mk.slice(0, 4)]), dettaglio: quando(dd) + ' (' + dm(due) + ')', importo: Number(a.canone) || 0 });
     });
   }
   if (n.bollette !== false) {
@@ -66,7 +150,7 @@ export function promemoria(dati: any, today: string): Item[] {
   if (n.fisse !== false) {
     (dati.fisse || []).filter((f: any) => on(f.attiva) && on(f.notifica) && f.prossima).forEach((f: any) => {
       const dd = diffDays(f.prossima, today);
-      if (on(f.auto, false)) { if (dd === giorni || dd === 0) items.push({ titolo: f.nome, dettaglio: 'addebito automatico ' + (dd === 0 ? 'oggi' : 'tra ' + dd + (dd === 1 ? ' giorno' : ' giorni')), importo: Number(f.importo) || 0 }); }
+      if (on(f.auto, false)) { if (dd === giorni || dd === 0) items.push({ titolo: f.nome, dettaglio: dd === 0 ? tx(L, 'autoOggi') : tx(L, 'autoTra', [dd === 1 ? tx(L, 'tra1') : tx(L, 'traN', [dd])]), importo: Number(f.importo) || 0 }); }
       else if (avvisa(dd)) items.push({ titolo: f.nome, dettaglio: quando(dd) + ' (' + dm(f.prossima) + ')', importo: Number(f.importo) || 0 });
     });
   }
@@ -77,19 +161,19 @@ export function promemoria(dati: any, today: string): Item[] {
         .forEach(([t, s, imp]) => {
           if (!s) return;
           const dd = diffDays(String(s), today);
-          if (avvisa(dd) || dd === 30 || dd === 15) items.push({ titolo: t + ' ' + nome, dettaglio: quando(dd) + ' (' + dm(String(s)) + ')', importo: Number(imp) || 0 });
+          if (avvisa(dd) || dd === 30 || dd === 15) items.push({ titolo: tx(L, String(t)) + ' ' + nome, dettaglio: quando(dd) + ' (' + dm(String(s)) + ')', importo: Number(imp) || 0 });
         });
     });
   }
   if (P && n.manutenzioni !== false) {
     (dati.manutenzioni || []).filter((m: any) => on(m.attiva) && m.prossima).forEach((m: any) => {
       const dd = diffDays(m.prossima, today);
-      if (avvisa(dd) || dd === 14) items.push({ titolo: 'Manutenzione: ' + m.nome, dettaglio: quando(dd) + ' (' + dm(m.prossima) + ')', importo: Number(m.costo) || 0 });
+      if (avvisa(dd) || dd === 14) items.push({ titolo: tx(L, 'manut', [m.nome]), dettaglio: quando(dd) + ' (' + dm(m.prossima) + ')', importo: Number(m.costo) || 0 });
     });
   }
   if (n.faccende !== false) (dati.faccende || []).filter((f: any) => !on(f.fatto, false) && f.scadenza).forEach((f: any) => {
     const dd = diffDays(f.scadenza, today);
-    if (dd === 1 || dd === 0 || dd === -1 || dd === -3) items.push({ titolo: 'Da fare: ' + f.titolo, dettaglio: dd === 1 ? 'domani' : dd === 0 ? 'oggi' : 'in ritardo di ' + (-dd) + (dd === -1 ? ' giorno' : ' giorni') });
+    if (dd === 1 || dd === 0 || dd === -1 || dd === -3) items.push({ titolo: tx(L, 'daFare', [f.titolo]), dettaglio: dd === 1 ? tx(L, 'domani') : dd === 0 ? tx(L, 'oggi2') : dd === -1 ? tx(L, 'ritardo1') : tx(L, 'ritardoN', [-dd]) });
   });
 
   // budget del mese (una volta al mese, grazie alla chiave)
@@ -98,35 +182,35 @@ export function promemoria(dati: any, today: string): Item[] {
   const budOn = n.budget !== false;
   if (budOn && lim && b.email !== false) {
     const tot = delMese.filter(s => !(b.escludiAffitto && String(s.bollettaId || '').startsWith('affitto:'))).reduce((x, s) => x + (Number(s.importo) || 0), 0);
-    if (tot > lim) items.push({ titolo: 'Limite di spesa superato', dettaglio: 'speso ' + eur(tot) + ' su ' + eur(lim), key: 'budget:' + mese });
-    else if (P && tot >= lim * 0.8) items.push({ titolo: 'Limite di spesa quasi raggiunto', dettaglio: 'speso ' + eur(tot) + ' su ' + eur(lim) + ' (' + Math.round(tot / lim * 100) + '%)', key: 'budget80:' + mese });
+    if (tot > lim) items.push({ titolo: tx(L, 'limSup'), dettaglio: tx(L, 'speso', [eur(tot), eur(lim)]), key: 'budget:' + mese });
+    else if (P && tot >= lim * 0.8) items.push({ titolo: tx(L, 'limQuasi'), dettaglio: tx(L, 'speso', [eur(tot), eur(lim)]) + ' (' + Math.round(tot / lim * 100) + '%)', key: 'budget80:' + mese });
   }
   const bc = cfg.budgetCat || {}, limiti = bc.limiti || {};
   if (P && budOn && bc.email !== false) Object.keys(limiti).forEach(c => {
     const l = Number(limiti[c]) || 0; if (!l) return;
     const t = delMese.filter(s => s.categoria === c).reduce((x, s) => x + (Number(s.importo) || 0), 0);
-    if (t > l) items.push({ titolo: 'Budget superato: ' + c, dettaglio: 'speso ' + eur(t) + ' su ' + eur(l), key: 'cat:' + mese + ':' + c });
+    if (t > l) items.push({ titolo: tx(L, 'budCat', [cat(L, c)]), dettaglio: tx(L, 'speso', [eur(t), eur(l)]), key: 'cat:' + mese + ':' + c });
   });
 
   // documenti e garanzie in scadenza
   if (n.documenti !== false) {
     (dati.documenti || []).filter((d: any) => d.scadenza).forEach((d: any) => {
       const dd = diffDays(d.scadenza, today);
-      if (dd === 30 || dd === 7 || dd === 1 || dd === 0) items.push({ titolo: (d.tipo === 'Garanzie' ? 'Garanzia: ' : 'Scadenza: ') + (d.nome || 'documento'), dettaglio: quando(dd) + ' (' + dm(d.scadenza) + ')' });
+      if (dd === 30 || dd === 7 || dd === 1 || dd === 0) items.push({ titolo: tx(L, d.tipo === 'Garanzie' ? 'garanzia' : 'scadDoc', [d.nome || tx(L, 'documento')]), dettaglio: quando(dd) + ' (' + dm(d.scadenza) + ')' });
     });
   }
   // cambio gomme (obbligo invernale dal 15 novembre al 15 aprile)
   if (P && n.auto !== false && (dati.veicoli || []).some((v: any) => on(v.attiva))) {
     const md = today.slice(5);
-    if (md === '11-05') items.push({ titolo: 'Gomme invernali', dettaglio: 'dal 15 novembre servono gomme invernali o catene a bordo' });
-    if (md === '04-05') items.push({ titolo: 'Gomme estive', dettaglio: 'dal 15 aprile puoi rimontare le estive (entro il 15 maggio)' });
+    if (md === '11-05') items.push({ titolo: tx(L, 'gommeInv'), dettaglio: tx(L, 'gommeInvD') });
+    if (md === '04-05') items.push({ titolo: tx(L, 'gommeEst'), dettaglio: tx(L, 'gommeEstD') });
   }
   // budget dei progetti
   if (P && n.progetti !== false) {
     const sp: any[] = dati.speseProgetti || [];
     (dati.progetti || []).filter((p: any) => Number(p.budget) > 0 && (p.attivo === '' || p.attivo == null || on(p.attivo))).forEach((p: any) => {
       const tot = sp.filter(s => s.progetto === p.id).reduce((x, s) => x + (Number(s.importo) || 0), 0), l = Number(p.budget);
-      if (tot > l) items.push({ titolo: 'Progetto oltre il budget: ' + p.nome, dettaglio: 'speso ' + eur(tot) + ' su ' + eur(l), key: 'prj:' + p.id + ':' + Math.floor(tot / l * 10) });
+      if (tot > l) items.push({ titolo: tx(L, 'progetto', [p.nome]), dettaglio: tx(L, 'speso', [eur(tot), eur(l)]), key: 'prj:' + p.id + ':' + Math.floor(tot / l * 10) });
     });
   }
   // riepilogo del mese appena chiuso (il primo del mese)
@@ -139,36 +223,37 @@ export function promemoria(dati: any, today: string): Item[] {
       spese.filter(s => String(s.data).slice(0, 7) === m1).forEach(s => { cat[s.categoria || 'Altro'] = (cat[s.categoria || 'Altro'] || 0) + (Number(s.importo) || 0); });
       const top = Object.entries(cat).sort((x, y) => y[1] - x[1])[0];
       const diff = a2 ? Math.round((a1 - a2) / a2 * 100) : 0;
-      items.push({ titolo: 'Mese chiuso: ' + eur(a1), dettaglio: (a2 ? (diff > 0 ? '+' : '') + diff + '% rispetto al mese prima · ' : '') + 'più spesa: ' + top[0] + ' (' + eur(top[1]) + ')', key: 'mese:' + m1 });
+      items.push({ titolo: tx(L, 'meseChiuso', [eur(a1)]), dettaglio: (a2 ? tx(L, 'vsMese', [(diff > 0 ? '+' : '') + diff]) + ' · ' : '') + tx(L, 'piuSpesa', [cat(L, top[0]), eur(top[1])]), key: 'mese:' + m1 });
     }
   }
   // 730: spese detraibili dell'anno scorso (2 maggio)
   if (P && n.detrazioni !== false && today.slice(5) === '05-02') {
     const d730: any[] = dati.spese730 || [];
     const tot = d730.reduce((x, s) => x + (Number(s.importo) || 0), 0);
-    if (tot > 0) items.push({ titolo: 'Dichiarazione 730', dettaglio: d730.length + ' spese detraibili nel ' + (Number(today.slice(0, 4)) - 1) + ' per ' + eur(tot) + ': trovi il riepilogo in Altro → Riepilogo 730' });
+    if (tot > 0) items.push({ titolo: tx(L, 'd730'), dettaglio: tx(L, 'd730D', [d730.length, Number(today.slice(0, 4)) - 1, eur(tot)]) });
   }
   // lista della spesa (sabato mattina)
   if (P && n.lista === true && D(today).getUTCDay() === 6) {
     const aperti = (dati.lista || []).filter((x: any) => !on(x.fatto, false));
-    if (aperti.length) items.push({ titolo: 'Lista della spesa: ' + aperti.length + (aperti.length === 1 ? ' prodotto' : ' prodotti'), dettaglio: aperti.slice(0, 4).map((x: any) => x.nome).join(', ') + (aperti.length > 4 ? '…' : '') });
+    if (aperti.length) items.push({ lista: true, titolo: aperti.length === 1 ? tx(L, 'lista1') : tx(L, 'listaN', [aperti.length]), dettaglio: aperti.slice(0, 4).map((x: any) => x.nome).join(', ') + (aperti.length > 4 ? '…' : '') });
   }
   // nessuna spesa registrata da 3 giorni
   if (P && n.registra === true && spese.length) {
     const ultima = spese.map(s => String(s.data).slice(0, 10)).sort().pop() as string;
     const dd = diffDays(ultima, today);
-    if (dd === -3 || dd === -7) items.push({ titolo: 'Spese da registrare?', dettaglio: 'nessuna spesa da ' + (-dd) + ' giorni: aggiungi gli scontrini rimasti in tasca' });
+    if (dd === -3 || dd === -7) items.push({ titolo: tx(L, 'registra'), dettaglio: tx(L, 'registraD', [-dd]) });
   }
   return items;
 }
 
-export function messaggio(items: Item[]) {
+export function messaggio(items: Item[], L: Lang = 'it') {
+  const eur = (v: unknown) => eurL(L, v);
   const riga = (i: Item) => i.titolo + (i.importo ? ' · ' + eur(i.importo) : '') + ' — ' + i.dettaglio;
   if (items.length === 1) return { title: items[0].titolo + (items[0].importo ? ' · ' + eur(items[0].importo) : ''), body: items[0].dettaglio };
   const max = 5;
   return {
-    title: 'Spese Casa · ' + items.length + ' promemoria',
-    body: items.slice(0, max).map(riga).join('\n') + (items.length > max ? '\n…e altri ' + (items.length - max) : '')
+    title: tx(L, 'nProm', [items.length]),
+    body: items.slice(0, max).map(riga).join('\n') + (items.length > max ? '\n' + tx(L, 'altri', [items.length - max]) : '')
   };
 }
 
@@ -215,7 +300,8 @@ export function resocontoDati(dati: any, today: string) {
 }
 
 const S = (type: string, extra?: any) => Object.assign({ type }, extra || {});
-export function promptResoconto(d: any, settimanale: boolean) {
+const NOME_LINGUA: Record<Lang, string> = { it: 'italiano', en: 'English', es: 'Spanish (español)', fr: 'French (français)', de: 'German (Deutsch)' };
+export function promptResoconto(d: any, settimanale: boolean, L: Lang = 'it') {
   return 'Sei il consulente di finanza familiare dell\'app Spese Casa, per una famiglia italiana. Oggi è ' + d.giorno + '. ' +
     'Scrivi il ' + (settimanale ? 'resoconto della settimana' : 'resoconto del mattino') + ' da mostrare nell\'app e in una notifica sul telefono.\n' +
     'REGOLE: tono professionale, caldo e concreto; niente markdown né asterischi; importi nel formato 1.234,56 €; usa SOLO i dati qui sotto, non inventare.\n' +
@@ -224,7 +310,8 @@ export function promptResoconto(d: any, settimanale: boolean) {
     'testo: da 6 a 12 righe brevi, ognuna inizia con un\'emoji (📊 💶 📅 🟠 📝 🛒 💡): 1) andamento del mese (speso, rispetto allo stesso periodo del mese scorso, proiezione a fine mese, limite), 2) entrate e saldo del mese se ci sono, ' +
     '3) spese di ieri in una riga, 4) scadenze dei prossimi giorni con importi, 5) budget di categoria quasi finiti o superati, 6) cose da fare e lista della spesa se presenti. ' +
     'Chiudi con 2 consigli pratici di risparmio basati sui dati reali (righe che iniziano con 💡), riferiti a una categoria, un negozio o una spesa fissa precisa. Salta le sezioni vuote.\n' +
-    'Dati (JSON): ' + JSON.stringify(d).slice(0, 40000);
+    'Dati (JSON): ' + JSON.stringify(d).slice(0, 40000) +
+    (L === 'it' ? '' : '\n\nIMPORTANT: write titolo, anteprima and testo in ' + NOME_LINGUA[L] + ' (the family reads the app in that language), with amounts formatted like ' + eurL(L, 1234.56) + '. Keep the same structure and emojis.');
 }
 const SCHEMA_RES = S('OBJECT', { properties: { titolo: S('STRING'), anteprima: S('STRING'), testo: S('STRING') }, required: ['titolo', 'anteprima', 'testo'] });
 
@@ -272,18 +359,21 @@ export async function gemini(key: string, prompt: string, schema: any) {
   throw new Error('IA non disponibile (' + (primoErrore || 'nessun modello') + ')');
 }
 
-export async function resoconto(sb: any, hh: string, subs: any[], dati: any, today: string, forza: boolean) {
+export async function resoconto(sb: any, hh: string, subs: any[], dati: any, today: string, forza: boolean, linguaPref?: string) {
   const key0 = 'res:' + today;
   if (!forza && subs.length && await giaInviato(sb, subs[0].id, key0)) return { saltato: 'già inviato' };
   const { data: keys } = await sb.from('ai_keys').select('key').eq('household_id', hh).order('updated_at', { ascending: false }).limit(1);
   if (!keys || !keys.length) return { saltato: 'nessuna chiave IA' };
   const rs = (dati.config.notifiche || {}).resoconto || {};
-  const r = await gemini(keys[0].key, promptResoconto(resocontoDati(dati, today), rs.freq === 'settimanale'), SCHEMA_RES);
-  const row = { id: today, data: today, titolo: String(r.titolo || '').slice(0, 80), anteprima: String(r.anteprima || '').slice(0, 200), testo: String(r.testo || ''), creato: new Date().toISOString() };
+  // lingua: quella di chi l'ha chiesto, altrimenti la più usata tra i dispositivi della casa
+  const conta: Record<string, number> = {}; subs.forEach(x => { const l = lingua(x.lingua); conta[l] = (conta[l] || 0) + 1; });
+  const L = lingua(linguaPref || Object.keys(conta).sort((a, b) => conta[b] - conta[a])[0]);
+  const r = await gemini(keys[0].key, promptResoconto(resocontoDati(dati, today), rs.freq === 'settimanale', L), SCHEMA_RES);
+  const row = { id: today, data: today, lingua: L, titolo: String(r.titolo || '').slice(0, 80), anteprima: String(r.anteprima || '').slice(0, 200), testo: String(r.testo || ''), creato: new Date().toISOString() };
   await sb.from('records').upsert({ household_id: hh, sheet: 'Resoconti', id: today, data: row }, { onConflict: 'household_id,sheet,id' });
   const esiti = [];
   for (const sub of subs) {
-    const e = await invia(sb, sub, { title: row.titolo || 'Il tuo resoconto', body: row.anteprima, url: APP_URL + '#home', tag: 'spese-casa-resoconto' });
+    const e = await invia(sb, sub, { title: row.titolo || tx(lingua(sub.lingua), 'resoconto'), body: row.anteprima, url: APP_URL + '#home', tag: 'spese-casa-resoconto' });
     esiti.push(e);
     if (e === 'ok' && !forza) await segna(sb, sub.id, key0);
   }
@@ -409,16 +499,18 @@ async function gestisciCasa(sb: any, hh: string, subs: any[], today: string, for
   }
   if (!forza && ora !== Math.min(23, Math.max(0, Number(n.ora ?? 9)))) return out;
   const tutti = promemoria(dati, today);
+  const perLingua: Record<string, Item[]> = { it: tutti };
+  const testi = (l: Lang) => (perLingua[l] = perLingua[l] || promemoria(dati, today, l));
   const res: any[] = [];
   for (const sub of subs) {
     const dailyKey = 'daily:' + today;
     if (!forza && await giaInviato(sb, sub.id, dailyKey)) continue;
     // i budget superati si avvisano una volta sola al mese
-    const items: Item[] = [];
-    for (const i of tutti) { if (!i.key || forza || !(await giaInviato(sb, sub.id, i.key))) items.push(i); }
+    const items: Item[] = [], L = lingua(sub.lingua);
+    for (const i of testi(L)) { if (!i.key || forza || !(await giaInviato(sb, sub.id, i.key))) items.push(i); }
     if (!items.length) { if (!forza) await segna(sb, sub.id, dailyKey); continue; }
-    const m = messaggio(items);
-    const esito = await invia(sb, sub, { ...m, url: APP_URL + (items.length === 1 && items[0].titolo.startsWith('Lista') ? '#lista' : '#home'), tag: 'spese-casa-' + today });
+    const m = messaggio(items, L);
+    const esito = await invia(sb, sub, { ...m, url: APP_URL + (items.length === 1 && items[0].lista ? '#lista' : '#home'), tag: 'spese-casa-' + today });
     res.push(esito);
     if (esito === 'ok' && !forza) { await segna(sb, sub.id, dailyKey); for (const i of items) if (i.key) await segna(sb, sub.id, i.key); }
   }
@@ -444,8 +536,9 @@ if (import.meta.main) Deno.serve(async req => {
       const { data: subs } = await sb.from('push_subscriptions').select('*').eq('user_id', u.user.id).eq('endpoint', String(body.endpoint || ''));
       if (!subs || !subs.length) return json({ ok: false, error: 'Questo dispositivo non è iscritto alle notifiche' }, 404);
       const sub = subs[0];
-      const items = promemoria(await caricaCasa(sb, sub.household_id, today), today);
-      const m = items.length ? messaggio(items) : { title: 'Notifiche attive ✅', body: 'Da domani ti avviso qui quando qualcosa sta per scadere.' };
+      const L = lingua(body.lingua || sub.lingua);
+      const items = promemoria(await caricaCasa(sb, sub.household_id, today), today, L);
+      const m = items.length ? messaggio(items, L) : { title: tx(L, 'provaT'), body: tx(L, 'provaB') };
       const esito = await invia(sb, sub, { ...m, url: APP_URL, tag: 'spese-casa-prova' });
       return json({ ok: esito === 'ok', esito, promemoria: items.length });
     }
@@ -461,7 +554,7 @@ if (import.meta.main) Deno.serve(async req => {
       const { data: subs } = await sb.from('push_subscriptions').select('*').eq('household_id', hh);
       const datiC = await caricaCasa(sb, hh, today);
       if (!datiC.premium) return json({ ok: false, error: 'Il Resoconto IA è una funzione Premium' });
-      const r = await resoconto(sb, hh, subs || [], datiC, today, true);
+      const r = await resoconto(sb, hh, subs || [], datiC, today, true, body.lingua);
       if (r.saltato) return json({ ok: false, error: r.saltato === 'nessuna chiave IA' ? 'Attiva prima il resoconto con la tua chiave IA' : r.saltato });
       return json({ ok: true, ...r });
     }

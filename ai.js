@@ -198,6 +198,15 @@
   };
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // lingua scelta nell'app: i testi liberi dell'IA arrivano in quella lingua (i valori fissi restano in italiano)
+  const NOMI_LINGUA = { en: 'English', es: 'Spanish (español)', fr: 'French (français)', de: 'German (Deutsch)' };
+  function linguaRisposta(type) {
+    const l = (window.I18N && window.I18N.lang) || 'it', nome = NOMI_LINGUA[l];
+    if (!nome) return '';
+    if (type === 'ask') return '\n\nIMPORTANT: write the answer in ' + nome + ' (the user reads the app in that language), with amounts like ' + (l === 'en' ? '€1,234.56' : '1.234,56 €') + '.';
+    if (type === 'insights') return '\n\nIMPORTANT: write votoMotivo, sintesi, titolo, testo, azioni[].testo and previsione.commento in ' + nome + '. Keep "tipo" and "area" EXACTLY as the Italian values listed above.';
+    return '';
+  }
 
   async function listModels(key) {
     const r = await tfetch(GEMINI_BASE + 'models?pageSize=200', { headers: { 'x-goog-api-key': key } }, null, 15000);
@@ -290,7 +299,7 @@
     if (!T) throw new Error('Funzione IA sconosciuta');
     const cats = (req.categorie && req.categorie.length) ? req.categorie : ['Altro'];
     const oggi = req.oggi || new Date().toISOString().slice(0, 10);
-    const parts = [{ text: T.prompt(cats, oggi, req) }];
+    const parts = [{ text: T.prompt(cats, oggi, req) + linguaRisposta(req.task) }];
     if (req.image) parts.push({ inline_data: { mime_type: req.mime || 'image/jpeg', data: req.image } });
     return gemini(key, parts, T.schema(cats), signal, ms);
   }

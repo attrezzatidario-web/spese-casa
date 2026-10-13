@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=4-6">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
   <div id="splash" class="splash" aria-hidden="true">
@@ -55,6 +55,7 @@
   <!-- Schermata collegamento -->
   <section id="setup" class="setup" hidden>
     <div class="setup-card code-card">
+      <label class="login-lang" data-notr><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.5 3.5 5.3 3.5 8.5s-1.1 6-3.5 8.5c-2.4-2.5-3.5-5.3-3.5-8.5S9.6 6 12 3.5z"/></svg><select id="login-lang" aria-label="Lingua · Language"><option value="it">Italiano</option><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option></select><svg class="chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></label>
       <img src="logo.svg" alt="Spese Casa" width="64" height="64">
       <h1>Spese Casa</h1>
       <p class="muted" id="login-msg">Accedi con la tua email: ti mandiamo un codice, niente password.</p>
@@ -525,6 +526,10 @@
           <div id="acct-set"></div>
         </div>
         <div class="card">
+          <h3>Lingua</h3>
+          <div id="lang-set"></div>
+        </div>
+        <div class="card">
           <h3>Aspetto</h3>
           <div id="theme-set"></div>
         </div>
@@ -623,8 +628,9 @@
     </div>
   </div>
 
+  <script src="i18n.js?v=2"></script>
   <script src="lib-supabase.js?v=1"></script>
-  <script src="ai.js?v=4"></script>
-  <script src="app.js?v=4-10"></script>
+  <script src="ai.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

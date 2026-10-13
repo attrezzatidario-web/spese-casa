@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="it" data-l="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Supporto · Spese Casa</title><meta name="description" content="Supporto di Spese Casa">
 <link rel="icon" href="logo.svg"><style>
 :root{--bg:#f6f6f4;--surface:#fff;--ink:#18181b;--ink2:#52525b;--muted:#8a8a93;--line:#e7e7e3;--accent:#1f7a5a;--soft:#e5f1ec}
@@ -20,11 +20,20 @@ a{color:var(--accent)}b,strong{color:var(--ink)}
 .steps{counter-reset:s;list-style:none;padding:0}.steps li{counter-increment:s;position:relative;padding-left:40px;margin:12px 0}
 .steps li::before{content:counter(s);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center}
 footer{margin-top:28px;font-size:14px;color:var(--muted);display:flex;flex-wrap:wrap;gap:16px}footer a{color:var(--muted)}
-</style></head>
-<body><div class="w">
-<div class="top"><img src="logo.svg" alt=""><div><b>Spese Casa</b><span>Tetto Studio</span></div></div>
-<h1>Supporto</h1><p class="upd">Ultimo aggiornamento: 12 ottobre 2026</p>
 
+.lg{display:flex;gap:4px;margin-left:auto}.lg a{font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;padding:5px 8px;border-radius:8px}.lg a[aria-current]{background:var(--soft);color:var(--accent)}
+.lb{display:none}html[data-l=it] .lb[data-l=it],html[data-l=en] .lb[data-l=en],html[data-l=es] .lb[data-l=es],html[data-l=fr] .lb[data-l=fr],html[data-l=de] .lb[data-l=de]{display:block}
+.nota{font-size:13px;color:var(--muted);margin:-18px 0 24px}
+</style><script>(function(){var L=["it", "en", "es", "fr", "de"],T={"it": {"title": "Supporto · Spese Casa", "desc": "Supporto di Spese Casa"}, "en": {"title": "Support · Spese Casa", "desc": "Spese Casa support"}, "es": {"title": "Soporte · Spese Casa", "desc": "Soporte de Spese Casa"}, "fr": {"title": "Assistance · Spese Casa", "desc": "Assistance Spese Casa"}, "de": {"title": "Support · Spese Casa", "desc": "Support für Spese Casa"}},l='';try{l=new URLSearchParams(location.search).get('lang')||''}catch(e){}
+if(L.indexOf(l)<0){try{l=localStorage.getItem('sc_lang')||''}catch(e){}}
+if(L.indexOf(l)<0){l=(navigator.language||'it').slice(0,2).toLowerCase()}
+if(L.indexOf(l)<0)l='it';var d=document.documentElement;d.lang=l;d.setAttribute('data-l',l);document.title=T[l].title;
+var m=document.querySelector('meta[name=description]');if(m)m.setAttribute('content',T[l].desc);
+document.addEventListener('DOMContentLoaded',function(){var a=document.querySelector('.lg a[data-k="'+l+'"]');if(a)a.setAttribute('aria-current','true')})})();</script></head>
+<body><div class="w">
+<div class="top"><img src="logo.svg" alt=""><div><b>Spese Casa</b><span>Tetto Studio</span></div><nav class="lg" aria-label="Lingua · Language"><a href="?lang=it" data-k="it" hreflang="it" lang="it">IT</a><a href="?lang=en" data-k="en" hreflang="en" lang="en">EN</a><a href="?lang=es" data-k="es" hreflang="es" lang="es">ES</a><a href="?lang=fr" data-k="fr" hreflang="fr" lang="fr">FR</a><a href="?lang=de" data-k="de" hreflang="de" lang="de">DE</a></nav></div>
+<div class="lb" data-l="it" lang="it">
+<h1>Supporto</h1><p class="upd">Ultimo aggiornamento: 12 ottobre 2026</p>
 <div class="card">
 <p>Hai un problema, un dubbio o un'idea per migliorare <b>Spese Casa</b>? Scrivici:</p>
 <div class="box"><p><a href="mailto:tettostudio.app@gmail.com?subject=Supporto%20Spese%20Casa"><b>tettostudio.app@gmail.com</b></a></p><p style="color:var(--ink2);font-size:14px">Rispondiamo di solito entro 2 giorni lavorativi.</p></div>
@@ -37,4 +46,69 @@ footer{margin-top:28px;font-size:14px;color:var(--muted);display:flex;flex-wrap:
 <p><b>Come elimino l'account?</b><br>Trovi tutte le istruzioni nella pagina <a href="elimina-account.html">Eliminare l'account</a>.</p>
 </div>
 <footer><a href="privacy.html">Privacy</a><a href="termini.html">Termini</a><a href="elimina-account.html">Eliminare l'account</a><a href="supporto.html">Supporto</a><a href="./">Apri l'app</a></footer>
+</div>
+<div class="lb" data-l="en" lang="en">
+<h1>Support</h1><p class="upd">Last updated: 12 October 2026</p>
+<p class="nota">This is a translation provided for convenience. In case of any discrepancy, the Italian version prevails.</p>
+<div class="card">
+<p>Got a problem, a question or an idea to improve <b>Spese Casa</b>? Write to us:</p>
+<div class="box"><p><a href="mailto:tettostudio.app@gmail.com?subject=Spese%20Casa%20support"><b>tettostudio.app@gmail.com</b></a></p><p style="color:var(--ink2);font-size:14px">We usually reply within 2 working days.</p></div>
+<h2>Frequently asked questions</h2>
+<p><b>How do I sign in?</b><br>Enter your email: you will receive a code to type into the app. No password needed.</p>
+<p><b>How do I share the home with my family?</b><br>With Premium: Other → Account → Invite. Whoever receives the link or the code joins your home and sees the same data.</p>
+<p><b>How do I cancel Premium?</b><br>On iPhone: Settings → your name → Subscriptions. On Android: Play Store → profile → Payments &amp; subscriptions → Subscriptions.</p>
+<p><b>How do I turn on artificial intelligence?</b><br>Other → Artificial intelligence: paste a free Google Gemini key created on Google AI Studio.</p>
+<p><b>I don't receive notifications.</b><br>Check Other → Notifications and that notifications for Spese Casa are allowed in your phone settings.</p>
+<p><b>How do I delete my account?</b><br>You will find all the instructions on the <a href="elimina-account.html?lang=en">Delete your account</a> page.</p>
+</div>
+<footer><a href="privacy.html?lang=en">Privacy</a><a href="termini.html?lang=en">Terms</a><a href="elimina-account.html?lang=en">Delete your account</a><a href="supporto.html?lang=en">Support</a><a href="./">Open the app</a></footer>
+</div>
+<div class="lb" data-l="es" lang="es">
+<h1>Soporte</h1><p class="upd">Última actualización: 12 de octubre de 2026</p>
+<p class="nota">Esta es una traducción ofrecida para tu comodidad. En caso de discrepancia, prevalece la versión italiana.</p>
+<div class="card">
+<p>¿Tienes un problema, una duda o una idea para mejorar <b>Spese Casa</b>? Escríbenos:</p>
+<div class="box"><p><a href="mailto:tettostudio.app@gmail.com?subject=Soporte%20Spese%20Casa"><b>tettostudio.app@gmail.com</b></a></p><p style="color:var(--ink2);font-size:14px">Solemos responder en un plazo de 2 días laborables.</p></div>
+<h2>Preguntas frecuentes</h2>
+<p><b>¿Cómo accedo?</b><br>Introduce tu correo: recibirás un código para escribir en la app. No hace falta contraseña.</p>
+<p><b>¿Cómo comparto la casa con mi familia?</b><br>Con Premium: Otro → Cuenta → Invitar. Quien recibe el enlace o el código entra en tu casa y ve los mismos datos.</p>
+<p><b>¿Cómo cancelo Premium?</b><br>En iPhone: Ajustes → tu nombre → Suscripciones. En Android: Play Store → perfil → Pagos y suscripciones → Suscripciones.</p>
+<p><b>¿Cómo activo la inteligencia artificial?</b><br>Otro → Inteligencia artificial: pega una clave gratuita de Google Gemini creada en Google AI Studio.</p>
+<p><b>No recibo las notificaciones.</b><br>Revisa Otro → Notificaciones y que las notificaciones de Spese Casa estén permitidas en los ajustes del teléfono.</p>
+<p><b>¿Cómo elimino la cuenta?</b><br>Encontrarás todas las instrucciones en la página <a href="elimina-account.html?lang=es">Eliminar la cuenta</a>.</p>
+</div>
+<footer><a href="privacy.html?lang=es">Privacidad</a><a href="termini.html?lang=es">Términos</a><a href="elimina-account.html?lang=es">Eliminar la cuenta</a><a href="supporto.html?lang=es">Soporte</a><a href="./">Abrir la app</a></footer>
+</div>
+<div class="lb" data-l="fr" lang="fr">
+<h1>Assistance</h1><p class="upd">Dernière mise à jour : 12 octobre 2026</p>
+<p class="nota">Cette traduction est fournie pour votre commodité. En cas de divergence, la version italienne prévaut.</p>
+<div class="card">
+<p>Un problème, une question ou une idée pour améliorer <b>Spese Casa</b> ? Écrivez-nous :</p>
+<div class="box"><p><a href="mailto:tettostudio.app@gmail.com?subject=Assistance%20Spese%20Casa"><b>tettostudio.app@gmail.com</b></a></p><p style="color:var(--ink2);font-size:14px">Nous répondons généralement sous 2 jours ouvrés.</p></div>
+<h2>Questions fréquentes</h2>
+<p><b>Comment me connecter ?</b><br>Saisissez votre e-mail : vous recevrez un code à taper dans l'app. Aucun mot de passe n'est nécessaire.</p>
+<p><b>Comment partager la maison avec ma famille ?</b><br>Avec Premium : Autre → Compte → Inviter. La personne qui reçoit le lien ou le code rejoint votre maison et voit les mêmes données.</p>
+<p><b>Comment résilier Premium ?</b><br>Sur iPhone : Réglages → votre nom → Abonnements. Sur Android : Play Store → profil → Paiements et abonnements → Abonnements.</p>
+<p><b>Comment activer l'intelligence artificielle ?</b><br>Autre → Intelligence artificielle : collez une clé gratuite Google Gemini créée sur Google AI Studio.</p>
+<p><b>Je ne reçois pas les notifications.</b><br>Vérifiez Autre → Notifications et que les notifications de Spese Casa sont autorisées dans les réglages du téléphone.</p>
+<p><b>Comment supprimer mon compte ?</b><br>Vous trouverez toutes les instructions sur la page <a href="elimina-account.html?lang=fr">Supprimer le compte</a>.</p>
+</div>
+<footer><a href="privacy.html?lang=fr">Confidentialité</a><a href="termini.html?lang=fr">Conditions</a><a href="elimina-account.html?lang=fr">Supprimer le compte</a><a href="supporto.html?lang=fr">Assistance</a><a href="./">Ouvrir l'app</a></footer>
+</div>
+<div class="lb" data-l="de" lang="de">
+<h1>Support</h1><p class="upd">Zuletzt aktualisiert: 12. Oktober 2026</p>
+<p class="nota">Diese Übersetzung dient nur der Information. Bei Abweichungen ist die italienische Fassung maßgeblich.</p>
+<div class="card">
+<p>Du hast ein Problem, eine Frage oder eine Idee, wie man <b>Spese Casa</b> verbessern kann? Schreib uns:</p>
+<div class="box"><p><a href="mailto:tettostudio.app@gmail.com?subject=Support%20Spese%20Casa"><b>tettostudio.app@gmail.com</b></a></p><p style="color:var(--ink2);font-size:14px">Wir antworten in der Regel innerhalb von 2 Werktagen.</p></div>
+<h2>Häufige Fragen</h2>
+<p><b>Wie melde ich mich an?</b><br>Gib deine E-Mail ein: Du erhältst einen Code, den du in der App eingibst. Ein Passwort ist nicht nötig.</p>
+<p><b>Wie teile ich den Haushalt mit meiner Familie?</b><br>Mit Premium: Sonstiges → Konto → Einladen. Wer den Link oder Code erhält, tritt deinem Haushalt bei und sieht dieselben Daten.</p>
+<p><b>Wie kündige ich Premium?</b><br>Auf dem iPhone: Einstellungen → dein Name → Abonnements. Auf Android: Play Store → Profil → Zahlungen und Abos → Abos.</p>
+<p><b>Wie aktiviere ich die künstliche Intelligenz?</b><br>Sonstiges → Künstliche Intelligenz: Füge einen kostenlosen Google-Gemini-Schlüssel ein, den du in Google AI Studio erstellt hast.</p>
+<p><b>Ich erhalte keine Benachrichtigungen.</b><br>Prüfe Sonstiges → Benachrichtigungen und ob Benachrichtigungen für Spese Casa in den Telefoneinstellungen erlaubt sind.</p>
+<p><b>Wie lösche ich mein Konto?</b><br>Alle Anleitungen findest du auf der Seite <a href="elimina-account.html?lang=de">Konto löschen</a>.</p>
+</div>
+<footer><a href="privacy.html?lang=de">Datenschutz</a><a href="termini.html?lang=de">Nutzungsbedingungen</a><a href="elimina-account.html?lang=de">Konto löschen</a><a href="supporto.html?lang=de">Support</a><a href="./">App öffnen</a></footer>
+</div>
 </div></body></html>

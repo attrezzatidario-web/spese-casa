@@ -1,0 +1,17 @@
+<!-- Spese Casa — email con il codice di accesso, nelle 5 lingue dell'app.
+     Da incollare in: Supabase > Authentication > Emails > "Magic Link" E "Confirm signup" (Message body / Source).
+     La lingua arriva dall'app (scelta all'accesso o in Altro → Lingua). -->
+{{ $l := "it" }}{{ if .Data }}{{ with index .Data "lingua" }}{{ $l = . }}{{ end }}{{ end }}
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#18181b">
+  <div style="font-size:18px;font-weight:700;color:#17795a;margin-bottom:24px">Spese Casa</div>
+  <p style="font-size:16px;line-height:1.5;margin:0 0 16px">
+    {{ if eq $l "en" }}Here is your code to sign in:{{ else if eq $l "es" }}Este es tu código para acceder:{{ else if eq $l "fr" }}Voici votre code de connexion :{{ else if eq $l "de" }}Hier ist dein Anmeldecode:{{ else }}Ecco il tuo codice per accedere:{{ end }}
+  </p>
+  <div style="font-size:34px;font-weight:800;letter-spacing:8px;background:#e5f1ec;color:#17795a;border-radius:14px;padding:18px 0;text-align:center;margin:0 0 20px">{{ .Token }}</div>
+  <p style="font-size:14px;line-height:1.5;color:#52525b;margin:0 0 8px">
+    {{ if eq $l "en" }}Type it into the app to sign in.{{ else if eq $l "es" }}Escríbelo en la app para entrar.{{ else if eq $l "fr" }}Saisissez-le dans l'app pour vous connecter.{{ else if eq $l "de" }}Gib ihn in der App ein, um dich anzumelden.{{ else }}Scrivilo nell'app per entrare.{{ end }}
+  </p>
+  <p style="font-size:13px;line-height:1.5;color:#8a8a93;margin:24px 0 0">
+    {{ if eq $l "en" }}If you didn't request it, you can ignore this email.{{ else if eq $l "es" }}Si no lo has pedido tú, puedes ignorar este correo.{{ else if eq $l "fr" }}Si vous ne l'avez pas demandé, ignorez cet e-mail.{{ else if eq $l "de" }}Wenn du ihn nicht angefordert hast, kannst du diese E-Mail ignorieren.{{ else }}Se non l'hai chiesto tu, puoi ignorare questa email.{{ end }}
+  </p>
+</div>

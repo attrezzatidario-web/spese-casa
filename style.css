@@ -2255,3 +2255,18 @@ body.locked #fab, body.locked #add-top { display: none; }
 .limit-note b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .lim-bar { width: 54px; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; flex: none; }
 .lim-bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .5s cubic-bezier(.32,.72,0,1); }
+
+/* ===== Lingua ===== */
+.code-card { position: relative; }
+.login-lang { position: absolute; top: 14px; right: 14px; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color .15s; }
+.login-lang:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.login-lang svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.login-lang .chev { width: 14px; height: 14px; margin-left: -2px; }
+.login-lang select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: inherit; font: inherit; padding: 0; min-height: 0; height: auto; width: auto; box-shadow: none; cursor: pointer; outline: none; }
+.lang-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.lang-b { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 550; cursor: pointer; text-align: left; transition: border-color .15s, background .15s, transform .15s var(--spring, ease); }
+.lang-b:active { transform: scale(.98); }
+.lang-b.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+.lang-c { width: 28px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 11px; font-weight: 700; letter-spacing: .04em; background: var(--surface-2, var(--bg)); color: var(--ink-2); flex: none; }
+.lang-b.on .lang-c { background: var(--accent); color: #fff; }
+.lang-b svg { width: 16px; height: 16px; margin-left: auto; fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }

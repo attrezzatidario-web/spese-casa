@@ -17,6 +17,10 @@
   } catch {}
 
   const MAX_PERSONE_FREE = 2, MAX_BOLLETTE_FREE = 3; // limiti del piano gratis
+  // lingua (i18n.js): formati di date e numeri della lingua scelta
+  const I18 = window.I18N || { lang: 'it', loc: LOC, t: x => x, tf: (x, v) => String(x).replace(/\{(\d+)\}/g, (m, i) => v[i]), LINGUE: { it: 'Italiano' } };
+  const LOC = I18.loc, T = I18.t, TF = I18.tf;
+  const SEP = { it: ['.', ','], es: ['.', ','], de: ['.', ','], fr: ['\u202f', ','], en: [',', '.'] }[I18.lang] || ['.', ','];
   const METODI = ['Carta', 'Bancomat', 'Contanti', 'Bonifico', 'Addebito in conto', 'Altro'];
   const FREQ = {
     mensile: 1, bimestrale: 2, trimestrale: 3, quadrimestrale: 4, semestrale: 6, annuale: 12, 'una tantum': 0
@@ -80,10 +84,10 @@
   const fmtNum = (n, dec) => {
     const v = Number(n) || 0, neg = v < 0;
     const [i, d] = Math.abs(v).toFixed(dec).split('.');
-    return (neg ? '-' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + d : '');
+    return (neg ? '-' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, SEP[0]) + (d ? SEP[1] + d : '');
   };
-  const eur = n => fmtNum(n, 2) + ' €';
-  const eur0 = n => fmtNum(Math.round(Number(n) || 0), 0) + ' €';
+  const eur = n => I18.lang === 'en' ? (Number(n) < 0 ? '-€' + fmtNum(-n, 2) : '€' + fmtNum(n, 2)) : fmtNum(n, 2) + ' €';
+  const eur0 = n => { const v = Math.round(Number(n) || 0); return I18.lang === 'en' ? (v < 0 ? '-€' + fmtNum(-v, 0) : '€' + fmtNum(v, 0)) : fmtNum(v, 0) + ' €'; };
   const isDesk = () => matchMedia('(min-width: 900px)').matches;
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const pad = n => String(n).padStart(2, '0');
@@ -92,12 +96,19 @@
   const parseD = s => { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); };
   const ym = s => String(s).slice(0, 7);
   const ymOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-  const monthName = key => { const [y, m] = key.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }); };
-  const monthShort = key => { const [y, m] = key.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('it-IT', { month: 'short' }).replace('.', ''); };
-  const dayLabel = s => parseD(s).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
-  const shortDate = s => parseD(s).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
+  const monthName = key => { const [y, m] = key.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString(LOC, { month: 'long', year: 'numeric' }); };
+  const monthShort = key => { const [y, m] = key.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString(LOC, { month: 'short' }).replace('.', ''); };
+  const dayLabel = s => parseD(s).toLocaleDateString(LOC, { weekday: 'long', day: 'numeric', month: 'long' });
+  const shortDate = s => parseD(s).toLocaleDateString(LOC, { day: 'numeric', month: 'short', year: 'numeric' });
   const daysTo = s => Math.round((parseD(s) - parseD(today())) / 864e5);
-  const num = v => { const n = parseFloat(String(v).replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); return isNaN(n) ? 0 : Math.round(n * 100) / 100; };
+  const num = v => {
+    let x = String(v == null ? '' : v).replace(/[\s\u202f€]/g, '');
+    const c = x.lastIndexOf(','), d = x.lastIndexOf('.');
+    if (c >= 0 && d >= 0) x = c > d ? x.replace(/\./g, '').replace(',', '.') : x.replace(/,/g, '');
+    else if (c >= 0) x = /,\d{3}$/.test(x) && SEP[1] === '.' ? x.replace(/,/g, '') : x.replace(/\./g, '').replace(',', '.');
+    else if (/\.\d{3}$/.test(x) && SEP[0] === '.') x = x.replace(/\./g, '');
+    const n = parseFloat(x); return isNaN(n) ? 0 : Math.round(n * 100) / 100;
+  };
   const addMonths = (s, n) => {
     const d = parseD(s); const day = d.getDate();
     const t = new Date(d.getFullYear(), d.getMonth() + n, 1);
@@ -352,7 +363,7 @@
     } catch (e) {
       if (e.message === 'AUTH_REQ') { /* serve di nuovo l'accesso */ }
       else if (e.net || !navigator.onLine) online = false;
-      else toast('Errore salvataggio: ' + e.message);
+      else toast(TF('Errore salvataggio: {0}', [e.message]));
     } finally {
       syncing = false; setSync();
     }
@@ -391,7 +402,7 @@
       if (showToast) toast('Dati aggiornati');
       pullGasFlags(showToast);
       loadPlan();
-      sendRef();
+      sendRef(); syncLingua();
     } catch (e) {
       if (e.message === 'AUTH_REQ') return;
       online = false;
@@ -450,7 +461,7 @@
     $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view || (a.dataset.view === 'impostazioni' && ['affitto', 'estratto', 'lista', 'documenti', 'detrazioni', 'manutenzioni', 'anno', 'progetti', 'faccende', 'contanti'].includes(view) && !isDesk())));
     $('#title').textContent = TITLES[view];
     $('#add-top-lbl').textContent = view === 'fisse' ? 'Nuova spesa fissa' : view === 'auto' ? 'Rifornimento' : view === 'entrate' ? 'Nuova entrata' : view === 'documenti' ? 'Carica documento' : view === 'manutenzioni' ? 'Nuova manutenzione' : view === 'progetti' ? 'Nuovo progetto' : view === 'faccende' ? 'Aggiungi' : view === 'lista' ? 'Aggiungi prodotto' : view === 'contanti' ? 'Prelievo' : 'Nuova spesa';
-    const sub = view === 'home' ? new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
+    const sub = view === 'home' ? new Date().toLocaleDateString(LOC, { weekday: 'long', day: 'numeric', month: 'long' }) : SUBS[view];
     $('#subtitle').textContent = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
     animate = true;
     if (!lockM) render(); else renderBadge();
@@ -531,7 +542,7 @@
   function speseTable(list, withDate = true) {
     return `<table class="tbl"><thead><tr>${withDate ? '<th>Data</th>' : ''}<th>Descrizione</th><th>Categoria</th><th>Metodo</th><th class="r">Importo</th></tr></thead><tbody>
       ${list.map(s => `<tr data-spesa="${esc(s.id)}">
-        ${withDate ? `<td class="d">${esc(parseD(s.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', ''))}</td>` : ''}
+        ${withDate ? `<td class="d">${esc(parseD(s.data).toLocaleDateString(LOC, { day: '2-digit', month: 'short' }).replace('.', ''))}</td>` : ''}
         <td><div class="tcell">${String(s.bollettaId || '').startsWith('affitto:') ? `<div class="ic rent-ic">${ICO_KEY}</div>` : iconHTML(s.descrizione, s.categoria, s.sito)}<div class="tt"><b>${esc(s.descrizione || s.categoria || 'Spesa')}${s.verificato ? ' <i class="vchk" title="Verificata nell\'estratto conto">✓</i>' : ''}${s.allegato ? ` <i class="clip" title="Scontrino allegato">${ICO_CLIP}</i>` : ''}</b>${s.note ? `<small>${esc(s.note)}</small>` : ''}</div></div></td>
         <td><span class="chip">${esc(s.categoria || '—')}</span></td>
         <td class="m2">${esc(s.metodo || '')}</td>
@@ -747,7 +758,7 @@
     ms.innerHTML = `<option value="">Tutti i mesi</option>` + sorted.map(k => `<option value="${k}">${esc(monthName(k))}</option>`).join('');
     ms.value = f.month;
     const cs = $('#f-cat');
-    cs.innerHTML = `<option value="">Tutte le categorie</option>` + cats().map(c => `<option>${esc(c)}</option>`).join('');
+    cs.innerHTML = `<option value="">Tutte le categorie</option>` + cats().map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
     cs.value = f.cat;
   }
 
@@ -821,7 +832,7 @@
       <div class="ic logo"><img src="${logoUrl(n.dominio)}" alt=""></div>
       <div class="main"><div class="t">${esc(n.nome)}</div><div class="s">${esc(n.dominio)}${n.categoria ? ' · ' + esc(n.categoria) : ''}</div></div>
       <button class="icon-btn" data-delshop="${i}" aria-label="Rimuovi">✕</button></div>`).join('') || '<p class="muted small" style="margin:0">Nessun negozio aggiunto.</p>';
-    $('#shop-cat').innerHTML = '<option value="">Categoria</option>' + cats().map(c => `<option>${esc(c)}</option>`).join('');
+    $('#shop-cat').innerHTML = '<option value="">Categoria</option>' + cats().map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
     $('#cat-list').innerHTML = cats().map(c => `<span class="chip">${esc(c)}<button data-delcat="${esc(c)}" aria-label="Elimina ${esc(c)}">✕</button></span>`).join('');
   }
 
@@ -903,7 +914,8 @@
   }
   async function deleteAccount() {
     if (!confirm('Eliminare definitivamente l\'account e tutti i tuoi dati?')) return;
-    if (prompt('Per confermare scrivi ELIMINA') !== 'ELIMINA') return toast('Eliminazione annullata');
+    const PAROLA = { it: 'ELIMINA', en: 'DELETE', es: 'ELIMINAR', fr: 'SUPPRIMER', de: 'LÖSCHEN' }[I18.lang] || 'ELIMINA';
+    if (String(prompt(TF('Per confermare scrivi {0}', [PAROLA])) || '').trim().toUpperCase() !== PAROLA) return toast('Eliminazione annullata');
     busy('Elimino l\'account…');
     try {
       await pushDisable(true).catch(() => {});
@@ -939,7 +951,7 @@
 
   /* ================= AFFITTO ================= */
   const ICO_KEY = '<svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M14 9l2 2"/></svg>';
-  const monthShortY = k => { const [y, m] = k.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('it-IT', { month: 'short', year: 'numeric' }).replace('.', ''); };
+  const monthShortY = k => { const [y, m] = k.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString(LOC, { month: 'short', year: 'numeric' }).replace('.', ''); };
   const rentCfg = () => (db.config.affitto && db.config.affitto.attivo && Number(db.config.affitto.canone) > 0) ? db.config.affitto : null;
   const rentKey = mk => 'affitto:' + mk;
   let rentYear = new Date().getFullYear();
@@ -954,11 +966,11 @@
     return { month: mk, due, paid, importo: Number(c.canone) || 0, before: !!(start && mk < start), days: daysTo(due) };
   }
   function rentChip(r) {
-    if (r.paid) return { cls: 'paid', txt: 'Pagato il ' + parseD(r.paid.data).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+    if (r.paid) return { cls: 'paid', txt: 'Pagato il ' + parseD(r.paid.data).toLocaleDateString(LOC, { day: 'numeric', month: 'short' }) };
     if (r.days < 0) return { cls: 'late', txt: `Scaduto da ${-r.days} gg` };
     if (r.days === 0) return { cls: 'late', txt: 'Scade oggi' };
     if (r.days <= 7) return { cls: 'soon', txt: r.days === 1 ? 'Scade domani' : `Scade tra ${r.days} gg` };
-    return { cls: '', txt: 'Scade il ' + parseD(r.due).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+    return { cls: '', txt: 'Scade il ' + parseD(r.due).toLocaleDateString(LOC, { day: 'numeric', month: 'short' }) };
   }
   // piano gratis: l'affitto è solo un promemoria (importo e giorno); pagamenti e storico sono Premium
   const rentFull = () => isPremium();
@@ -967,7 +979,7 @@
     const now = new Date(), r = rentMonth(ymOf(now));
     return r.days >= 0 ? r : rentMonth(ymOf(new Date(now.getFullYear(), now.getMonth() + 1, 1)));
   }
-  const rentNextChip = r => r.days === 0 ? { cls: 'late', txt: 'Scade oggi' } : r.days <= 7 ? { cls: 'soon', txt: r.days === 1 ? 'Scade domani' : `Scade tra ${r.days} gg` } : { cls: '', txt: 'Scade il ' + parseD(r.due).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+  const rentNextChip = r => r.days === 0 ? { cls: 'late', txt: 'Scade oggi' } : r.days <= 7 ? { cls: 'soon', txt: r.days === 1 ? 'Scade domani' : `Scade tra ${r.days} gg` } : { cls: '', txt: 'Scade il ' + parseD(r.due).toLocaleDateString(LOC, { day: 'numeric', month: 'short' }) };
   // mesi non pagati già scaduti (ultimi 12)
   function rentArrears() {
     if (!rentCfg() || !rentFull()) return [];
@@ -1044,7 +1056,7 @@
     $('#r-months').innerHTML = Array.from({ length: 12 }, (_, i) => {
       const mk = `${rentYear}-${pad(i + 1)}`;
       const x = rentMonth(mk);
-      const name = new Date(rentYear, i, 1).toLocaleDateString('it-IT', { month: 'short' }).replace('.', '');
+      const name = new Date(rentYear, i, 1).toLocaleDateString(LOC, { month: 'short' }).replace('.', '');
       let cls = 'future', txt = '';
       if (x.before) { cls = 'off'; txt = '—'; }
       else if (x.paid) { cls = 'paid'; txt = eur0(x.paid.importo); paidN++; paidTot += Number(x.paid.importo) || 0; }
@@ -1139,7 +1151,7 @@
         const m = fd.get('mese');
         const spesa = { id: uid(), data: fd.get('data'), importo, categoria: rentCat(), descrizione: 'Affitto ' + monthName(m), metodo: fd.get('metodo'), note: fd.get('note').trim(), bollettaId: rentKey(m), creato: new Date().toISOString(), sito: '' };
         write([{ action: 'upsert', sheet: 'Spese', row: spesa }]);
-        closeSheet(); toast('Affitto di ' + monthName(m) + ' registrato');
+        closeSheet(); toast(TF('Affitto di {0} registrato', [monthName(m)]));
       }, null, 'Registra pagamento');
   }
 
@@ -1285,7 +1297,7 @@
   }
   const ICO_STAR = '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>';
   const ICO_CHK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-  const fineProva = () => piano && piano.expires_at ? new Date(piano.expires_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' }) : '';
+  const fineProva = () => piano && piano.expires_at ? new Date(piano.expires_at).toLocaleDateString(LOC, { day: 'numeric', month: 'long' }) : '';
   function paywall(motivo) {
     const info = PREM_INFO[motivo], trial = !piano || piano.trial_available !== false;
     let scelta = 'annuale';
@@ -1379,11 +1391,11 @@
     busy('L\'IA scrive il resoconto…');
     try {
       await syncNow();
-      const { data, error } = await sb.functions.invoke('notifiche', { body: { resoconto: true } });
+      const { data, error } = await sb.functions.invoke('notifiche', { body: { resoconto: true, lingua: I18.lang } });
       if (error) { let msg = error.message; try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch {} throw new Error(msg); }
       if (!data || !data.ok) throw new Error((data && data.error) || 'Resoconto non riuscito');
       await pull();
-      busy(); toast('Resoconto pronto' + ((data.inviate || []).includes('ok') ? ' e inviato come notifica' : ''));
+      busy(); toast((data.inviate || []).includes('ok') ? 'Resoconto pronto e inviato come notifica' : 'Resoconto pronto');
       route();
     } catch (e) { busy(); toast(/Failed to send|Failed to fetch|FunctionsFetchError/i.test(e.message) ? 'Servizio non raggiungibile, riprova' : e.message); }
   }
@@ -1454,10 +1466,26 @@
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uKey(VAPID_PUBLIC) });
     const j = sub.toJSON();
     const device = isIOS() ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'PC';
-    const { error } = await sb.from('push_subscriptions').upsert({ household_id: hh, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device }, { onConflict: 'endpoint' });
+    const { error } = await salvaIscrizione({ household_id: hh, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device });
     if (error) throw new Error(netErr(error) ? 'Connessione assente, riprova' : 'Iscrizione non salvata: ' + error.message);
     LS.set('sc_push', j.endpoint);
     pushState = { on: true, endpoint: j.endpoint };
+  }
+  // salva il dispositivo con la lingua scelta (se il database non ha ancora la colonna "lingua", salva senza)
+  async function salvaIscrizione(row) {
+    let r = await sb.from('push_subscriptions').upsert({ ...row, lingua: I18.lang }, { onConflict: 'endpoint' });
+    if (r.error && /lingua/i.test(r.error.message || '')) r = await sb.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' });
+    return r;
+  }
+  // dopo un cambio di lingua: aggiorna notifiche di questo dispositivo ed email di accesso
+  async function syncLingua() {
+    if (!sb || DEMO || LS.get('sc_lang_ok', '') === I18.lang) return;
+    try {
+      const ep = LS.get('sc_push', '');
+      const r1 = ep ? await sb.from('push_subscriptions').update({ lingua: I18.lang }).eq('endpoint', ep) : {};
+      const r2 = await sb.auth.updateUser({ data: { lingua: I18.lang } });
+      if (!r1.error && !r2.error) LS.set('sc_lang_ok', I18.lang);
+    } catch {}
   }
   async function pushDisable(silent) {
     const sub = await pushCurrent();
@@ -1482,7 +1510,7 @@
           clearTimeout(tm); h1.remove(); h2.remove();
           const ios = window.Capacitor.getPlatform() === 'ios';
           const endpoint = (ios ? 'apns:' : 'fcm:') + t.value;
-          const { error } = await sb.from('push_subscriptions').upsert({ household_id: hh, endpoint, p256dh: '-', auth: '-', device: ios ? 'iPhone (app)' : 'Android (app)' }, { onConflict: 'endpoint' });
+          const { error } = await salvaIscrizione({ household_id: hh, endpoint, p256dh: '-', auth: '-', device: ios ? 'iPhone (app)' : 'Android (app)' });
           if (error) return reject(new Error(netErr(error) ? 'Connessione assente, riprova' : 'Iscrizione non salvata: ' + error.message));
           LS.set('sc_push', endpoint); pushState = { on: true, endpoint }; resolve();
         });
@@ -1523,7 +1551,8 @@
     if (DEMO) { box.innerHTML = '<p class="muted small" style="margin:0">Nella demo le notifiche non sono attive.</p>'; return; }
     const n = db.config.notifiche || {};
     const attivi = NOTIF_GRP.flatMap(([, l]) => l).filter(([k, , , def]) => notifOn(n, k, def)).map(([, t]) => t.toLowerCase());
-    const cosa = attivi.length > 4 ? attivi.slice(0, 4).join(', ') + ' e altri ' + (attivi.length - 4) : attivi.join(', ');
+    const att2 = attivi.map(x => T(x));
+    const cosa = att2.length > 4 ? TF('{0} e altri {1}', [att2.slice(0, 4).join(', '), att2.length - 4]) : att2.join(', ');
     const quando = `ogni giorno alle ${pad(Number(n.ora ?? 9))}:00 · ${Number(n.giorniPrima ?? 3) ? (n.giorniPrima ?? 3) + ' giorni prima' : 'il giorno stesso'}`;
     if (!pushSupported() || (!NATIVE && isIOS() && !isStandalone())) {
       box.innerHTML = `<p class="muted small" style="margin:0 0 10px">${isIOS()
@@ -1534,7 +1563,7 @@
     }
     if (!pushState) { const s = await pushCurrent(); pushState = { on: !!s && LS.get('sc_push', '') === s.endpoint, endpoint: s ? s.endpoint : '' }; }
     const on = pushState.on && pushGranted();
-    box.innerHTML = `<div class="nt-status"><div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${on ? 'Attive su questo dispositivo' : 'Non attive su questo dispositivo'}</b><small>${on ? esc(quando) : 'Promemoria di ' + esc(cosa) + ' direttamente sul telefono.'}</small></div></div></div>
+    box.innerHTML = `<div class="nt-status"><div class="nt-row"><i class="dot ${on ? 'paid' : 'late'}"></i><div><b>${on ? 'Attive su questo dispositivo' : 'Non attive su questo dispositivo'}</b><small>${on ? esc(quando) : esc(TF('Promemoria di {0} direttamente sul telefono.', [cosa]))}</small></div></div></div>
       <div class="row-btns">${on
         ? '<button class="btn primary" id="nt-test">Invia prova</button><button class="btn" data-rent="notify">Cosa avvisare</button><button class="btn ghost" id="nt-off">Disattiva</button>'
         : '<button class="btn primary" id="nt-on">Attiva notifiche</button><button class="btn" data-rent="notify">Cosa avvisare</button>'}</div>
@@ -1551,14 +1580,14 @@
     try {
       await syncNow();
       const ep = (pushState && pushState.endpoint) || LS.get('sc_push', '');
-      const { data, error } = await sb.functions.invoke('notifiche', { body: { test: true, endpoint: ep } });
+      const { data, error } = await sb.functions.invoke('notifiche', { body: { test: true, endpoint: ep, lingua: I18.lang } });
       busy();
       if (error) {
         let msg = error.message || 'Errore';
         try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch {}
         throw new Error(msg);
       }
-      toast(data && data.ok ? (data.promemoria ? 'Inviata: ' + data.promemoria + ' promemoria di oggi' : 'Inviata: controlla le notifiche') : 'Non inviata: ' + ((data && data.esito) || 'errore'));
+      toast(data && data.ok ? (data.promemoria ? TF('Inviata: {0} promemoria di oggi', [data.promemoria]) : 'Inviata: controlla le notifiche') : TF('Non inviata: {0}', [(data && data.esito) || T('errore')]));
     } catch (e) { busy(); toast(/Failed to send|Failed to fetch|FunctionsFetchError/i.test(e.message) ? 'Servizio notifiche non ancora attivo' : e.message); }
   }
   function formNotify() {
@@ -1693,7 +1722,7 @@
     }
     grid.innerHTML = cells.join('');
     const de = ev.filter(e => e.date === inCalSel);
-    const label = parseD(inCalSel).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+    const label = parseD(inCalSel).toLocaleDateString(LOC, { weekday: 'long', day: 'numeric', month: 'long' });
     $('#inc-agenda').innerHTML = `<div class="ag-h"><b>${esc(label.charAt(0).toUpperCase() + label.slice(1))}</b><span class="small pos-t">${de.length ? '+' + eur(de.reduce((a, e) => a + e.importo, 0)) : ''}</span></div>
       ${de.length ? `<div class="list">${de.map(e => `<div class="item ag" ${e.st === 'in' ? `data-inid="${esc(e.ref)}"` : `data-inrec="${esc(e.rec)}"`}>${tipoInIcon(e.tipo, e.p)}
         <div class="main"><div class="t">${esc(e.title)}${e.att ? ` <i class="clip">${ICO_CLIP}</i>` : ''}</div><div class="s">${e.p ? esc(e.p.nome) + ' · ' : ''}<span class="chip ${e.st === 'in' ? 'paid' : ''}">${e.st === 'in' ? 'Ricevuta' : 'In arrivo'}</span></div></div>
@@ -1840,7 +1869,7 @@
         write([{ action: 'upsert', sheet: 'Persone', row }]); inSel = row.id; closeSheet(); toast(isNew ? nome + ' aggiunto' : 'Salvato');
         if (isNew) setTimeout(() => formRicorrente(row), 450);
       },
-      isNew ? null : () => { if (!confirm('Eliminare ' + p.nome + '? Le entrate registrate restano.')) return; write([{ action: 'delete', sheet: 'Persone', id: p.id }]); inSel = 'all'; closeSheet(); });
+      isNew ? null : () => { if (!confirm(TF('Eliminare {0}? Le entrate registrate restano.', [p.nome]))) return; write([{ action: 'delete', sheet: 'Persone', id: p.id }]); inSel = 'all'; closeSheet(); });
     bindBankField();
   }
 
@@ -1997,7 +2026,7 @@
         const h = goalHist(g); h.push([today(), imp]);
         write([{ action: 'upsert', sheet: 'Obiettivi', row: { ...g, versato: nv, storico: JSON.stringify(h.slice(-60)) } }]);
         closeSheet();
-        if (v < t && nv >= t) { confetti(); toast('Obiettivo "' + g.nome + '" raggiunto!'); } else toast(imp > 0 ? 'Messi da parte ' + eur(imp) : 'Prelevati ' + eur(-imp));
+        if (v < t && nv >= t) { confetti(); toast(TF('Obiettivo "{0}" raggiunto!', [g.nome])); } else toast(imp > 0 ? TF('Messi da parte {0}', [eur(imp)]) : TF('Prelevati {0}', [eur(-imp)]));
       }, null, 'Conferma');
     $$('#sheet-body [data-quick]').forEach(b => (b.onclick = () => { $('#sheet-body [name=importo]').value = String(b.dataset.quick).replace('.', ','); }));
   }
@@ -2441,8 +2470,8 @@
         <div class="st-view"><button class="${stView === 'list' ? 'on' : ''}" data-stmt="v:list">Movimenti</button><button class="${stView === 'group' ? 'on' : ''}" data-stmt="v:group">Per esercente</button></div>
       </div>
       <div class="st-fgrid">
-        <select id="stf-es"><option value="">Tutti gli esercenti</option>${escs.map(x => `<option${x === stF.es ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
-        <select id="stf-cat"><option value="">Tutte le categorie</option>${catsS.map(x => `<option${x === stF.cat ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
+        <select id="stf-es"><option value="">Tutti gli esercenti</option>${escs.map(x => `<option value="${esc(x)}"${x === stF.es ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
+        <select id="stf-cat"><option value="">Tutte le categorie</option>${catsS.map(x => `<option value="${esc(x)}"${x === stF.cat ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
         <label class="mini"><span>Dal</span><input type="date" id="stf-from" value="${esc(stF.from)}"></label>
         <label class="mini"><span>Al</span><input type="date" id="stf-to" value="${esc(stF.to)}"></label>
         <label class="mini"><span>Min €</span><input id="stf-min" inputmode="decimal" value="${esc(stF.min)}" placeholder="0"></label>
@@ -2472,7 +2501,7 @@
 
   function renderStmtRows() {
     const sp = id => db.spese.find(x => x.id === id);
-    const dl = d => esc(parseD(d).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
+    const dl = d => esc(parseD(d).toLocaleDateString(LOC, { day: '2-digit', month: 'short' }));
     let rows, info;
     if (stmtFilter === 'app') {
       const l = stmt.onlyApp.filter(s => (!stF.q || (s.descrizione + ' ' + s.categoria).toLowerCase().includes(stF.q.toLowerCase())) && (!stF.from || s.data >= stF.from) && (!stF.to || s.data <= stF.to));
@@ -2557,19 +2586,19 @@
       const cnt = stmtCounts();
       let pg = pdf.addPage([595, 842]), y = 790;
       const line = (t, o = {}) => { if (y < 60) { pg = pdf.addPage([595, 842]); y = 790; } pg.drawText(safe(t), { x: o.x || 48, y, size: o.size || 10, font: o.bold ? bold : font, color: o.color || rgb(0.1, 0.1, 0.12) }); y -= o.gap || 15; };
-      line('Spese Casa - Resoconto estratto conto', { size: 18, bold: true, gap: 24, color: rgb(0.09, 0.47, 0.35) });
-      line(`${stmt.banca || ''} ${stmt.name}  -  generato il ${new Date().toLocaleDateString('it-IT')}`, { size: 9, gap: 22, color: rgb(0.4, 0.4, 0.45) });
+      line('Spese Casa - ' + T('Resoconto estratto conto'), { size: 18, bold: true, gap: 24, color: rgb(0.09, 0.47, 0.35) });
+      line(`${stmt.banca || ''} ${stmt.name}  -  ${TF('generato il {0}', [new Date().toLocaleDateString(LOC)])}`, { size: 9, gap: 22, color: rgb(0.4, 0.4, 0.45) });
       [['Coincidono', cnt.ok, 'ok'], ['Da verificare', cnt.prob, 'prob'], ['Non registrate in app', cnt.miss, 'miss']].forEach(([l, n, k]) => {
         pg.drawRectangle({ x: 48, y: y - 3, width: 12, height: 12, color: rgb(...ST_COL[k]), opacity: 0.6 });
-        line(`${l}: ${n}`, { x: 68, size: 11, gap: 18 });
+        line(`${T(l)}: ${n}`, { x: 68, size: 11, gap: 18 });
       });
-      line(`Spese in app non presenti nell'estratto: ${stmt.onlyApp.length}`, { size: 11, gap: 18 });
-      line(`Uscite estratto ${fmtNum(cnt.outAmt, 2)} EUR  -  trovate in app ${fmtNum(cnt.okAmt, 2)} EUR  -  mancanti ${fmtNum(cnt.missAmt, 2)} EUR`, { size: 10, gap: 26 });
-      const section = (title, list, fn) => { if (!list.length) return; line(title, { size: 12, bold: true, gap: 18 }); list.forEach(x => line(fn(x), { size: 9, gap: 13 })); y -= 10; };
-      const mv = m => `${parseD(m.data).toLocaleDateString('it-IT')}   ${fmtNum(m.importo, 2).padStart(10)} EUR   ${String(m.descrizione).slice(0, 70)}`;
+      line(`${T("Spese in app non presenti nell'estratto")}: ${stmt.onlyApp.length}`, { size: 11, gap: 18 });
+      line(TF('Uscite estratto {0} EUR  -  trovate in app {1} EUR  -  mancanti {2} EUR', [fmtNum(cnt.outAmt, 2), fmtNum(cnt.okAmt, 2), fmtNum(cnt.missAmt, 2)]), { size: 10, gap: 26 });
+      const section = (title, list, fn) => { if (!list.length) return; line(T(title), { size: 12, bold: true, gap: 18 }); list.forEach(x => line(fn(x), { size: 9, gap: 13 })); y -= 10; };
+      const mv = m => `${parseD(m.data).toLocaleDateString(LOC)}   ${fmtNum(m.importo, 2).padStart(10)} EUR   ${String(m.descrizione).slice(0, 70)}`;
       section('Non registrate in app', stmt.movs.filter(m => m.st === 'miss'), mv);
       section('Da verificare', stmt.movs.filter(m => m.st === 'prob'), mv);
-      section('Solo in app (non trovate nell\'estratto)', stmt.onlyApp, s2 => `${parseD(s2.data).toLocaleDateString('it-IT')}   ${fmtNum(s2.importo, 2).padStart(10)} EUR   ${String(s2.descrizione).slice(0, 70)}`);
+      section('Solo in app (non trovate nell\'estratto)', stmt.onlyApp, s2 => `${parseD(s2.data).toLocaleDateString(LOC)}   ${fmtNum(s2.importo, 2).padStart(10)} EUR   ${String(s2.descrizione).slice(0, 70)}`);
       section('Coincidono', stmt.movs.filter(m => m.st === 'ok'), mv);
       const out = await pdf.save();
     return { blob: new Blob([out], { type: 'application/pdf' }), name: stmt.name.replace(/\.[^.]+$/, '') + '-evidenziato.pdf', mime: 'application/pdf' };
@@ -2577,7 +2606,7 @@
   async function downloadStatement() {
     busy('Creo il file evidenziato…');
     try { const f = await buildStatementFile(); busy(); saveBlob(f.blob, f.name); }
-    catch (e) { busy(); toast('Errore nel creare il file: ' + e.message); }
+    catch (e) { busy(); toast(TF('Errore nel creare il file: {0}', [e.message])); }
   }
   function saveBlob(blob, name) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -2612,8 +2641,8 @@
       await syncNow();
       stmt.savedId = id; stmt.fileUrl = fileUrl;
       db.estratti = [meta, ...(db.estratti || []).filter(x => x.id !== id)]; save();
-      busy(); renderStmt(); toast('Analisi salvata' + (fileUrl ? ' con il file evidenziato' : ''));
-    } catch (e) { busy(); toast('Errore: ' + e.message); }
+      busy(); renderStmt(); toast(fileUrl ? 'Analisi salvata con il file evidenziato' : 'Analisi salvata');
+    } catch (e) { busy(); toast(TF('Errore: {0}', [e.message])); }
   }
 
   async function downloadSavedFile(id) {
@@ -2625,7 +2654,7 @@
       const r = await sfetch(gas + (gas.includes('?') ? '&' : '?') + 'action=estrattoFile&id=' + encodeURIComponent(id) + '&t=' + Date.now());
       const j = await r.json(); if (!j.ok) throw new Error(j.error);
       busy(); saveBlob(b64Blob(j.data.b64, j.data.mime), j.data.name);
-    } catch (e) { busy(); toast('Impossibile scaricare: ' + e.message); }
+    } catch (e) { busy(); toast(TF('Impossibile scaricare: {0}', [e.message])); }
   }
 
   async function openSavedStatement(id) {
@@ -2648,7 +2677,7 @@
       stmt = { savedId: d.id, kind: 'saved', name: d.nome, banca: d.banca, periodoDa: d.periodoDa, periodoA: d.periodoA, fileUrl: d.fileUrl, movs: unpackMovs(d.movimenti), pages: [], onlyApp: only.map(x => db.spese.find(s => s.id === x)).filter(Boolean) };
       Object.keys(stF).forEach(k => (stF[k] = '')); stmtFilter = 'all'; stView = 'list';
       busy(); renderStmt(); stagger($('#v-estratto')); window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (e) { busy(); toast('Impossibile aprire: ' + e.message); }
+    } catch (e) { busy(); toast(TF('Impossibile aprire: {0}', [e.message])); }
   }
 
   function stmtAction(act, el) {
@@ -2678,7 +2707,7 @@
       const p = db.persone[0];
       const tipo = /stipend|emolument|retribuz|salari|cedolino/i.test(m.descrizione) ? 'Stipendio' : /rimbors/i.test(m.descrizione) ? 'Rimborso' : 'Altro';
       const en = { id: uid(), data: m.data, importo: m.importo, personaId: p ? p.id : '', tipo, descrizione: m.esercente || m.descrizione, note: 'Da estratto conto', ricorrenteId: '', creato: new Date().toISOString() };
-      write([{ action: 'upsert', sheet: 'Entrate', row: en }]); m.st = 'inok'; m.matchIn = en.id; renderStmt(); toast('Entrata registrata' + (p ? ' per ' + p.nome : '')); return;
+      write([{ action: 'upsert', sheet: 'Entrate', row: en }]); m.st = 'inok'; m.matchIn = en.id; renderStmt(); toast(p ? TF('Entrata registrata per {0}', [p.nome]) : 'Entrata registrata'); return;
     }
     if (act.startsWith('cash:') && m) { formPrelievo(null, { importo: m.importo, data: m.data, banca: stmt.banca || '', note: 'Da estratto conto: ' + String(m.descrizione).slice(0, 60), _stmt: m }); return; }
     if (act.startsWith('add:') && m) { const sp = toSpesa(m); write([{ action: 'upsert', sheet: 'Spese', row: sp }]); m.st = 'ok'; m.match = sp.id; renderStmt(); toast('Spesa aggiunta'); return; }
@@ -3082,11 +3111,11 @@
   function fxChip(f) {
     if (!f.prossima) return { cls: '', txt: '—' };
     const d = daysTo(f.prossima);
-    if (isOn(f.auto)) return { cls: d <= 3 ? 'soon' : '', txt: d === 0 ? 'Addebito oggi' : d === 1 ? 'Addebito domani' : 'Addebito ' + parseD(f.prossima).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+    if (isOn(f.auto)) return { cls: d <= 3 ? 'soon' : '', txt: d === 0 ? 'Addebito oggi' : d === 1 ? 'Addebito domani' : 'Addebito ' + parseD(f.prossima).toLocaleDateString(LOC, { day: 'numeric', month: 'short' }) };
     if (d < 0) return { cls: 'late', txt: `Scaduta da ${-d} gg` };
     if (d === 0) return { cls: 'late', txt: 'Scade oggi' };
     if (d <= 7) return { cls: 'soon', txt: d === 1 ? 'Domani' : `Tra ${d} gg` };
-    return { cls: '', txt: parseD(f.prossima).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+    return { cls: '', txt: parseD(f.prossima).toLocaleDateString(LOC, { day: 'numeric', month: 'short' }) };
   }
 
   // addebiti automatici: registra da soli i pagamenti scaduti (id fisso = nessun doppione)
@@ -3132,7 +3161,7 @@
     countTo($('#fx-month'), month);
     countTo($('#fx-year'), month * 12);
     const nx = list.filter(f => f.prossima).sort((a, b) => a.prossima.localeCompare(b.prossima))[0];
-    if (nx) { countTo($('#fx-next'), nx.importo); $('#fx-next-sub').textContent = nx.nome + ' · ' + parseD(nx.prossima).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }); }
+    if (nx) { countTo($('#fx-next'), nx.importo); $('#fx-next-sub').textContent = nx.nome + ' · ' + parseD(nx.prossima).toLocaleDateString(LOC, { day: 'numeric', month: 'short' }); }
     else { $('#fx-next').textContent = '—'; $('#fx-next')._v = null; $('#fx-next-sub').textContent = 'nessuna in programma'; }
     $('#fx-count').textContent = list.length;
     const byT = TIPI.map(t => [t, list.filter(f => (f.tipo || 'Altro') === t).length]).filter(x => x[1]);
@@ -3233,7 +3262,7 @@
   function renderAgenda(ev) {
     ev = ev || calEvents(calSel, calSel);
     const de = ev.filter(e => e.date === calSel);
-    const label = parseD(calSel).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+    const label = parseD(calSel).toLocaleDateString(LOC, { weekday: 'long', day: 'numeric', month: 'long' });
     $('#cal-agenda').innerHTML = `<div class="ag-h"><b>${esc(label.charAt(0).toUpperCase() + label.slice(1))}</b><span class="muted small">${de.length ? eur(de.reduce((a, e) => a + e.importo, 0)) : ''}</span></div>
       ${de.length ? `<div class="list">${de.map(e => `<div class="item ag" ${e.kind === 'spesa' || e.st === 'paid' ? `data-spesa="${esc(e.ref)}"` : e.kind === 'fx' ? `data-fx="${esc(e.ref)}"` : e.kind === 'bill' ? `data-bill="${esc(e.ref)}"` : e.kind === 'fatt' ? `data-fatt="${esc(e.ref)}"` : e.kind === 'auto' ? 'data-go="auto"' : 'data-go="affitto"'}>
         ${e.icon}<div class="main"><div class="t">${esc(e.title)}</div><div class="s"><span class="chip ${e.st === 'plan' || e.st === 'auto' ? '' : e.st}">${esc(e.est ? 'Stima' : ST_TXT[e.st])}</span></div></div>
@@ -3254,7 +3283,7 @@
       <label class="f"><span>Nome</span><div class="desc-wrap"><span id="desc-ic">${f.nome ? fxIcon(f) : iconHTML('', '?')}</span><input name="descrizione" placeholder="Es. Netflix, Rata auto, Assicurazione casa…" value="${esc(f.nome)}" required data-focus></div><div class="hint" id="desc-hint"></div></label>
       <div class="f-row">
         <label class="f"><span>Importo (€)</span><input name="importo" class="amount-input" inputmode="decimal" placeholder="0,00" value="${esc(fmtAmt(f.importo))}" required></label>
-        <label class="f"><span>Frequenza</span><select name="frequenza" class="amount-sel">${Object.keys(FREQ_FX).map(k => `<option${k === f.frequenza ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
+        <label class="f"><span>Frequenza</span><select name="frequenza" class="amount-sel">${Object.keys(FREQ_FX).map(k => `<option value="${k}"${k === f.frequenza ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
       </div>
       <div class="f-row">
         <label class="f"><span>Prossimo pagamento</span><input name="prossima" type="date" value="${esc(f.prossima)}" required></label>
@@ -3350,7 +3379,7 @@
   const UNITA_CAT = { Luce: 'kWh', Gas: 'Smc', Acqua: 'm³' };
   const parseVoci = f => { try { const v = typeof f.voci === 'string' ? JSON.parse(f.voci || '[]') : (f.voci || []); return Array.isArray(v) ? v : []; } catch { return []; } };
   const billFatture = b => db.fatture.filter(f => f.bollettaId === b.id).sort((a, c) => String(c.periodoA || c.scadenza || c.emissione || '').localeCompare(String(a.periodoA || a.scadenza || a.emissione || '')));
-  const mShort = d => parseD(d).toLocaleDateString('it-IT', { month: 'short' }).replace('.', '');
+  const mShort = d => parseD(d).toLocaleDateString(LOC, { month: 'short' }).replace('.', '');
   function fattLabel(f) {
     if (f.periodoDa && f.periodoA) {
       const y = String(f.periodoA).slice(0, 4);
@@ -3365,7 +3394,7 @@
     const d = daysTo(f.scadenza);
     if (d < 0) return { cls: 'late', txt: 'Scaduta' };
     if (d <= 7) return { cls: 'soon', txt: d === 0 ? 'Scade oggi' : `Tra ${d} gg` };
-    return { cls: '', txt: 'Scad. ' + parseD(f.scadenza).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) };
+    return { cls: '', txt: 'Scad. ' + parseD(f.scadenza).toLocaleDateString(LOC, { day: 'numeric', month: 'short' }) };
   }
 
   function billDetail(b) {
@@ -3627,7 +3656,7 @@
       let rec = null;
       mic.onclick = () => {
         if (rec) { rec.stop(); return; }
-        rec = new SR(); rec.lang = 'it-IT'; rec.interimResults = false;
+        rec = new SR(); rec.lang = LOC; rec.interimResults = false;
         const ta = $('#sheet-body [name=testo]');
         mic.classList.add('on');
         rec.onresult = e => { ta.value = (ta.value + ' ' + [...e.results].map(x => x[0].transcript).join(' ')).trim(); };
@@ -3760,7 +3789,7 @@
       <div class="ins2-list">${(r.punti || []).slice(0, 3).map(insPoint).join('')}</div>
       ${(r.azioni || []).length ? `<div class="ins2-act"><div class="ins2-h">Cosa fare questo mese</div>${r.azioni.map((a, i) => `<label class="ins2-todo${done.includes(i) ? ' done' : ''}"><input type="checkbox" data-insdone="${i}" ${done.includes(i) ? 'checked' : ''}><span>${esc(a.testo)}${Number(a.risparmioMensile) > 0 ? ` <em>−${eur0(a.risparmioMensile)}/mese</em>` : ''}</span></label>`).join('')}</div>` : ''}
       ${(r.punti || []).length > 3 ? `<button type="button" class="link-btn" id="ins-all">Vedi l'analisi completa (${r.punti.length} punti) →</button>` : ''}
-      <p class="muted small ins2-foot">${stale ? 'Ci sono dati nuovi: premi Aggiorna.' : 'Aggiornata il ' + esc(new Date(saved.at || Date.now()).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</p>`;
+      <p class="muted small ins2-foot">${stale ? 'Ci sono dati nuovi: premi Aggiorna.' : 'Aggiornata il ' + esc(new Date(saved.at || Date.now()).toLocaleDateString(LOC, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</p>`;
   }
   function insFull() {
     const saved = LS.get(insKey(homeMonth), null), r = saved && saved.r; if (!r) return;
@@ -4073,7 +4102,7 @@
     const all = allDocs();
     const years = [...new Set(all.map(d => String(d.data || '').slice(0, 4)).filter(y => /^\d{4}$/.test(y)))].sort().reverse();
     const ys = $('#doc-year');
-    ys.innerHTML = '<option value="">Tutti gli anni</option>' + years.map(y => `<option${y === docF.year ? ' selected' : ''}>${y}</option>`).join('');
+    ys.innerHTML = '<option value="">Tutti gli anni</option>' + years.map(y => `<option value="${y}"${y === docF.year ? ' selected' : ''}>${y}</option>`).join('');
     const byYear = all.filter(d => !docF.year || String(d.data).startsWith(docF.year));
     const counts = {}; byYear.forEach(d => (counts[d.cat] = (counts[d.cat] || 0) + 1));
     const order = ['Scontrini', 'Buste paga', 'Bollette', 'Estratti conto', ...DOC_TIPI].filter((c, i, a) => counts[c] && a.indexOf(c) === i);
@@ -4086,7 +4115,7 @@
       return `<button type="button" class="doc" data-doc="${esc(d.key)}">
         ${d.logo || `<div class="ic doc-ic">${docIco(d.cat)}</div>`}
         <div class="doc-m"><b>${esc(d.nome)}</b><small>${esc([d.cat, d.data ? shortDate(d.data) : '', d.note].filter(Boolean).join(' · '))}</small></div>
-        <div class="doc-r">${d.importo ? `<span class="amt">${eur(d.importo)}</span>` : ''}${ds != null ? `<span class="chip ${ds < 0 ? 'late' : ds <= 60 ? 'soon' : ''}">${ds < 0 ? 'Scaduto' : 'Scade ' + parseD(d.scad).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>` : ''}</div></button>`;
+        <div class="doc-r">${d.importo ? `<span class="amt">${eur(d.importo)}</span>` : ''}${ds != null ? `<span class="chip ${ds < 0 ? 'late' : ds <= 60 ? 'soon' : ''}">${ds < 0 ? 'Scaduto' : 'Scade ' + parseD(d.scad).toLocaleDateString(LOC, { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>` : ''}</div></button>`;
     }).join('') || `<div class="card empty-state doc-empty"><div class="es-ic">${docIco('Altro')}</div><h3>${all.length ? 'Nessun documento trovato' : 'Il tuo archivio è vuoto'}</h3>
       <p class="muted small">Qui trovi tutti i file allegati: scontrini, buste paga, bollette ed estratti conto. Puoi caricare anche garanzie, contratti e altri documenti.</p>
       <button type="button" class="btn primary" data-docact="up">Carica documento</button></div>`;
@@ -4347,7 +4376,7 @@
           need(16);
           let rif = '-';
           if (s.allegato) { n++; rif = 'Allegato ' + n; allegati.push({ n, s }); }
-          txt(parseD(s.data).toLocaleDateString('it-IT'), M, 9.5); txt(s.descrizione || s.categoria, M + 62, 9.5, F, ink, 228);
+          txt(parseD(s.data).toLocaleDateString(LOC), M, 9.5); txt(s.descrizione || s.categoria, M + 62, 9.5, F, ink, 228);
           txt(s.metodo || '', M + 300, 9.5, F, s.metodo === 'Contanti' ? PL.rgb(0.7, 0.4, 0.05) : ink, 76); txt(rif, M + 380, 9.5, F, s.allegato ? acc : mut); right(E(s.importo), W - M); y -= 15;
         });
         y -= 4; page.drawLine({ start: { x: M, y: y + 6 }, end: { x: W - M, y: y + 6 }, thickness: 0.4, color: lin });
@@ -4360,7 +4389,7 @@
       // ricevute allegate
       for (const a of allegati) {
         busy(`Aggiungo le ricevute… ${a.n}/${allegati.length}`);
-        const cap = `Allegato ${a.n} - ${a.s.descrizione || a.s.categoria} - ${parseD(a.s.data).toLocaleDateString('it-IT')} - ${eur(a.s.importo)}`;
+        const cap = `Allegato ${a.n} - ${a.s.descrizione || a.s.categoria} - ${parseD(a.s.data).toLocaleDateString(LOC)} - ${eur(a.s.importo)}`;
         try {
           const f = await getDocFile(a.s.allegato);
           const bytes = new Uint8Array(await f.blob.arrayBuffer());
@@ -4378,7 +4407,7 @@
       }
       const out = await doc.save();
       busy(); saveBlob(new Blob([out], { type: 'application/pdf' }), `730-${dtYear}-riepilogo${dtWho !== 'all' && personaById(dtWho) ? '-' + personaById(dtWho).nome.toLowerCase() : ''}.pdf`);
-    } catch (e) { busy(); toast('Errore nel creare il PDF: ' + e.message); }
+    } catch (e) { busy(); toast(TF('Errore nel creare il PDF: {0}', [e.message])); }
   }
 
 
@@ -5033,7 +5062,12 @@
     vt.ready.then(() => document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] }, { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' }));
     vt.finished.finally(() => document.documentElement.classList.remove('theme-vt'));
   }
+  function renderLang() {
+    const box = $('#lang-set'); if (!box) return;
+    box.innerHTML = `<div class="lang-list">${Object.entries(I18.LINGUE).map(([k, n]) => `<button type="button" class="lang-b${k === I18.lang ? ' on' : ''}" data-lang="${k}" data-notr><span class="lang-c">${k.toUpperCase()}</span>${esc(n)}${k === I18.lang ? '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : ''}</button>`).join('')}</div>`;
+  }
   function renderTheme() {
+    renderLang();
     const box = $('#theme-set'); if (!box) return;
     const t = themeGet();
     box.innerHTML = `<div class="seg seg3">${[['auto', 'Automatico'], ['light', 'Chiaro'], ['dark', 'Scuro']].map(([k, l]) => `<button type="button" class="${t === k ? 'on' : ''}" data-themeset="${k}">${l}</button>`).join('')}</div>
@@ -5046,6 +5080,32 @@
   function motionInit() {
     swipeInit(); sheetDragInit(); ptrInit();
     document.addEventListener('click', e => { const t = e.target.closest('[data-themeset]'); if (t) themeSet(t.dataset.themeset, e); });
+    document.addEventListener('click', e => { const b = e.target.closest('[data-lang]'); if (b && b.dataset.lang !== I18.lang && window.I18N) window.I18N.set(b.dataset.lang); });
+    const ll = $('#login-lang'); if (ll) { ll.value = I18.lang; ll.addEventListener('change', () => window.I18N && window.I18N.set(ll.value)); }
+    // barra in basso su telefono: le parole lunghe (es. tedesco) si rimpiccioliscono per entrare intere
+    const fitNav = () => document.querySelectorAll('.nav a > span').forEach(x => {
+      x.style.fontSize = ''; x.style.display = ''; x.style.letterSpacing = ''; if (!x.offsetParent || getComputedStyle(x).display === 'none') return; x.style.display = 'inline-block'; if (x.scrollWidth <= x.clientWidth + 1) return;
+      const fs = parseFloat(getComputedStyle(x).fontSize);
+      x.style.letterSpacing = '-.02em';
+      x.style.fontSize = Math.max(7.5, Math.floor(fs * x.clientWidth / x.scrollWidth * 10) / 10) + 'px';
+    });
+    if (I18.lang !== 'it') {
+      // si ricalcola quando la barra compare o cambia misura (accesso, rotazione del telefono)
+      let navW = -1; const nav = $('.nav');
+      if (nav && window.ResizeObserver) new ResizeObserver(() => { if (nav.clientWidth !== navW) { navW = nav.clientWidth; requestAnimationFrame(fitNav); } }).observe(nav);
+      else addEventListener('resize', () => requestAnimationFrame(fitNav));
+      // e quando arriva il carattere definitivo (cambia la larghezza delle parole)
+      if (document.fonts) document.fonts.ready.then(() => requestAnimationFrame(fitNav));
+      addEventListener('hashchange', () => requestAnimationFrame(fitNav));
+    }
+    // pagine legali nella lingua dell'app
+    document.querySelectorAll('a[href*="spese-casa/"][href$=".html"]').forEach(x => { if (I18.lang !== 'it') x.href += '?lang=' + I18.lang; });
+    const ln = $('.legal-note');
+    if (ln && I18.lang !== 'it') {
+      const [t, pv] = [...ln.querySelectorAll('a')].map(x => x.href);
+      ln.setAttribute('data-notr', '');
+      ln.innerHTML = esc(T('I tuoi dati li vedi solo tu e chi è nella tua casa.')) + ' ' + TF('Continuando accetti i {0} e l\'{1}.', [`<a href="${esc(t)}" target="_blank" rel="noopener">${esc(T('Termini'))}</a>`, `<a href="${esc(pv)}" target="_blank" rel="noopener">${esc(T('Informativa privacy'))}</a>`]);
+    }
     // maniglia dei pannelli
     const h = $('#sheet-form .sheet-h'); if (h && !$('.sheet-grab')) { const g = document.createElement('div'); g.className = 'sheet-grab'; h.parentNode.insertBefore(g, h); }
   }
@@ -5189,14 +5249,14 @@
     const g = c.getContext('2d');
     g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
     g.fillStyle = '#e8f3ee'; g.fillRect(0, 0, c.width, 120);
-    g.fillStyle = '#17795a'; g.font = '700 34px Inter, Arial, sans-serif'; g.fillText(m.title, 50, 75);
-    g.fillStyle = '#666'; g.font = '20px Inter, Arial, sans-serif'; g.fillText('Data: ' + (m.date ? parseD(m.date).toLocaleDateString('it-IT') : ''), 50, 175);
+    g.fillStyle = '#17795a'; g.font = '700 34px Inter, Arial, sans-serif'; g.fillText(T(m.title), 50, 75);
+    g.fillStyle = '#666'; g.font = '20px Inter, Arial, sans-serif'; g.fillText(T('Data') + ': ' + (m.date ? parseD(m.date).toLocaleDateString(LOC) : ''), 50, 175);
     g.strokeStyle = '#ddd'; g.beginPath(); g.moveTo(50, 205); g.lineTo(770, 205); g.stroke();
     let y = 260; g.font = '22px Inter, Arial, sans-serif';
-    (m.lines || []).forEach(([t, v]) => { g.fillStyle = '#222'; g.fillText(t, 50, y); if (v) { const s = fmtNum(v, 2) + ' €'; g.fillText(s, 770 - g.measureText(s).width, y); } y += 46; });
-    if (m.total) { g.beginPath(); g.moveTo(50, y - 16); g.lineTo(770, y - 16); g.stroke(); g.font = '700 28px Inter, Arial, sans-serif'; g.fillStyle = '#111'; const label = m.payslip ? 'NETTO IN BUSTA' : 'TOTALE'; g.fillText(label, 50, y + 30); const s = fmtNum(m.total, 2) + ' €'; g.fillText(s, 770 - g.measureText(s).width, y + 30); }
-    g.save(); g.translate(410, 760); g.rotate(-0.42); g.fillStyle = 'rgba(23,121,90,.10)'; g.font = '800 70px Inter, Arial, sans-serif'; const w = 'DOCUMENTO DI ESEMPIO'; g.fillText(w, -g.measureText(w).width / 2, 0); g.restore();
-    g.fillStyle = '#999'; g.font = '18px Inter, Arial, sans-serif'; g.fillText('Spese Casa · modalità demo', 50, 1060);
+    (m.lines || []).forEach(([t, v]) => { g.fillStyle = '#222'; g.fillText(T(t), 50, y); if (v) { const s = fmtNum(v, 2) + ' €'; g.fillText(s, 770 - g.measureText(s).width, y); } y += 46; });
+    if (m.total) { g.beginPath(); g.moveTo(50, y - 16); g.lineTo(770, y - 16); g.stroke(); g.font = '700 28px Inter, Arial, sans-serif'; g.fillStyle = '#111'; const label = T(m.payslip ? 'NETTO IN BUSTA' : 'TOTALE'); g.fillText(label, 50, y + 30); const s = fmtNum(m.total, 2) + ' €'; g.fillText(s, 770 - g.measureText(s).width, y + 30); }
+    g.save(); g.translate(410, 760); g.rotate(-0.42); g.fillStyle = 'rgba(23,121,90,.10)'; g.font = '800 70px Inter, Arial, sans-serif'; const w = T('DOCUMENTO DI ESEMPIO'); g.fillText(w, -g.measureText(w).width / 2, 0); g.restore();
+    g.fillStyle = '#999'; g.font = '18px Inter, Arial, sans-serif'; g.fillText('Spese Casa · ' + T('modalità demo'), 50, 1060);
     return new Promise(res => c.toBlob(b => res(b), 'image/png'));
   }
 
@@ -5242,7 +5302,7 @@
     document.body.classList.add('is-demo');
     const bar = document.createElement('div');
     bar.className = 'demo-bar';
-    bar.innerHTML = `<span><b>Demo</b> · dati di esempio<span class="db-x">, le modifiche non vengono salvate</span></span><a href="${esc(location.pathname)}" class="demo-exit">Esci</a>`;
+    bar.innerHTML = `<span><b>Demo</b> · ${esc(T('dati di esempio'))}<span class="db-x">, ${esc(T('le modifiche non vengono salvate'))}</span></span><a href="${esc(location.pathname)}" class="demo-exit">${esc(T('Esci'))}</a>`;
     $('main').prepend(bar);
   }
 
@@ -5272,8 +5332,8 @@
     closeSheet._t = setTimeout(() => { sh.hidden = true; sh.classList.remove('closing'); }, 230);
   }
 
-  const opt = (list, sel) => list.map(v => `<option${v === sel ? ' selected' : ''}>${esc(v)}</option>`).join('');
-  const fmtAmt = v => (v === '' || v == null) ? '' : String(Number(v).toFixed(2)).replace('.', ',');
+  const opt = (list, sel) => list.map(v => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(v)}</option>`).join('');
+  const fmtAmt = v => (v === '' || v == null) ? '' : String(Number(v).toFixed(2)).replace('.', SEP[1]);
 
   function catOptions(sel) {
     const list = cats();
@@ -5824,7 +5884,7 @@
         if (a === 'edit') formRent();
         else if (a === 'pay') formRentPay(ra.dataset.rentm || ymOf(new Date()));
         else if (a === 'notify') formNotify();
-        else if (a === 'testmail') { busy('Invio…'); api('testEmail').then(r => { busy(); toast('Email inviata a ' + r.email); }).catch(err => { busy(); toast(err.message); }); }
+        else if (a === 'testmail') { busy('Invio…'); api('testEmail').then(r => { busy(); toast(TF('Email inviata a {0}', [r.email])); }).catch(err => { busy(); toast(err.message); }); }
         return;
       }
       const yr = e.target.closest('[data-year]');
@@ -5990,7 +6050,7 @@
     if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Scrivi un indirizzo email valido'; err.hidden = false; return; }
     err.hidden = true; btn.disabled = true; btn.textContent = 'Invio…';
     try {
-      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+      const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { lingua: I18.lang } } });
       if (error) throw error;
       loginEmail = email; loginStep(2);
     } catch (e) { err.textContent = loginErr(e); err.hidden = false; }

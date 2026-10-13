@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="it" data-l="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy · Spese Casa</title><meta name="description" content="Informativa sulla privacy di Spese Casa">
 <link rel="icon" href="logo.svg"><style>
 :root{--bg:#f6f6f4;--surface:#fff;--ink:#18181b;--ink2:#52525b;--muted:#8a8a93;--line:#e7e7e3;--accent:#1f7a5a;--soft:#e5f1ec}
@@ -20,11 +20,20 @@ a{color:var(--accent)}b,strong{color:var(--ink)}
 .steps{counter-reset:s;list-style:none;padding:0}.steps li{counter-increment:s;position:relative;padding-left:40px;margin:12px 0}
 .steps li::before{content:counter(s);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center}
 footer{margin-top:28px;font-size:14px;color:var(--muted);display:flex;flex-wrap:wrap;gap:16px}footer a{color:var(--muted)}
-</style></head>
-<body><div class="w">
-<div class="top"><img src="logo.svg" alt=""><div><b>Spese Casa</b><span>Tetto Studio</span></div></div>
-<h1>Informativa sulla privacy</h1><p class="upd">Ultimo aggiornamento: 12 ottobre 2026</p>
 
+.lg{display:flex;gap:4px;margin-left:auto}.lg a{font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;padding:5px 8px;border-radius:8px}.lg a[aria-current]{background:var(--soft);color:var(--accent)}
+.lb{display:none}html[data-l=it] .lb[data-l=it],html[data-l=en] .lb[data-l=en],html[data-l=es] .lb[data-l=es],html[data-l=fr] .lb[data-l=fr],html[data-l=de] .lb[data-l=de]{display:block}
+.nota{font-size:13px;color:var(--muted);margin:-18px 0 24px}
+</style><script>(function(){var L=["it", "en", "es", "fr", "de"],T={"it": {"title": "Privacy · Spese Casa", "desc": "Informativa sulla privacy di Spese Casa"}, "en": {"title": "Privacy · Spese Casa", "desc": "Spese Casa privacy policy"}, "es": {"title": "Privacidad · Spese Casa", "desc": "Política de privacidad de Spese Casa"}, "fr": {"title": "Confidentialité · Spese Casa", "desc": "Politique de confidentialité de Spese Casa"}, "de": {"title": "Datenschutz · Spese Casa", "desc": "Datenschutzerklärung von Spese Casa"}},l='';try{l=new URLSearchParams(location.search).get('lang')||''}catch(e){}
+if(L.indexOf(l)<0){try{l=localStorage.getItem('sc_lang')||''}catch(e){}}
+if(L.indexOf(l)<0){l=(navigator.language||'it').slice(0,2).toLowerCase()}
+if(L.indexOf(l)<0)l='it';var d=document.documentElement;d.lang=l;d.setAttribute('data-l',l);document.title=T[l].title;
+var m=document.querySelector('meta[name=description]');if(m)m.setAttribute('content',T[l].desc);
+document.addEventListener('DOMContentLoaded',function(){var a=document.querySelector('.lg a[data-k="'+l+'"]');if(a)a.setAttribute('aria-current','true')})})();</script></head>
+<body><div class="w">
+<div class="top"><img src="logo.svg" alt=""><div><b>Spese Casa</b><span>Tetto Studio</span></div><nav class="lg" aria-label="Lingua · Language"><a href="?lang=it" data-k="it" hreflang="it" lang="it">IT</a><a href="?lang=en" data-k="en" hreflang="en" lang="en">EN</a><a href="?lang=es" data-k="es" hreflang="es" lang="es">ES</a><a href="?lang=fr" data-k="fr" hreflang="fr" lang="fr">FR</a><a href="?lang=de" data-k="de" hreflang="de" lang="de">DE</a></nav></div>
+<div class="lb" data-l="it" lang="it">
+<h1>Informativa sulla privacy</h1><p class="upd">Ultimo aggiornamento: 12 ottobre 2026</p>
 <div class="card">
 <p>Questa informativa spiega quali dati tratta l'app <b>Spese Casa</b> (sul web, su App Store e su Google Play), perché e quali sono i tuoi diritti, ai sensi del Regolamento UE 2016/679 (GDPR).</p>
 <div class="box"><p><b>In breve:</b> usiamo i tuoi dati solo per far funzionare l'app. Niente pubblicità, niente profilazione, nessuna vendita di dati. Puoi eliminare l'account e tutti i dati quando vuoi, direttamente dall'app.</p></div>
@@ -80,4 +89,241 @@ footer{margin-top:28px;font-size:14px;color:var(--muted);display:flex;flex-wrap:
 <p>Se questa informativa cambia in modo rilevante, te lo segnaleremo nell'app.</p>
 </div>
 <footer><a href="privacy.html">Privacy</a><a href="termini.html">Termini</a><a href="elimina-account.html">Eliminare l'account</a><a href="supporto.html">Supporto</a><a href="./">Apri l'app</a></footer>
+</div>
+<div class="lb" data-l="en" lang="en">
+<h1>Privacy policy</h1><p class="upd">Last updated: 12 October 2026</p>
+<p class="nota">This is a translation provided for convenience. In case of any discrepancy, the Italian version prevails.</p>
+<div class="card">
+<p>This policy explains what data the <b>Spese Casa</b> app processes (on the web, on the App Store and on Google Play), why, and what your rights are under EU Regulation 2016/679 (GDPR).</p>
+<div class="box"><p><b>In short:</b> we use your data only to make the app work. No advertising, no profiling, no selling of data. You can delete your account and all your data whenever you like, directly from the app.</p></div>
+<div class="box"><p><b>Your content stays yours.</b> The expenses, amounts, income, bills, documents, receipts and attachments you upload are visible only to you and the people in your home. The controller <b>does not look at them or use them</b>: the tool used to manage the app shows only account data, never content. It is accessed only if you ask for it for support or if an authority requires it by law.</p></div>
+<h2>Data controller</h2>
+<p>Dario Garnet (Tetto Studio), individual. Contact: <a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a></p>
+<h2>What data we process</h2>
+<ul>
+<li><b>Account data:</b> your email address, used to sign in with a code (no password).</li>
+<li><b>Data you enter:</b> expenses, income, bills, due dates, vehicles, maintenance, lists, notes, documents and attachments (photos, PDFs). They may contain personal information, including sensitive information, for example medical expenses you choose to record for the Italian 730 tax return: you decide what to enter.</li>
+<li><b>Shared home:</b> if you invite someone or join a home, the other members see the home's data and your email.</li>
+<li><b>Notifications:</b> the technical device identifier needed to send you reminders, if you turn them on.</li>
+<li><b>Artificial intelligence key:</b> if you turn on AI, the Google Gemini key you enter is stored on the device and on the server, so that it works for the whole home and for the automatic report.</li>
+<li><b>Subscription:</b> the plan status (free or Premium) and its expiry date. Payment data is handled by Apple or Google: we never see or store cards or accounts.</li>
+</ul>
+<h2>Why we process it and on what legal basis</h2>
+<ul>
+<li>To provide the service you requested: sign-in, saving and syncing data, shared home, reminders, subscription (performance of a contract, Art. 6.1.b GDPR).</li>
+<li>For sensitive data you choose to enter (for example medical expenses): based on your explicit consent, given by entering it voluntarily (Art. 9.2.a GDPR). You can delete it at any time.</li>
+<li>To comply with legal obligations, where necessary (Art. 6.1.c GDPR).</li>
+</ul>
+<h2>Artificial intelligence</h2>
+<p>The AI features (reading receipts, bills, payslips and bank statements, dictation, report) are optional. When you use them, the necessary content (for example the photo of a receipt or a summary of your accounts) is sent to <b>Google Gemini</b> using <b>your</b> key and your Google account, under the terms you accepted with Google. With Google's free plan, Google may use this content to improve its services. AI results may contain errors: always check them.</p>
+<h2>Providers that help us (processors)</h2>
+<ul>
+<li><b>Supabase</b>: database, file storage and sending of sign-in codes and notifications.</li>
+<li><b>Google</b>: sending emails with the sign-in code; Gemini, only if you turn on AI; Google Play for purchases on Android; Google notification services.</li>
+<li><b>Apple</b>: App Store for purchases on iPhone; Apple notification service.</li>
+<li><b>RevenueCat</b>: managing the status of subscriptions bought on the stores.</li>
+<li><b>GitHub</b>: publishing the web version of the app.</li>
+</ul>
+<p>Some providers may process data outside the European Union; in these cases the transfer takes place with the safeguards required by the GDPR (adequacy decisions or standard contractual clauses).</p>
+<h2>How long</h2>
+<p>We keep the data as long as your account is active. If you delete your account, your data and that of any home where you are the only member are deleted immediately; any technical backup copies are overwritten within 30 days. If you are part of a home shared with other people, the home's data remains available to the other members.</p>
+<h2>Who can see your data</h2>
+<p>The content you enter (expenses, amounts, income, bills, documents, photos and attachments) is seen only by you and the people in your home: it is protected by access rules on the server that keep each home separate from the others.</p>
+<p>As the operator of the service, the controller technically has access to the systems where the data is stored, but by law may process it only for the purposes stated in this policy. For this reason it undertakes <b>not to look at or use your content</b>. To manage the app it uses a panel that shows only:</p>
+<ul>
+<li>email, sign-up date, last sign-in and last activity;</li>
+<li>plan (free, trial or Premium) and its expiry date;</li>
+<li>number of recorded entries and storage used by the archive, without their content;</li>
+<li>number of devices with notifications turned on and whether artificial intelligence is on;</li>
+<li>members of the shared home and invite codes.</li>
+</ul>
+<p>Content is accessed only in two cases: if you explicitly ask for it to receive support, limited to what is necessary, or if an authority requires it by law.</p>
+<h2>Cookies and tracking</h2>
+<p>The app does not use profiling cookies or analytics or advertising tools. On the device it stores only the technical information needed for it to work (for example the sign-in session and preferences).</p>
+<h2>Minors</h2>
+<p>The app is not intended for children under 14.</p>
+<h2>Your rights</h2>
+<p>At any time you can ask for access to your data, rectification, erasure, restriction, portability (you can download a full copy from the app) and object to processing, by writing to <a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a>. You can withdraw your consent by deleting the data or the account. You also have the right to lodge a complaint with the <a href="https://www.garanteprivacy.it" rel="noopener">Italian Data Protection Authority (Garante per la protezione dei dati personali)</a> or with the supervisory authority of your country.</p>
+<h2>Changes</h2>
+<p>If this policy changes significantly, we will let you know in the app.</p>
+</div>
+<footer><a href="privacy.html?lang=en">Privacy</a><a href="termini.html?lang=en">Terms</a><a href="elimina-account.html?lang=en">Delete your account</a><a href="supporto.html?lang=en">Support</a><a href="./">Open the app</a></footer>
+</div>
+<div class="lb" data-l="es" lang="es">
+<h1>Política de privacidad</h1><p class="upd">Última actualización: 12 de octubre de 2026</p>
+<p class="nota">Esta es una traducción ofrecida para tu comodidad. En caso de discrepancia, prevalece la versión italiana.</p>
+<div class="card">
+<p>Esta política explica qué datos trata la app <b>Spese Casa</b> (en la web, en App Store y en Google Play), por qué y cuáles son tus derechos según el Reglamento UE 2016/679 (RGPD).</p>
+<div class="box"><p><b>En resumen:</b> usamos tus datos solo para que la app funcione. Sin publicidad, sin elaboración de perfiles y sin venta de datos. Puedes eliminar la cuenta y todos los datos cuando quieras, directamente desde la app.</p></div>
+<div class="box"><p><b>Tus contenidos siguen siendo tuyos.</b> Los gastos, importes, ingresos, recibos, documentos, tickets y archivos adjuntos que subes solo los ves tú y las personas de tu casa. El responsable <b>no los consulta ni los utiliza</b>: la herramienta con la que gestiona la app muestra solo datos de la cuenta, nunca los contenidos. Solo se accede a ellos si tú lo pides para recibir asistencia o si lo exige una autoridad conforme a la ley.</p></div>
+<h2>Responsable del tratamiento</h2>
+<p>Dario Garnet (Tetto Studio), persona física. Contacto: <a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a></p>
+<h2>Qué datos tratamos</h2>
+<ul>
+<li><b>Datos de la cuenta:</b> tu dirección de correo, usada para acceder con un código (sin contraseña).</li>
+<li><b>Datos que introduces tú:</b> gastos, ingresos, recibos, vencimientos, vehículos, mantenimientos, listas, notas, documentos y adjuntos (fotos, PDF). Pueden contener información personal, incluso sensible, por ejemplo gastos médicos que decides registrar para la declaración italiana 730: tú eliges qué introducir.</li>
+<li><b>Casa compartida:</b> si invitas a alguien o entras en una casa, los demás miembros ven los datos de la casa y tu correo.</li>
+<li><b>Notificaciones:</b> el identificador técnico del dispositivo necesario para enviarte los recordatorios, si los activas.</li>
+<li><b>Clave de inteligencia artificial:</b> si activas la IA, la clave de Google Gemini que introduces se guarda en el dispositivo y en el servidor, para que funcione para toda la casa y para el informe automático.</li>
+<li><b>Suscripción:</b> el estado del plan (gratis o Premium) y su vencimiento. Los datos de pago los gestionan Apple o Google: no vemos ni guardamos tarjetas ni cuentas.</li>
+</ul>
+<h2>Por qué los tratamos y con qué base</h2>
+<ul>
+<li>Para prestarte el servicio que has solicitado: acceso, guardado y sincronización de datos, casa compartida, recordatorios, suscripción (ejecución del contrato, art. 6.1.b RGPD).</li>
+<li>Para los datos sensibles que decides introducir (por ejemplo gastos médicos): con base en tu consentimiento explícito, expresado al introducirlos voluntariamente (art. 9.2.a RGPD). Puedes borrarlos en cualquier momento.</li>
+<li>Para cumplir obligaciones legales, si es necesario (art. 6.1.c RGPD).</li>
+</ul>
+<h2>Inteligencia artificial</h2>
+<p>Las funciones de IA (lectura de tickets, recibos, nóminas y extractos bancarios, dictado, informe) son opcionales. Cuando las usas, el contenido necesario (por ejemplo la foto del ticket o un resumen de las cuentas) se envía a <b>Google Gemini</b> usando <b>tu</b> clave y tu cuenta de Google, según los términos que aceptaste con Google. Con el plan gratuito de Google, Google puede usar estos contenidos para mejorar sus servicios. Los resultados de la IA pueden contener errores: compruébalos siempre.</p>
+<h2>Proveedores que nos ayudan (encargados del tratamiento)</h2>
+<ul>
+<li><b>Supabase</b>: base de datos, almacenamiento de archivos y envío de los códigos de acceso y de las notificaciones.</li>
+<li><b>Google</b>: envío de los correos con el código de acceso; Gemini, solo si activas la IA; Google Play para las compras en Android; servicios de notificación de Google.</li>
+<li><b>Apple</b>: App Store para las compras en iPhone; servicio de notificación de Apple.</li>
+<li><b>RevenueCat</b>: gestión del estado de las suscripciones compradas en las tiendas.</li>
+<li><b>GitHub</b>: publicación de la versión web de la app.</li>
+</ul>
+<p>Algunos proveedores pueden tratar datos fuera de la Unión Europea; en esos casos la transferencia se realiza con las garantías previstas por el RGPD (decisiones de adecuación o cláusulas contractuales tipo).</p>
+<h2>Durante cuánto tiempo</h2>
+<p>Conservamos los datos mientras tu cuenta esté activa. Si eliminas la cuenta, tus datos y los de la casa de la que eres el único miembro se borran de inmediato; las posibles copias de seguridad técnicas se sobrescriben en un plazo de 30 días. Si formas parte de una casa compartida con otras personas, los datos de la casa siguen disponibles para los demás miembros.</p>
+<h2>Quién puede ver tus datos</h2>
+<p>Los contenidos que introduces (gastos, importes, ingresos, recibos, documentos, fotos y adjuntos) solo los veis tú y las personas de tu casa: están protegidos por reglas de acceso en el servidor que separan cada casa de las demás.</p>
+<p>El responsable, como gestor del servicio, dispone técnicamente de los sistemas en los que se guardan los datos, pero por ley solo puede tratarlos para las finalidades indicadas en esta política. Por eso se compromete a <b>no consultar ni utilizar tus contenidos</b>. Para gestionar la app usa un panel que muestra exclusivamente:</p>
+<ul>
+<li>correo, fecha de registro, último acceso y última actividad;</li>
+<li>plan (gratis, prueba o Premium) y su vencimiento;</li>
+<li>número de elementos registrados y espacio ocupado por el archivo, sin su contenido;</li>
+<li>número de dispositivos con las notificaciones activas y si la inteligencia artificial está activa;</li>
+<li>miembros de la casa compartida y códigos de invitación.</li>
+</ul>
+<p>Solo se accede a los contenidos en dos casos: si tú lo pides expresamente para recibir asistencia, limitado a lo necesario, o si lo exige una autoridad conforme a la ley.</p>
+<h2>Cookies y seguimiento</h2>
+<p>La app no usa cookies de elaboración de perfiles ni herramientas de análisis o publicidad. En el dispositivo guarda solo la información técnica necesaria para su funcionamiento (por ejemplo la sesión de acceso y las preferencias).</p>
+<h2>Menores</h2>
+<p>La app no está destinada a menores de 14 años.</p>
+<h2>Tus derechos</h2>
+<p>Puedes solicitar en cualquier momento el acceso a tus datos, su rectificación, supresión, limitación, portabilidad (desde la app puedes descargar una copia completa) y oponerte al tratamiento, escribiendo a <a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a>. Puedes retirar el consentimiento eliminando los datos o la cuenta. También tienes derecho a presentar una reclamación ante el <a href="https://www.garanteprivacy.it" rel="noopener">Garante italiano para la protección de datos personales</a> o ante la autoridad de control de tu país.</p>
+<h2>Cambios</h2>
+<p>Si esta política cambia de forma relevante, te lo indicaremos en la app.</p>
+</div>
+<footer><a href="privacy.html?lang=es">Privacidad</a><a href="termini.html?lang=es">Términos</a><a href="elimina-account.html?lang=es">Eliminar la cuenta</a><a href="supporto.html?lang=es">Soporte</a><a href="./">Abrir la app</a></footer>
+</div>
+<div class="lb" data-l="fr" lang="fr">
+<h1>Politique de confidentialité</h1><p class="upd">Dernière mise à jour : 12 octobre 2026</p>
+<p class="nota">Cette traduction est fournie pour votre commodité. En cas de divergence, la version italienne prévaut.</p>
+<div class="card">
+<p>Cette politique explique quelles données l'app <b>Spese Casa</b> traite (sur le web, sur l'App Store et sur Google Play), pourquoi, et quels sont vos droits au titre du Règlement UE 2016/679 (RGPD).</p>
+<div class="box"><p><b>En bref :</b> nous utilisons vos données uniquement pour faire fonctionner l'app. Pas de publicité, pas de profilage, aucune vente de données. Vous pouvez supprimer votre compte et toutes vos données quand vous le souhaitez, directement depuis l'app.</p></div>
+<div class="box"><p><b>Vos contenus restent les vôtres.</b> Les dépenses, montants, revenus, factures, documents, tickets et pièces jointes que vous ajoutez ne sont visibles que par vous et les personnes de votre maison. Le responsable <b>ne les consulte pas et ne les utilise pas</b> : l'outil avec lequel il gère l'app n'affiche que des données de compte, jamais les contenus. On n'y accède que si vous le demandez pour une assistance ou si une autorité l'exige conformément à la loi.</p></div>
+<h2>Responsable du traitement</h2>
+<p>Dario Garnet (Tetto Studio), personne physique. Contact : <a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a></p>
+<h2>Quelles données nous traitons</h2>
+<ul>
+<li><b>Données du compte :</b> votre adresse e-mail, utilisée pour vous connecter avec un code (sans mot de passe).</li>
+<li><b>Données que vous saisissez :</b> dépenses, revenus, factures, échéances, véhicules, entretiens, listes, notes, documents et pièces jointes (photos, PDF). Elles peuvent contenir des informations personnelles, y compris sensibles, par exemple des frais de santé que vous choisissez d'enregistrer pour la déclaration italienne 730 : c'est vous qui choisissez ce que vous saisissez.</li>
+<li><b>Maison partagée :</b> si vous invitez quelqu'un ou rejoignez une maison, les autres membres voient les données de la maison et votre e-mail.</li>
+<li><b>Notifications :</b> l'identifiant technique de l'appareil nécessaire pour vous envoyer les rappels, si vous les activez.</li>
+<li><b>Clé d'intelligence artificielle :</b> si vous activez l'IA, la clé Google Gemini que vous saisissez est conservée sur l'appareil et sur le serveur, afin qu'elle fonctionne pour toute la maison et pour le bilan automatique.</li>
+<li><b>Abonnement :</b> l'état de l'offre (gratuite ou Premium) et sa date d'expiration. Les données de paiement sont gérées par Apple ou Google : nous ne voyons ni ne conservons aucune carte ni aucun compte.</li>
+</ul>
+<h2>Pourquoi nous les traitons et sur quelle base</h2>
+<ul>
+<li>Pour vous fournir le service demandé : connexion, enregistrement et synchronisation des données, maison partagée, rappels, abonnement (exécution du contrat, art. 6.1.b RGPD).</li>
+<li>Pour les données sensibles que vous choisissez de saisir (par exemple des frais de santé) : sur la base de votre consentement explicite, exprimé en les saisissant volontairement (art. 9.2.a RGPD). Vous pouvez les supprimer à tout moment.</li>
+<li>Pour respecter des obligations légales, si nécessaire (art. 6.1.c RGPD).</li>
+</ul>
+<h2>Intelligence artificielle</h2>
+<p>Les fonctions IA (lecture de tickets, factures, bulletins de paie et relevés bancaires, dictée, bilan) sont facultatives. Lorsque vous les utilisez, le contenu nécessaire (par exemple la photo du ticket ou un résumé des comptes) est envoyé à <b>Google Gemini</b> avec <b>votre</b> clé et votre compte Google, selon les conditions que vous avez acceptées auprès de Google. Avec l'offre gratuite de Google, Google peut utiliser ces contenus pour améliorer ses services. Les résultats de l'IA peuvent contenir des erreurs : vérifiez-les toujours.</p>
+<h2>Prestataires qui nous aident (sous-traitants)</h2>
+<ul>
+<li><b>Supabase</b> : base de données, stockage des fichiers et envoi des codes de connexion et des notifications.</li>
+<li><b>Google</b> : envoi des e-mails avec le code de connexion ; Gemini, uniquement si vous activez l'IA ; Google Play pour les achats sur Android ; services de notification de Google.</li>
+<li><b>Apple</b> : App Store pour les achats sur iPhone ; service de notification d'Apple.</li>
+<li><b>RevenueCat</b> : gestion de l'état des abonnements achetés sur les stores.</li>
+<li><b>GitHub</b> : publication de la version web de l'app.</li>
+</ul>
+<p>Certains prestataires peuvent traiter des données hors de l'Union européenne ; dans ce cas, le transfert s'effectue avec les garanties prévues par le RGPD (décisions d'adéquation ou clauses contractuelles types).</p>
+<h2>Durée de conservation</h2>
+<p>Nous conservons les données tant que votre compte est actif. Si vous supprimez le compte, vos données et celles de la maison dont vous êtes le seul membre sont effacées immédiatement ; les éventuelles copies de sauvegarde techniques sont écrasées sous 30 jours. Si vous faites partie d'une maison partagée avec d'autres personnes, les données de la maison restent disponibles pour les autres membres.</p>
+<h2>Qui peut voir vos données</h2>
+<p>Les contenus que vous saisissez (dépenses, montants, revenus, factures, documents, photos et pièces jointes) ne sont visibles que par vous et les personnes de votre maison : ils sont protégés par des règles d'accès sur le serveur qui séparent chaque maison des autres.</p>
+<p>En tant qu'exploitant du service, le responsable dispose techniquement des systèmes où les données sont conservées, mais la loi ne l'autorise à les traiter que pour les finalités indiquées dans cette politique. C'est pourquoi il s'engage à <b>ne pas consulter ni utiliser vos contenus</b>. Pour gérer l'app, il utilise un panneau qui affiche exclusivement :</p>
+<ul>
+<li>e-mail, date d'inscription, dernière connexion et dernière activité ;</li>
+<li>offre (gratuite, essai ou Premium) et sa date d'expiration ;</li>
+<li>nombre d'éléments enregistrés et espace occupé par l'archive, sans leur contenu ;</li>
+<li>nombre d'appareils avec les notifications activées et si l'intelligence artificielle est active ;</li>
+<li>membres de la maison partagée et codes d'invitation.</li>
+</ul>
+<p>L'accès aux contenus n'a lieu que dans deux cas : si vous le demandez expressément pour obtenir une assistance, dans la limite du nécessaire, ou si une autorité l'exige conformément à la loi.</p>
+<h2>Cookies et suivi</h2>
+<p>L'app n'utilise pas de cookies de profilage ni d'outils d'analyse ou de publicité. Sur l'appareil, elle conserve uniquement les informations techniques nécessaires à son fonctionnement (par exemple la session de connexion et les préférences).</p>
+<h2>Mineurs</h2>
+<p>L'app n'est pas destinée aux moins de 14 ans.</p>
+<h2>Vos droits</h2>
+<p>Vous pouvez demander à tout moment l'accès à vos données, leur rectification, leur effacement, la limitation, la portabilité (depuis l'app vous pouvez télécharger une copie complète) et vous opposer au traitement, en écrivant à <a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a>. Vous pouvez retirer votre consentement en supprimant les données ou le compte. Vous avez aussi le droit d'introduire une réclamation auprès du <a href="https://www.garanteprivacy.it" rel="noopener">Garante italien pour la protection des données personnelles</a> ou de l'autorité de contrôle de votre pays (en France, la CNIL).</p>
+<h2>Modifications</h2>
+<p>Si cette politique change de façon importante, nous vous le signalerons dans l'app.</p>
+</div>
+<footer><a href="privacy.html?lang=fr">Confidentialité</a><a href="termini.html?lang=fr">Conditions</a><a href="elimina-account.html?lang=fr">Supprimer le compte</a><a href="supporto.html?lang=fr">Assistance</a><a href="./">Ouvrir l'app</a></footer>
+</div>
+<div class="lb" data-l="de" lang="de">
+<h1>Datenschutzerklärung</h1><p class="upd">Zuletzt aktualisiert: 12. Oktober 2026</p>
+<p class="nota">Diese Übersetzung dient nur der Information. Bei Abweichungen ist die italienische Fassung maßgeblich.</p>
+<div class="card">
+<p>Diese Erklärung beschreibt, welche Daten die App <b>Spese Casa</b> (im Web, im App Store und bei Google Play) verarbeitet, warum, und welche Rechte du nach der EU-Verordnung 2016/679 (DSGVO) hast.</p>
+<div class="box"><p><b>Kurz gesagt:</b> Wir nutzen deine Daten nur, damit die App funktioniert. Keine Werbung, kein Profiling, kein Verkauf von Daten. Du kannst dein Konto und alle Daten jederzeit direkt in der App löschen.</p></div>
+<div class="box"><p><b>Deine Inhalte gehören dir.</b> Ausgaben, Beträge, Einnahmen, Rechnungen, Dokumente, Belege und Anhänge, die du hochlädst, sehen nur du und die Personen in deinem Haushalt. Der Verantwortliche <b>sieht sie nicht ein und nutzt sie nicht</b>: Das Werkzeug, mit dem er die App verwaltet, zeigt nur Kontodaten, niemals Inhalte. Ein Zugriff erfolgt nur, wenn du ihn für den Support verlangst oder eine Behörde ihn gesetzlich anordnet.</p></div>
+<h2>Verantwortlicher</h2>
+<p>Dario Garnet (Tetto Studio), natürliche Person. Kontakt: <a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a></p>
+<h2>Welche Daten wir verarbeiten</h2>
+<ul>
+<li><b>Kontodaten:</b> deine E-Mail-Adresse, die für die Anmeldung per Code (ohne Passwort) verwendet wird.</li>
+<li><b>Von dir eingegebene Daten:</b> Ausgaben, Einnahmen, Rechnungen, Fälligkeiten, Fahrzeuge, Wartungen, Listen, Notizen, Dokumente und Anhänge (Fotos, PDF). Sie können personenbezogene, auch sensible Informationen enthalten, zum Beispiel Gesundheitsausgaben, die du für die italienische Steuererklärung 730 erfasst: Du entscheidest, was du eingibst.</li>
+<li><b>Geteiltes Zuhause:</b> Wenn du jemanden einlädst oder einem Haushalt beitrittst, sehen die anderen Mitglieder die Daten des Haushalts und deine E-Mail.</li>
+<li><b>Benachrichtigungen:</b> die technische Gerätekennung, die nötig ist, um dir Erinnerungen zu senden, wenn du sie aktivierst.</li>
+<li><b>Schlüssel für künstliche Intelligenz:</b> Wenn du die KI aktivierst, wird der von dir eingegebene Google-Gemini-Schlüssel auf dem Gerät und auf dem Server gespeichert, damit er für den ganzen Haushalt und für den automatischen Bericht funktioniert.</li>
+<li><b>Abonnement:</b> der Status des Tarifs (kostenlos oder Premium) und sein Ablaufdatum. Zahlungsdaten verwalten Apple oder Google: Wir sehen und speichern keine Karten oder Konten.</li>
+</ul>
+<h2>Warum wir sie verarbeiten und auf welcher Grundlage</h2>
+<ul>
+<li>Um dir den gewünschten Dienst bereitzustellen: Anmeldung, Speichern und Synchronisieren der Daten, geteiltes Zuhause, Erinnerungen, Abonnement (Vertragserfüllung, Art. 6 Abs. 1 lit. b DSGVO).</li>
+<li>Für sensible Daten, die du freiwillig eingibst (zum Beispiel Gesundheitsausgaben): auf Grundlage deiner ausdrücklichen Einwilligung, die du durch die freiwillige Eingabe erteilst (Art. 9 Abs. 2 lit. a DSGVO). Du kannst sie jederzeit löschen.</li>
+<li>Zur Erfüllung gesetzlicher Pflichten, falls erforderlich (Art. 6 Abs. 1 lit. c DSGVO).</li>
+</ul>
+<h2>Künstliche Intelligenz</h2>
+<p>Die KI-Funktionen (Lesen von Belegen, Rechnungen, Gehaltsabrechnungen und Kontoauszügen, Diktat, Bericht) sind optional. Wenn du sie nutzt, wird der nötige Inhalt (zum Beispiel das Foto des Belegs oder eine Zusammenfassung der Finanzen) mit <b>deinem</b> Schlüssel und deinem Google-Konto an <b>Google Gemini</b> gesendet, gemäß den Bedingungen, die du mit Google vereinbart hast. Im kostenlosen Tarif von Google kann Google diese Inhalte zur Verbesserung seiner Dienste nutzen. KI-Ergebnisse können Fehler enthalten: Prüfe sie immer.</p>
+<h2>Dienstleister, die uns helfen (Auftragsverarbeiter)</h2>
+<ul>
+<li><b>Supabase</b>: Datenbank, Dateispeicher und Versand der Anmeldecodes und Benachrichtigungen.</li>
+<li><b>Google</b>: Versand der E-Mails mit dem Anmeldecode; Gemini, nur wenn du die KI aktivierst; Google Play für Käufe auf Android; Benachrichtigungsdienste von Google.</li>
+<li><b>Apple</b>: App Store für Käufe auf dem iPhone; Benachrichtigungsdienst von Apple.</li>
+<li><b>RevenueCat</b>: Verwaltung des Status der in den Stores gekauften Abonnements.</li>
+<li><b>GitHub</b>: Veröffentlichung der Webversion der App.</li>
+</ul>
+<p>Einige Dienstleister können Daten außerhalb der Europäischen Union verarbeiten; in diesen Fällen erfolgt die Übermittlung mit den von der DSGVO vorgesehenen Garantien (Angemessenheitsbeschlüsse oder Standardvertragsklauseln).</p>
+<h2>Speicherdauer</h2>
+<p>Wir speichern die Daten, solange dein Konto aktiv ist. Wenn du das Konto löschst, werden deine Daten und die des Haushalts, dessen einziges Mitglied du bist, sofort gelöscht; etwaige technische Sicherungskopien werden innerhalb von 30 Tagen überschrieben. Wenn du Teil eines mit anderen geteilten Haushalts bist, bleiben die Daten des Haushalts für die anderen Mitglieder verfügbar.</p>
+<h2>Wer deine Daten sehen kann</h2>
+<p>Die Inhalte, die du eingibst (Ausgaben, Beträge, Einnahmen, Rechnungen, Dokumente, Fotos und Anhänge), sehen nur du und die Personen in deinem Haushalt: Sie sind durch Zugriffsregeln auf dem Server geschützt, die jeden Haushalt von den anderen trennen.</p>
+<p>Als Betreiber des Dienstes verfügt der Verantwortliche technisch über die Systeme, auf denen die Daten gespeichert sind, darf sie aber gesetzlich nur für die in dieser Erklärung genannten Zwecke verarbeiten. Deshalb verpflichtet er sich, <b>deine Inhalte nicht einzusehen und nicht zu nutzen</b>. Zur Verwaltung der App nutzt er ein Panel, das ausschließlich Folgendes zeigt:</p>
+<ul>
+<li>E-Mail, Registrierungsdatum, letzte Anmeldung und letzte Aktivität;</li>
+<li>Tarif (kostenlos, Testphase oder Premium) und dessen Ablaufdatum;</li>
+<li>Anzahl der erfassten Einträge und belegter Speicherplatz des Archivs, ohne deren Inhalt;</li>
+<li>Anzahl der Geräte mit aktiven Benachrichtigungen und ob die künstliche Intelligenz aktiv ist;</li>
+<li>Mitglieder des geteilten Haushalts und Einladungscodes.</li>
+</ul>
+<p>Auf Inhalte wird nur in zwei Fällen zugegriffen: wenn du es ausdrücklich für den Support verlangst, beschränkt auf das Nötige, oder wenn eine Behörde es gesetzlich verlangt.</p>
+<h2>Cookies und Tracking</h2>
+<p>Die App verwendet keine Profiling-Cookies und keine Analyse- oder Werbewerkzeuge. Auf dem Gerät speichert sie nur die technischen Informationen, die für den Betrieb nötig sind (zum Beispiel die Anmeldesitzung und die Einstellungen).</p>
+<h2>Minderjährige</h2>
+<p>Die App richtet sich nicht an Kinder unter 14 Jahren.</p>
+<h2>Deine Rechte</h2>
+<p>Du kannst jederzeit Auskunft über deine Daten, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit (in der App kannst du eine vollständige Kopie herunterladen) verlangen und der Verarbeitung widersprechen, indem du an <a href="mailto:tettostudio.app@gmail.com">tettostudio.app@gmail.com</a> schreibst. Du kannst deine Einwilligung widerrufen, indem du die Daten oder das Konto löschst. Außerdem hast du das Recht, Beschwerde beim <a href="https://www.garanteprivacy.it" rel="noopener">italienischen Datenschutzbeauftragten (Garante per la protezione dei dati personali)</a> oder bei der Aufsichtsbehörde deines Landes einzulegen.</p>
+<h2>Änderungen</h2>
+<p>Wenn sich diese Erklärung wesentlich ändert, informieren wir dich in der App.</p>
+</div>
+<footer><a href="privacy.html?lang=de">Datenschutz</a><a href="termini.html?lang=de">Nutzungsbedingungen</a><a href="elimina-account.html?lang=de">Konto löschen</a><a href="supporto.html?lang=de">Support</a><a href="./">App öffnen</a></footer>
+</div>
 </div></body></html>
