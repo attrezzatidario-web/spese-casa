@@ -25,18 +25,22 @@ jobs:
         run: |
           if [ ${#SC_KEY_PASSWORD} -lt 20 ]; then echo "::error::Manca il segreto ANDROID_KEY_PASSWORD (almeno 20 caratteri)"; exit 1; fi
       - name: Chiave di caricamento (creata la prima volta, poi riusata)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          trap 'echo "::error::Errore al passo: $BASH_COMMAND"' ERR
+          set -e
           mkdir -p "$RUNNER_TEMP/k"
-          if [ ! -f nativa/android/upload-key.enc ]; then
-            keytool -genkeypair -v -keystore "$RUNNER_TEMP/k/upload.jks" -alias upload -keyalg RSA -keysize 4096 -validity 10000 \
-              -storepass "$SC_KEY_PASSWORD" -keypass "$SC_KEY_PASSWORD" -dname "CN=Tetto Studio, O=Tetto Studio, C=IT"
-            openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$RUNNER_TEMP/k/upload.jks" -out nativa/android/upload-key.enc -pass env:SC_KEY_PASSWORD
-            git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add nativa/android/upload-key.enc
-            git commit -m "Chiave di caricamento Google Play (cifrata)"
-            git push
+          gh release view play-key >/dev/null 2>&1 || gh release create play-key --title "Chiave di caricamento (cifrata)" --notes "File cifrato: senza la password ANDROID_KEY_PASSWORD non serve a niente." --prerelease
+          if gh release download play-key -p upload-key.enc -D "$RUNNER_TEMP/k" 2>/dev/null; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$RUNNER_TEMP/k/upload-key.enc" -out "$RUNNER_TEMP/k/upload.jks" -pass env:SC_KEY_PASSWORD
+            echo "Chiave esistente riusata"
           else
-            openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in nativa/android/upload-key.enc -out "$RUNNER_TEMP/k/upload.jks" -pass env:SC_KEY_PASSWORD
+            keytool -genkeypair -keystore "$RUNNER_TEMP/k/upload.jks" -storetype PKCS12 -alias upload -keyalg RSA -keysize 4096 -validity 10000 \
+              -storepass:env SC_KEY_PASSWORD -keypass:env SC_KEY_PASSWORD -dname "CN=Tetto Studio, O=Tetto Studio, C=IT"
+            openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$RUNNER_TEMP/k/upload.jks" -out "$RUNNER_TEMP/k/upload-key.enc" -pass env:SC_KEY_PASSWORD
+            gh release upload play-key "$RUNNER_TEMP/k/upload-key.enc"
+            echo "Nuova chiave creata e salvata cifrata"
           fi
           echo "SC_KEYSTORE=$RUNNER_TEMP/k/upload.jks" >> "$GITHUB_ENV"
           echo "SC_VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
