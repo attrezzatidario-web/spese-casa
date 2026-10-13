@@ -1,0 +1,57 @@
+name: App per Google Play
+
+# Si avvia a mano: GitHub > Actions > "App per Google Play" > Run workflow
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    env:
+      SC_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Controllo password
+        run: |
+          if [ ${#SC_KEY_PASSWORD} -lt 20 ]; then echo "::error::Manca il segreto ANDROID_KEY_PASSWORD (almeno 20 caratteri)"; exit 1; fi
+      - name: Chiave di caricamento (creata la prima volta, poi riusata)
+        run: |
+          mkdir -p "$RUNNER_TEMP/k"
+          if [ ! -f nativa/android/upload-key.enc ]; then
+            keytool -genkeypair -v -keystore "$RUNNER_TEMP/k/upload.jks" -alias upload -keyalg RSA -keysize 4096 -validity 10000 \
+              -storepass "$SC_KEY_PASSWORD" -keypass "$SC_KEY_PASSWORD" -dname "CN=Tetto Studio, O=Tetto Studio, C=IT"
+            openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$RUNNER_TEMP/k/upload.jks" -out nativa/android/upload-key.enc -pass env:SC_KEY_PASSWORD
+            git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add nativa/android/upload-key.enc
+            git commit -m "Chiave di caricamento Google Play (cifrata)"
+            git push
+          else
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in nativa/android/upload-key.enc -out "$RUNNER_TEMP/k/upload.jks" -pass env:SC_KEY_PASSWORD
+          fi
+          echo "SC_KEYSTORE=$RUNNER_TEMP/k/upload.jks" >> "$GITHUB_ENV"
+          echo "SC_VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "SC_VERSION_NAME=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+      - name: Dipendenze e app web
+        working-directory: nativa
+        run: npm ci && node scripts/copia-web.mjs && npx cap sync android
+      - name: Compila il pacchetto per Google Play (.aab)
+        working-directory: nativa/android
+        run: chmod +x gradlew && ./gradlew bundleRelease --no-daemon
+      - name: Pubblica il file
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp nativa/android/app/build/outputs/bundle/release/app-release.aab "spese-casa-$SC_VERSION_NAME.aab"
+          gh release view play-store >/dev/null 2>&1 || gh release create play-store --title "Spese Casa · file per Google Play" --notes "Pacchetto firmato da caricare in Play Console." --prerelease
+          gh release upload play-store "spese-casa-$SC_VERSION_NAME.aab" --clobber
+          rm -f "$SC_KEYSTORE"

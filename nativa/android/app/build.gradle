@@ -7,8 +7,9 @@ android {
         applicationId "com.tettostudio.spesecasa"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // il numero di versione arriva dalla compilazione su GitHub (cresce da solo a ogni versione per lo store)
+        versionCode (System.getenv("SC_VERSION_CODE") ?: "1") as Integer
+        versionName System.getenv("SC_VERSION_NAME") ?: "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +17,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // firma per Google Play: la chiave di caricamento arriva solo durante la compilazione su GitHub
+    signingConfigs {
+        upload {
+            if (System.getenv("SC_KEYSTORE")) {
+                storeFile file(System.getenv("SC_KEYSTORE"))
+                storePassword System.getenv("SC_KEY_PASSWORD")
+                keyAlias "upload"
+                keyPassword System.getenv("SC_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv("SC_KEYSTORE")) signingConfig signingConfigs.upload
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
