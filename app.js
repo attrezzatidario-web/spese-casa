@@ -6020,11 +6020,13 @@
   function showSetup() { showLogin(); }
   // accesso: email -> codice ricevuto via email
   let loginEmail = '';
+  // account riservato ai revisori di Google Play e App Store: entrano con password (non possono ricevere il codice)
+  const REVISORI = ['review@tettostudio.app'];
   function loginStep(n) {
-    $('#login-step1').hidden = n !== 1; $('#login-step2').hidden = n !== 2;
-    $('#login-msg').innerHTML = n === 1 ? 'Accedi con la tua email: ti mandiamo un codice, niente password.' : `Abbiamo mandato un codice a <b>${esc(loginEmail)}</b>. Controlla anche lo spam.`;
-    $('#code-err').hidden = true; $('#setup-demo').hidden = n === 2;
-    setTimeout(() => { const el = n === 1 ? $('#login-email') : $('#setup-code'); if (el) el.focus(); }, 300);
+    $('#login-step1').hidden = n !== 1; $('#login-step2').hidden = n !== 2; $('#login-step3').hidden = n !== 3;
+    $('#login-msg').innerHTML = n === 1 ? esc(T('Accedi con la tua email: ti mandiamo un codice, niente password.')) : n === 3 ? esc(T('Account di revisione: inserisci la password.')) : TF('Abbiamo mandato un codice a {0}. Controlla anche lo spam.', [`<b>${esc(loginEmail)}</b>`]);
+    $('#code-err').hidden = true; $('#setup-demo').hidden = n !== 1;
+    setTimeout(() => { const el = n === 1 ? $('#login-email') : n === 3 ? $('#login-pass') : $('#setup-code'); if (el) el.focus(); }, 300);
   }
   function showLogin() {
     if (DEMO || !$('#setup')) return;
@@ -6048,6 +6050,7 @@
   async function sendCode() {
     const email = $('#login-email').value.trim().toLowerCase(), err = $('#code-err'), btn = $('#login-send');
     if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Scrivi un indirizzo email valido'; err.hidden = false; return; }
+    if (REVISORI.includes(email)) { loginEmail = email; loginStep(3); return; }
     err.hidden = true; btn.disabled = true; btn.textContent = 'Invio…';
     try {
       const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: { lingua: I18.lang } } });
@@ -6067,6 +6070,19 @@
       $('#setup-code').value = '';
       toast('Benvenuto 👋');
     } catch (e) { err.textContent = loginErr(e); err.hidden = false; $('#setup-code').select(); }
+    btn.disabled = false; btn.textContent = 'Entra';
+  }
+  async function passLogin() {
+    const pw = $('#login-pass').value, err = $('#code-err'), btn = $('#pass-go');
+    if (!pw) return;
+    err.hidden = true; btn.disabled = true; btn.textContent = 'Verifico…';
+    try {
+      const { error } = await sb.auth.signInWithPassword({ email: loginEmail, password: pw });
+      if (error) throw (/invalid/i.test(error.message) ? new Error('Email o password non corretti') : error);
+      await afterAuth();
+      $('#login-pass').value = '';
+      toast('Benvenuto 👋');
+    } catch (e) { err.textContent = loginErr(e); err.hidden = false; }
     btn.disabled = false; btn.textContent = 'Entra';
   }
   // dopo l'accesso: trova la "casa" dell'utente e apre l'app
@@ -6103,6 +6119,9 @@
   function setupBind() {
     $('#setup-demo').onclick = () => { location.href = location.pathname + '?demo'; };
     $('#login-send').onclick = sendCode;
+    $('#pass-go').onclick = passLogin;
+    $('#login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') passLogin(); });
+    $('#pass-back').onclick = () => loginStep(1);
     $('#login-email').addEventListener('keydown', e => { if (e.key === 'Enter') sendCode(); });
     $('#login-back').onclick = () => loginStep(1);
     $('#login-resend').onclick = () => { $('#login-email').value = loginEmail; sendCode(); };

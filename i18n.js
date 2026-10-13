@@ -6,7 +6,7 @@
   'use strict';
   const LINGUE = { it: 'Italiano', en: 'English', es: 'Español', fr: 'Français', de: 'Deutsch' };
   const LOCALE = { it: 'it-IT', en: 'en-GB', es: 'es-ES', fr: 'fr-FR', de: 'de-DE' };
-  const VERSIONE = '2';
+  const VERSIONE = '3';
   let lang = 'it';
   try { const l = localStorage.getItem('sc_lang'); if (l && LINGUE[l]) lang = l; } catch (e) {}
   // prima volta: nessuna scelta salvata → resta l'italiano (come richiesto), la scelta si fa all'accesso

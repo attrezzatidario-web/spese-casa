@@ -69,6 +69,11 @@
         <button id="login-resend" class="btn ghost block">Invia di nuovo</button>
         <button id="login-back" class="btn ghost block">Cambia email</button>
       </div>
+      <div id="login-step3" hidden>
+        <input id="login-pass" type="password" placeholder="Password" autocomplete="current-password">
+        <button id="pass-go" class="btn primary block">Entra</button>
+        <button id="pass-back" class="btn ghost block">Cambia email</button>
+      </div>
       <p id="code-err" class="err" hidden></p>
       <button id="setup-demo" class="btn ghost block">Guarda la demo</button>
       <p class="legal-note">I tuoi dati li vedi solo tu e chi è nella tua casa. Continuando accetti i <a href="https://attrezzatidario-web.github.io/spese-casa/termini.html" target="_blank" rel="noopener">Termini</a> e l'<a href="https://attrezzatidario-web.github.io/spese-casa/privacy.html" target="_blank" rel="noopener">Informativa privacy</a>.</p>
@@ -628,9 +633,9 @@
     </div>
   </div>
 
-  <script src="i18n.js?v=2"></script>
+  <script src="i18n.js?v=3"></script>
   <script src="lib-supabase.js?v=1"></script>
   <script src="ai.js?v=5"></script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

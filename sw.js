@@ -1,5 +1,5 @@
 /* Spese Casa — service worker: app utilizzabile anche offline */
-const CACHE = 'spese-casa-23';
+const CACHE = 'spese-casa-24';
 const SHELL = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'logo.svg', 'lib-supabase.js', 'ai.js', 'i18n.js'];
 
 self.addEventListener('install', e => {
