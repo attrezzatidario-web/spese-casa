@@ -23,7 +23,11 @@ jobs:
           java-version: 21
       - name: Controllo password
         run: |
-          if [ ${#SC_KEY_PASSWORD} -lt 20 ]; then echo "::error::Manca il segreto ANDROID_KEY_PASSWORD (almeno 20 caratteri)"; exit 1; fi
+          # toglie spazi e "a capo" finiti per sbaglio nel segreto (copia e incolla)
+          P=$(printf %s "$SC_KEY_PASSWORD" | tr -d ' \r\n\t')
+          echo "::add-mask::$P"
+          if [ ${#P} -lt 20 ]; then echo "::error::Manca il segreto ANDROID_KEY_PASSWORD (almeno 20 caratteri)"; exit 1; fi
+          { echo "SC_KEY_PASSWORD<<SCEOF"; echo "$P"; echo "SCEOF"; } >> "$GITHUB_ENV"
       - name: Chiave di caricamento (creata la prima volta, poi riusata)
         env:
           GH_TOKEN: ${{ github.token }}
