@@ -4436,7 +4436,7 @@
     if (!d || !d.base) { el.innerHTML = ''; el.hidden = true; return; }
     el.hidden = false;
     const cred = d.bal.filter(b => b.diff > 0.5).sort((a, b) => b.diff - a.diff), deb = d.bal.filter(b => b.diff < -0.5).sort((a, b) => a.diff - b.diff);
-    const msg = cred.length && deb.length ? `<b>${esc(deb[0].p.nome)}</b> deve dare <b>${eur(Math.min(-deb[0].diff, cred[0].diff))}</b> a <b>${esc(cred[0].p.nome)}</b>` : 'Siete in pari 👌';
+    const msg = cred.length && deb.length ? TF('{0} deve dare {1} a {2}', [`<b>${esc(deb[0].p.nome)}</b>`, `<b>${eur(Math.min(-deb[0].diff, cred[0].diff))}</b>`, `<b>${esc(cred[0].p.nome)}</b>`]) : 'Siete in pari 👌';
     el.innerHTML = `<div class="card who-card">
       <div class="card-h"><h3>Chi ha pagato</h3><select id="who-modo" class="who-modo"><option value="meta" ${d.modo !== 'entrate' ? 'selected' : ''}>Metà ciascuno</option><option value="entrate" ${d.modo === 'entrate' ? 'selected' : ''}>In base alle entrate</option></select></div>
       <div class="who-msg">${msg}</div>
