@@ -1291,6 +1291,8 @@
       const { data, error } = await sb.rpc('my_plan');
       if (error) { if (/function|schema cache|does not exist|404/i.test(error.message || '')) { piano = null; LS.set('sc_plan', null); } return; }
       const p = Array.isArray(data) ? data[0] : data; if (!p) return;
+      // appena comprato su iPhone: aspetta che il server riceva la conferma prima di tornare al piano gratis
+      if (!p.premium && piano && piano._opt && Date.now() - piano._opt < 180000) return;
       const prima = isPremium(); piano = p; LS.set('sc_plan', p);
       if (prima !== isPremium()) route(); else if (view === 'impostazioni') renderSettings();
     } catch {}
@@ -1298,19 +1300,94 @@
   const ICO_STAR = '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>';
   const ICO_CHK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const fineProva = () => piano && piano.expires_at ? new Date(piano.expires_at).toLocaleDateString(LOC, { day: 'numeric', month: 'long' }) : '';
-  function paywall(motivo) {
-    const info = PREM_INFO[motivo], trial = !piano || piano.trial_available !== false;
-    let scelta = 'annuale';
+  /* ---- acquisti negli store (RevenueCat): per ora solo iPhone ---- */
+  const RC_KEYS = { ios: 'appl_ATCFNorHQCQDbjCMiQKktSLlEIY', android: '' };
+  const LEGAL = 'https://attrezzatidario-web.github.io/spese-casa/';
+  const RC = () => NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases;
+  const STORE = () => !DEMO && !isLocal() && !!RC() && !!RC_KEYS[window.Capacitor.getPlatform()];
+  let rcUser = '', rcOff = null;
+  // l'utente di RevenueCat è la casa: un abbonamento vale per tutti i membri
+  async function rcReady() {
+    if (!STORE() || !hh) return false;
+    const P = RC();
+    if (!rcUser) { await P.configure({ apiKey: RC_KEYS[window.Capacitor.getPlatform()], appUserID: hh }); rcUser = hh; rcOff = null; }
+    else if (rcUser !== hh) { await P.logIn({ appUserID: hh }); rcUser = hh; rcOff = null; }
+    return true;
+  }
+  async function rcPacchetti() {
+    if (rcOff) return rcOff;
+    const o = await RC().getOfferings();
+    const pk = (o && o.current && o.current.availablePackages) || [];
+    const anno = pk.find(x => x.packageType === 'ANNUAL'), mese = pk.find(x => x.packageType === 'MONTHLY');
+    if (!anno && !mese) throw new Error('Abbonamenti non disponibili in questo momento, riprova più tardi');
+    let prova = {};
+    try {
+      const ids = [anno, mese].filter(Boolean).map(x => x.product.identifier);
+      prova = await RC().checkTrialOrIntroductoryPriceEligibility({ productIdentifiers: ids }) || {};
+    } catch {}
+    const gratis = x => !!(x && x.product.introPrice && Number(x.product.introPrice.price) === 0 && prova[x.product.identifier] && prova[x.product.identifier].status === 2);
+    rcOff = { annuale: anno, mensile: mese, prova: gratis(anno) || gratis(mese) };
+    return rcOff;
+  }
+  // dopo un acquisto: Premium subito sul telefono, il server lo conferma appena arriva l'avviso di RevenueCat
+  async function rcAttiva(info) {
+    const e = info && info.entitlements && info.entitlements.active && info.entitlements.active.premium;
+    if (!e) return false;
+    piano = { ...(piano || {}), premium: true, source: 'apple', expires_at: e.expirationDate || null, trial_available: false, _opt: Date.now() };
+    LS.set('sc_plan', piano); route();
+    for (let i = 0; i < 6; i++) { await new Promise(r => setTimeout(r, 4000)); await loadPlan(); if (piano && piano.premium && piano.source !== 'trial' && piano.source !== 'free') break; }
+    return true;
+  }
+  async function rcRipristina() {
+    busy('Ripristino gli acquisti…');
+    try {
+      await rcReady(); const r = await RC().restorePurchases(); busy();
+      if (await rcAttiva(r && r.customerInfo)) { closeSheet(); toast('Premium ripristinato'); }
+      else toast('Nessun abbonamento attivo trovato per questo Apple ID');
+    } catch (e) { busy(); toast(e.message || 'Ripristino non riuscito'); }
+  }
+  async function rcGestisci() {
+    try { await rcReady(); await RC().showManageSubscriptions(); }
+    catch { window.open('https://apps.apple.com/account/subscriptions', '_blank'); }
+  }
+  async function paywall(motivo) {
+    const info = PREM_INFO[motivo];
+    let store = null, trial = !piano || piano.trial_available !== false;
+    if (STORE()) {
+      busy('Carico i prezzi…');
+      try { await rcReady(); store = await rcPacchetti(); busy(); }
+      catch (e) { busy(); return toast(e.message || 'Abbonamenti non disponibili, riprova'); }
+      trial = store.prova;
+    }
+    const prezzi = !store ? PRICES : {
+      annuale: store.annuale && { prezzo: store.annuale.product.priceString, per: 'anno', nota: store.annuale.product.pricePerMonthString ? store.annuale.product.pricePerMonthString + ' al mese' : 'Un anno intero' },
+      mensile: store.mensile && { prezzo: store.mensile.product.priceString, per: 'mese', nota: 'Disdici quando vuoi' } };
+    const scelta = prezzi.annuale ? 'annuale' : 'mensile';
     openSheet('', `
       <div class="pw-hero"><span class="pw-badge">${ICO_STAR}</span><h3>Spese Casa Premium</h3>
         <p>${info ? `<b>${esc(info[0])}</b> fa parte di Premium. ` : ''}Tutto quello che serve per gestire la casa insieme, senza pensieri.</p></div>
       <ul class="pw-list">${PREM_LIST.map(([t, d]) => `<li><i>${ICO_CHK}</i><span><b>${t}</b><small>${d}</small></span></li>`).join('')}</ul>
-      <div class="pw-plans">${Object.entries(PRICES).map(([k, v]) => `<label class="pw-plan"><input type="radio" name="piano" value="${k}" ${k === scelta ? 'checked' : ''}><span class="pw-pc">
-        <span class="pw-pn">${k === 'annuale' ? 'Annuale' : 'Mensile'}${k === 'annuale' ? '<em>Più scelto</em>' : ''}</span><span class="pw-pp"><b>${v.prezzo}</b> / ${v.per}</span><small>${v.nota}</small></span></label>`).join('')}</div>
-      <p class="pw-foot">${trial ? '7 giorni gratis, poi si rinnova in automatico. ' : ''}Vale per tutta la casa. Se smetti, i tuoi dati restano salvati.</p>`,
+      <div class="pw-plans">${Object.entries(prezzi).filter(([, v]) => v).map(([k, v]) => `<label class="pw-plan"><input type="radio" name="piano" value="${k}" ${k === scelta ? 'checked' : ''}><span class="pw-pc">
+        <span class="pw-pn">${k === 'annuale' ? 'Annuale' : 'Mensile'}${k === 'annuale' ? '<em>Più scelto</em>' : ''}</span><span class="pw-pp"><b>${esc(v.prezzo)}</b> / ${v.per}</span><small>${esc(v.nota)}</small></span></label>`).join('')}</div>
+      <p class="pw-foot">${trial ? '7 giorni gratis, poi si rinnova in automatico. ' : ''}Vale per tutta la casa. Se smetti, i tuoi dati restano salvati.</p>
+      ${store ? `<p class="pw-legal">L'abbonamento si rinnova automaticamente al prezzo indicato, salvo disdetta almeno 24 ore prima della scadenza. Il pagamento è addebitato sull'Apple ID; puoi gestire o disdire l'abbonamento nelle impostazioni dell'App Store.</p>
+      <div class="pw-links"><button type="button" class="pw-link" id="pw-restore">Ripristina acquisti</button><a class="pw-link" href="${LEGAL}termini.html" target="_blank" rel="noopener">Termini (EULA)</a><a class="pw-link" href="${LEGAL}privacy.html" target="_blank" rel="noopener">Privacy</a></div>` : ''}`,
       async fd => {
-        LS.set('sc_piano_scelto', fd.get('piano'));
+        const k = fd.get('piano'); LS.set('sc_piano_scelto', k);
         if (DEMO) return toast('Nella demo Premium è già attivo');
+        if (store) {
+          busy('Apro l\'App Store…');
+          try {
+            const r = await RC().purchasePackage({ aPackage: store[k] }); busy();
+            if (await rcAttiva(r && r.customerInfo)) { closeSheet(); confettiSafe(); toast('Benvenuto in Premium'); }
+            else toast('Acquisto registrato: Premium si attiva tra pochi secondi');
+          } catch (e) {
+            busy();
+            if (e && (e.userCancelled || e.code === '1' || e.code === 1)) return;
+            toast(e.message || 'Acquisto non riuscito');
+          }
+          return;
+        }
         if (!trial) return toast('Gli abbonamenti si attiveranno con l\'app negli store');
         busy('Attivo la prova…');
         try {
@@ -1318,8 +1395,9 @@
           await loadPlan(); busy(); closeSheet(); confettiSafe();
           toast(`Premium attivo fino al ${fineProva()}`); route();
         } catch (e) { busy(); toast(e.message); }
-      }, null, trial ? 'Prova gratis per 7 giorni' : 'Abbonati');
+      }, null, store ? (trial ? 'Prova gratis per 7 giorni' : 'Abbonati') : trial ? 'Prova gratis per 7 giorni' : 'Abbonati');
     $('#sheet-form').classList.add('pw');
+    const rb = $('#pw-restore'); if (rb) rb.onclick = rcRipristina;
   }
   const confettiSafe = () => { try { confetti(); } catch {} };
   // schermata al posto di una sezione Premium
@@ -1339,7 +1417,7 @@
     const sub = !piano ? '' : p ? (piano.source === 'trial' ? `Prova gratuita fino al ${fineProva()}` : piano.source === 'manual' ? 'Attivo' : piano.expires_at ? `Si rinnova il ${fineProva()}` : 'Attivo')
       : `Archivio: ${Math.round((Number(piano.storage_used) || 0) / 1048576)} MB di 100 MB`;
     return `<div class="acc-plan ${p ? 'on' : ''}"><span class="pw-badge sm">${ICO_STAR}</span><div class="acc-m"><b>${p ? 'Premium' : 'Piano gratis'}</b><small>${esc(sub)}</small></div>
-      ${p ? '' : `<button class="btn primary sm" data-paywall="">${piano && piano.trial_available === false ? 'Passa a Premium' : 'Prova gratis'}</button>`}</div>`;
+      ${p ? (piano && piano.source === 'apple' && STORE() ? '<button class="btn sm" data-rc-manage>Gestisci</button>' : '') : `<button class="btn primary sm" data-paywall="">${piano && piano.trial_available === false ? 'Passa a Premium' : 'Prova gratis'}</button>`}</div>`;
   }
   /* ================= RESOCONTO IA (notifica + Home) ================= */
   const resCfg = () => ((db.config.notifiche || {}).resoconto) || {};
@@ -5941,6 +6019,7 @@
       if (e.target.closest('#acct-drive')) { migrateDriveFiles(); return; }
       if (e.target.closest('#acct-link')) { formLinkSheet(); return; }
       { const pw = e.target.closest('[data-paywall]'); if (pw) { e.preventDefault(); paywall(pw.dataset.paywall); return; } }
+      if (e.target.closest('[data-rc-manage]')) { e.preventDefault(); rcGestisci(); return; }
       if (e.target.closest('#casa-invita')) { casaInvita(); return; }
       if (e.target.closest('#casa-entra')) { casaEntra(); return; }
       if (e.target.closest('#casa-esci')) { casaEsci(); return; }
