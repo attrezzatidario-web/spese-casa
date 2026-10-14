@@ -32,13 +32,15 @@ for g in get(f'/v1/apps/{aid}/subscriptionGroups').get('data', []):
         out.append('- Prezzo Italia: ' + (', '.join(str(pp.get(p['relationships']['subscriptionPricePoint']['data']['id'])) for p in pr.get('data', [])) or 'NESSUNO'))
         tot = get(f'/v1/subscriptions/{sid}/prices?limit=1').get('meta', {}).get('paging', {}).get('total')
         out.append(f'- Paesi con prezzo: {tot}')
-        av = get(f'/v1/subscriptions/{sid}/subscriptionAvailability?include=availableTerritories&limit[availableTerritories]=200')
-        n = len((av.get('data') or {}).get('relationships', {}).get('availableTerritories', {}).get('data', [])) if 'data' in av else 0
-        out.append(f'- Disponibilità: {n} paesi' if 'data' in av else '- Disponibilità: NON CONFIGURATA')
+        av = get(f'/v1/subscriptions/{sid}/subscriptionAvailability')
+        if av.get('data'):
+            t = get(f"/v1/subscriptionAvailabilities/{av['data']['id']}/availableTerritories?limit=200")
+            out.append(f"- Disponibilità: {len(t.get('data', []))} paesi")
+        else: out.append('- Disponibilità: NON CONFIGURATA ' + str(av.get('errore', '')))
         io = get(f'/v1/subscriptions/{sid}/introductoryOffers?limit=200').get('data', [])
         modi = sorted({(x['attributes']['offerMode'], x['attributes']['duration']) for x in io})
         out.append(f'- Offerta introduttiva: {len(io)} paesi, ' + (', '.join(f'{m} {d}' for m, d in modi) or 'NESSUNA'))
         rs = get(f'/v1/subscriptions/{sid}/appStoreReviewScreenshot')
         out.append('- Screenshot per la revisione: ' + ('sì' if rs.get('data') else 'manca'))
 txt = '\n'.join(out); print(txt)
-open(os.environ['GITHUB_STEP_SUMMARY'], 'a').write(txt + '\n')
+
