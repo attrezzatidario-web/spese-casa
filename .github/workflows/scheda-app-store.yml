@@ -1,0 +1,25 @@
+name: Scheda App Store
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  scheda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Compila la scheda e controlla
+        env:
+          P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          ASC_KEY_ID: LCF88DU9P8
+          ASC_ISSUER_ID: 16421876-d7c2-4226-af20-7196d99b738c
+        run: |
+          pip install -q pyjwt cryptography
+          printf '%s\n' "$P8" > "$RUNNER_TEMP/k.p8"
+          export ASC_KEY_PATH="$RUNNER_TEMP/k.p8"
+          { echo '# Scheda'; python3 .github/scripts/scheda_app_store.py; } > /tmp/stato.md 2>&1 || true
+          rm -f "$RUNNER_TEMP/k.p8"
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git checkout -q --orphan controllo-app-store; git rm -rq --cached .
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp /tmp/stato.md stato.md; git add stato.md; git commit -qm "Scheda App Store"; git push -qf origin controllo-app-store
