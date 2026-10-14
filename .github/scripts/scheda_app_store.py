@@ -30,15 +30,25 @@ for k, t in T.items():
         a['locale'] = t['locale']
         esito(f"Info {t['locale']} (nuova)", call('POST', '/v1/appInfoLocalizations', {'data': {'type': 'appInfoLocalizations', 'attributes': a,
             'relationships': {'appInfo': {'data': {'type': 'appInfos', 'id': iid}}}}}))
-# --- età (nessun contenuto sensibile)
+# --- età (nessun contenuto sensibile): i tipi dei campi li corregge leggendo gli errori di Apple
+import re
 s, j = call('GET', f'/v1/appInfos/{iid}/ageRatingDeclaration')
 if s == 200:
-    rid = j['data']['id']; cur = j['data']['attributes']; att = {}
-    for k, v in cur.items():
-        if isinstance(v, bool) or v is None and k.startswith(('is', 'has', 'gambling', 'unrestricted', 'lootBox', 'messaging', 'parental', 'age', 'health', 'userGenerated', 'advertising')): att[k] = False
-        elif isinstance(v, str) or v is None: att[k] = 'NONE'
-    for k in ['kidsAgeBand', 'ageRatingOverride', 'ageRatingOverrideV2', 'koreaAgeRatingOverride', 'developerAgeRatingInfoUrl']: att.pop(k, None)
-    r = esito('Età', call('PATCH', f'/v1/ageRatingDeclarations/{rid}', {'data': {'type': 'ageRatingDeclarations', 'id': rid, 'attributes': att}}))
+    rid = j['data']['id']; cur = j['data']['attributes']
+    skip = {'kidsAgeBand', 'ageRatingOverride', 'ageRatingOverrideV2', 'koreaAgeRatingOverride', 'developerAgeRatingInfoUrl'}
+    att = {k: (False if isinstance(v, bool) else 'NONE') for k, v in cur.items() if k not in skip}
+    for _ in range(6):
+        st, jj = call('PATCH', f'/v1/ageRatingDeclarations/{rid}', {'data': {'type': 'ageRatingDeclarations', 'id': rid, 'attributes': att}})
+        if st < 300: print('Età: ok'); break
+        errs = json.loads(jj['testo']).get('errors', []) if jj.get('testo', '').startswith('{') else []
+        changed = False
+        for e in errs:
+            m = re.search(r"attribute '(\w+)'\. Expected a (\w+)", e.get('detail', ''))
+            if m: att[m.group(1)] = False if m.group(2) == 'BOOLEAN' else 'NONE'; changed = True
+            else:
+                k = (e.get('source') or {}).get('pointer', '').split('/')[-1]
+                if k in att: att.pop(k); changed = True
+        if not changed: print('Età:', st, jj.get('testo', '')[:600]); break
 # --- prezzo: gratis
 pp = call('GET', f'/v1/apps/{aid}/appPricePoints?filter[territory]=USA&limit=10')[1].get('data', [])
 free = [p for p in pp if float(p['attributes']['customerPrice']) == 0]
@@ -82,6 +92,8 @@ for k, t in T.items():
     if not lid: continue
     sets = call('GET', f'/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets')[1].get('data', [])
     ss = [x for x in sets if x['attributes']['screenshotDisplayType'] == 'APP_IPHONE_67']
+    if ss and len(call('GET', f"/v1/appScreenshotSets/{ss[0]['id']}/appScreenshots")[1].get('data', [])) >= 5:
+        print(f"Screenshot {t['locale']}: già presenti"); continue
     if ss:
         sid = ss[0]['id']
         for old in call('GET', f'/v1/appScreenshotSets/{sid}/appScreenshots')[1].get('data', []): call('DELETE', f"/v1/appScreenshots/{old['id']}")
