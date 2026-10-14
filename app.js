@@ -1356,7 +1356,7 @@
     if (STORE()) {
       busy('Carico i prezzi…');
       try { await rcReady(); store = await rcPacchetti(); busy(); }
-      catch (e) { busy(); return toast(e.message || 'Abbonamenti non disponibili, riprova'); }
+      catch (e) { busy(); console.warn('RevenueCat', e); return toast(/configuration|offerings|products/i.test(String(e && e.message)) ? 'Abbonamenti non ancora disponibili, riprova più tardi' : 'Abbonamenti non disponibili, controlla la connessione e riprova'); }
       trial = store.prova;
     }
     const prezzi = !store ? PRICES : {

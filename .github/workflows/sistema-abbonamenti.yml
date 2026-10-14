@@ -17,7 +17,7 @@ jobs:
           pip install -q pyjwt cryptography
           printf '%s\n' "$P8" > "$RUNNER_TEMP/k.p8"
           export ASC_KEY_PATH="$RUNNER_TEMP/k.p8" GITHUB_STEP_SUMMARY=/dev/null
-          { echo '# Modifiche'; python3 .github/scripts/sistema_abbonamenti.py; echo; echo '# Stato'; python3 .github/scripts/controllo_asc.py; } > /tmp/stato.md 2>&1 || true
+          { echo '# Modifiche'; python3 .github/scripts/sistema_abbonamenti.py; python3 .github/scripts/screenshot_revisione.py; echo; echo '# Stato'; python3 .github/scripts/controllo_asc.py; } > /tmp/stato.md 2>&1 || true
           rm -f "$RUNNER_TEMP/k.p8"
           git config user.name "github-actions"; git config user.email "actions@github.com"
           git checkout -q --orphan controllo-app-store; git rm -rq --cached .
