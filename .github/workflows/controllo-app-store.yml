@@ -1,0 +1,19 @@
+name: Controllo App Store
+# Legge lo stato di app, build e abbonamenti su App Store Connect (solo lettura)
+on:
+  workflow_dispatch:
+jobs:
+  controllo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Controllo
+        env:
+          P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          ASC_KEY_ID: LCF88DU9P8
+          ASC_ISSUER_ID: 16421876-d7c2-4226-af20-7196d99b738c
+        run: |
+          pip install -q pyjwt cryptography
+          printf '%s\n' "$P8" > "$RUNNER_TEMP/k.p8"
+          ASC_KEY_PATH="$RUNNER_TEMP/k.p8" python3 .github/scripts/controllo_asc.py
+          rm -f "$RUNNER_TEMP/k.p8"
