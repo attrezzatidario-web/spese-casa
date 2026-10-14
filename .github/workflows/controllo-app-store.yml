@@ -2,6 +2,8 @@ name: Controllo App Store
 # Legge lo stato di app, build e abbonamenti su App Store Connect (solo lettura)
 on:
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   controllo:
     runs-on: ubuntu-latest
@@ -15,5 +17,13 @@ jobs:
         run: |
           pip install -q pyjwt cryptography
           printf '%s\n' "$P8" > "$RUNNER_TEMP/k.p8"
-          ASC_KEY_PATH="$RUNNER_TEMP/k.p8" python3 .github/scripts/controllo_asc.py
+          ASC_KEY_PATH="$RUNNER_TEMP/k.p8" python3 .github/scripts/controllo_asc.py > "$RUNNER_TEMP/stato.md"
           rm -f "$RUNNER_TEMP/k.p8"
+      - name: Salva il risultato (ramo controllo-app-store)
+        run: |
+          cp "$RUNNER_TEMP/stato.md" /tmp/stato.md
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git checkout --orphan controllo-app-store
+          git rm -rq --cached . ; find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp /tmp/stato.md stato.md; git add stato.md; git commit -qm "Stato App Store"
+          git push -f origin controllo-app-store
