@@ -1,0 +1,70 @@
+name: App per App Store
+
+# Si avvia a mano: GitHub > Actions > "App per App Store" > Run workflow
+# Compila l'app iPhone, la firma (firma automatica di Apple) e la carica su App Store Connect.
+# Segreto richiesto: APPLE_API_KEY_P8 (contenuto del file AuthKey_LCF88DU9P8.p8)
+on:
+  workflow_dispatch:
+
+env:
+  APPLE_TEAM_ID: 7H2M8DRSBF
+  ASC_KEY_ID: LCF88DU9P8
+  ASC_ISSUER_ID: 16421876-d7c2-4226-af20-7196d99b738c
+
+jobs:
+  ios:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Chiave API di App Store Connect
+        env:
+          P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          if [ -z "$P8" ]; then echo "::error::Manca il segreto APPLE_API_KEY_P8"; exit 1; fi
+          mkdir -p "$RUNNER_TEMP/k"
+          printf '%s\n' "$P8" > "$RUNNER_TEMP/k/AuthKey.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/k/AuthKey.p8" >> "$GITHUB_ENV"
+          echo "SC_BUILD=$((100 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+      - name: Dipendenze e app web
+        working-directory: nativa
+        run: npm ci && node scripts/copia-web.mjs && npx cap sync ios
+      - name: Compila e firma (archivio)
+        working-directory: nativa/ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/SpeseCasa.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$SC_BUILD" MARKETING_VERSION=1.0 \
+            archive | tail -n 60
+          test -d "$RUNNER_TEMP/SpeseCasa.xcarchive"
+      - name: Carica su App Store Connect
+        run: |
+          cat > "$RUNNER_TEMP/export.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/SpeseCasa.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/out" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          echo "### Caricata la build 1.0 ($SC_BUILD) su App Store Connect" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tra 10-30 minuti la trovi in App Store Connect > Spese Casa > TestFlight." >> "$GITHUB_STEP_SUMMARY"
+      - name: Pulizia
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/k"

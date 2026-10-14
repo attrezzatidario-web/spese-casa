@@ -471,9 +471,49 @@ async function inviaFcm(sb: any, sub: any, payload: any) {
   } catch (e: any) { return 'errore ' + (e && e.message); }
 }
 
+// iPhone: invio diretto ad Apple (APNs) con la chiave .p8 "Spese Casa Push"
+// Segreto APNS_KEY_P8: il contenuto del file AuthKey_22C7M7U3DN.p8
+const APNS_KEY_ID = Deno.env.get('APNS_KEY_ID') || '22C7M7U3DN';
+const APNS_TEAM_ID = Deno.env.get('APNS_TEAM_ID') || '7H2M8DRSBF';
+const APNS_TOPIC = 'com.tettostudio.spesecasa';
+let apnsCache: { jwt: string; iat: number } | null = null;
+async function apnsJwt() {
+  const now = Math.floor(Date.now() / 1000);
+  if (apnsCache && now - apnsCache.iat < 40 * 60) return apnsCache.jwt;
+  const raw = Deno.env.get('APNS_KEY_P8');
+  if (!raw) throw new Error('APNS_KEY_P8 mancante');
+  const pem = raw.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+  const der = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('pkcs8', der, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const head = b64u(JSON.stringify({ alg: 'ES256', kid: APNS_KEY_ID }));
+  const claim = b64u(JSON.stringify({ iss: APNS_TEAM_ID, iat: now }));
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, new TextEncoder().encode(head + '.' + claim));
+  apnsCache = { jwt: head + '.' + claim + '.' + b64u(sig), iat: now };
+  return apnsCache.jwt;
+}
+export function messaggioApns(p: any) {
+  return { aps: { alert: { title: String(p.title || 'Spese Casa'), body: String(p.body || '') }, sound: 'default', 'thread-id': String(p.tag || 'spese-casa') },
+    url: String(p.url || ''), tag: String(p.tag || '') };
+}
+async function inviaApns(sb: any, sub: any, payload: any) {
+  try {
+    const jwt = await apnsJwt(), token = String(sub.endpoint).slice(5);
+    const manda = (host: string) => fetch('https://' + host + '/3/device/' + token, { method: 'POST',
+      headers: { authorization: 'bearer ' + jwt, 'apns-topic': APNS_TOPIC, 'apns-push-type': 'alert', 'apns-priority': '10', 'apns-expiration': String(Math.floor(Date.now() / 1000) + 6 * 3600), 'content-type': 'application/json' },
+      body: JSON.stringify(messaggioApns(payload)) });
+    let r = await manda('api.push.apple.com');
+    let j: any = r.ok ? {} : await r.json().catch(() => ({}));
+    // le app installate da Xcode usano l'ambiente di prova
+    if (!r.ok && j.reason === 'BadDeviceToken') { r = await manda('api.sandbox.push.apple.com'); j = r.ok ? {} : await r.json().catch(() => ({})); }
+    if (r.ok) { await sb.from('push_subscriptions').update({ last_ok: new Date().toISOString() }).eq('id', sub.id); return 'ok'; }
+    if (r.status === 410 || /Unregistered|BadDeviceToken|DeviceTokenNotForTopic/.test(String(j.reason))) { await sb.from('push_subscriptions').delete().eq('id', sub.id); return 'scaduta'; }
+    return 'errore ' + r.status + ' ' + (j.reason || '');
+  } catch (e: any) { return 'errore ' + (e && e.message); }
+}
+
 async function invia(sb: any, sub: any, payload: unknown) {
   if (String(sub.endpoint).startsWith('fcm:')) return inviaFcm(sb, sub, payload);
-  if (String(sub.endpoint).startsWith('apns:')) return 'errore iPhone non ancora collegato';
+  if (String(sub.endpoint).startsWith('apns:')) return inviaApns(sb, sub, payload);
   try {
     await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify(payload), { TTL: 6 * 3600, urgency: 'normal' });
     await sb.from('push_subscriptions').update({ last_ok: new Date().toISOString() }).eq('id', sub.id);
