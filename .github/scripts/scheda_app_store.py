@@ -43,6 +43,8 @@ if s == 200:
         txt = jj.get('testo', ''); changed = False
         for k, ty in re.findall(r"attribute '(\w+)'\. Expected a (\w+)", txt):
             att[k] = False if ty == 'BOOLEAN' else 'NONE'; changed = True
+        for k in re.findall(r"attribute '(\w+)' cannot be set", txt):
+            if k in att: att.pop(k); changed = True
         if not changed:
             for k in re.findall(r'"pointer" : "/data/attributes/(\w+)"', txt):
                 if k in att: att.pop(k); changed = True
