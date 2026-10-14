@@ -10,7 +10,7 @@ def call(method, path, body=None, raw=None, headers=None):
     try:
         with urllib.request.urlopen(r) as f:
             t = f.read(); return f.status, (json.loads(t) if t else {})
-    except urllib.error.HTTPError as e: return e.code, {'testo': e.read().decode()[:500]}
+    except urllib.error.HTTPError as e: return e.code, {'testo': e.read().decode()[:20000]}
 def esito(nome, r):
     s, j = r; print(f"{nome}: {'ok' if s < 300 else s} {'' if s < 300 else j.get('testo', '')}"); return j
 WEB = 'https://attrezzatidario-web.github.io/spese-casa/'
@@ -40,13 +40,11 @@ if s == 200:
     for _ in range(6):
         st, jj = call('PATCH', f'/v1/ageRatingDeclarations/{rid}', {'data': {'type': 'ageRatingDeclarations', 'id': rid, 'attributes': att}})
         if st < 300: print('Età: ok'); break
-        errs = json.loads(jj['testo']).get('errors', []) if jj.get('testo', '').startswith('{') else []
-        changed = False
-        for e in errs:
-            m = re.search(r"attribute '(\w+)'\. Expected a (\w+)", e.get('detail', ''))
-            if m: att[m.group(1)] = False if m.group(2) == 'BOOLEAN' else 'NONE'; changed = True
-            else:
-                k = (e.get('source') or {}).get('pointer', '').split('/')[-1]
+        txt = jj.get('testo', ''); changed = False
+        for k, ty in re.findall(r"attribute '(\w+)'\. Expected a (\w+)", txt):
+            att[k] = False if ty == 'BOOLEAN' else 'NONE'; changed = True
+        if not changed:
+            for k in re.findall(r'"pointer" : "/data/attributes/(\w+)"', txt):
                 if k in att: att.pop(k); changed = True
         if not changed: print('Età:', st, jj.get('testo', '')[:600]); break
 # --- prezzo: gratis
