@@ -25,7 +25,7 @@
         'sito: dominio web ufficiale del negozio in Italia (es. "conad.it"), stringa vuota se non lo sai. ' +
         'note: elenco breve dei principali articoli (max 120 caratteri). ' +
         'Se è un rifornimento di carburante: litri erogati (numero) e prezzoLitro in €/L, altrimenti 0 e 0. ' +
-        'detrazione: se la spesa è detraibile nel 730 indica il tipo tra ' + DETR_TIPI.join(', ') + ' (farmacia, visite, ticket, ottico = sanitarie; veterinario = veterinarie), altrimenti stringa vuota. ' +
+        'detrazione: se la spesa è detraibile nel 730 indica il tipo tra ' + DETR_TIPI.join(', ') + ' (farmacia, visite, ticket, ottico = sanitarie; veterinario = veterinarie), altrimenti "nessuna". ' +
         'acquistati: tra questi prodotti della lista della spesa ' + JSON.stringify(req.lista || []) + ' restituisci SOLO quelli (scritti esattamente come nella lista) che risultano acquistati nello scontrino; array vuoto se nessuno. ' +
         'Se l\'immagine non è uno scontrino imposta valido=false.',
       schema: cats => S('OBJECT', {
@@ -33,7 +33,7 @@
           valido: S('BOOLEAN'), negozio: S('STRING'), importo: S('NUMBER'), data: S('STRING'),
           categoria: S('STRING', { enum: cats }), metodo: S('STRING', { enum: METODI }),
           sito: S('STRING'), note: S('STRING'), litri: S('NUMBER'), prezzoLitro: S('NUMBER'),
-          detrazione: S('STRING', { enum: [''].concat(DETR_TIPI) }), acquistati: S('ARRAY', { items: S('STRING') })
+          detrazione: S('STRING', { enum: ['nessuna'].concat(DETR_TIPI) }), acquistati: S('ARRAY', { items: S('STRING') })
         },
         required: ['valido', 'negozio', 'importo', 'data', 'categoria', 'metodo', 'sito', 'note', 'litri', 'prezzoLitro', 'detrazione', 'acquistati']
       })
