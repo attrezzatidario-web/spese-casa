@@ -24,6 +24,18 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Spese Casa usa la fotocamera per fotografare scontrini, bollette e documenti.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Spese Casa accede alle foto per allegare scontrini, bollette e documenti.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Spese Casa salva nelle foto i documenti che scegli di esportare.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Spese Casa usa il microfono per registrare le spese dettate a voce.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Spese Casa trascrive la voce per aggiungere le spese dettate.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Spese Casa usa Face ID per sbloccare l'app in sicurezza.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
