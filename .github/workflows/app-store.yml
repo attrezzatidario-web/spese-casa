@@ -5,6 +5,10 @@ name: App per App Store
 # Segreto richiesto: APPLE_API_KEY_P8 (contenuto del file AuthKey_LCF88DU9P8.p8)
 on:
   workflow_dispatch:
+    inputs:
+      versione:
+        description: 'Numero di versione (es. 1.1)'
+        default: '1.1'
 
 env:
   APPLE_TEAM_ID: 7H2M8DRSBF
@@ -42,7 +46,7 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
-            CURRENT_PROJECT_VERSION="$SC_BUILD" MARKETING_VERSION=1.0 \
+            CURRENT_PROJECT_VERSION="$SC_BUILD" MARKETING_VERSION="${{ inputs.versione || '1.1' }}" \
             archive | tail -n 60
           test -d "$RUNNER_TEMP/SpeseCasa.xcarchive"
       - name: Carica su App Store Connect
@@ -63,7 +67,7 @@ jobs:
             -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/out" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
-          echo "### Caricata la build 1.0 ($SC_BUILD) su App Store Connect" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Caricata la build ${{ inputs.versione }} ($SC_BUILD) su App Store Connect" >> "$GITHUB_STEP_SUMMARY"
           echo "Tra 10-30 minuti la trovi in App Store Connect > Spese Casa > TestFlight." >> "$GITHUB_STEP_SUMMARY"
       - name: Pulizia
         if: always()
